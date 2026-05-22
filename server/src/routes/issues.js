@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { Issue } from '../models/Issue.js';
+import Game from '../models/Game.js';
 import { sendDiscordNotification } from '../services/discord.js';
 
 const router = Router();
@@ -14,9 +15,14 @@ router.post('/', async (req, res, next) => {
     const issue = await Issue.create(body);
 
     // Fire-and-forget — don't block the response on Discord.
-    sendDiscordNotification(issue).catch((err) =>
-      console.warn('[discord] notification failed:', err.message),
-    );
+    (async () => {
+      try {
+        const game = issue.gameId ? await Game.findById(issue.gameId).select('discordWebhookUrl').lean() : null;
+        await sendDiscordNotification(issue, game?.discordWebhookUrl || '');
+      } catch (err) {
+        console.warn('[discord] notification failed:', err.message);
+      }
+    })();
 
     res.status(201).json({ id: issue._id });
   } catch (err) {

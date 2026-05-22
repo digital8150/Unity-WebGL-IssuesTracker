@@ -1,7 +1,7 @@
 import React from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 
-export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, renderOverlay }) {
+export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, renderOverlay, inputBlocked }) {
   const { unityProvider, sendMessage, isLoaded, loadingProgression } = useUnityContext({
     loaderUrl,
     dataUrl,
@@ -13,7 +13,8 @@ export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, r
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Unity
         unityProvider={unityProvider}
-        style={{ width: '100%', height: '100%', background: '#000' }}
+        style={{ width: '100%', height: '100%', background: '#000', pointerEvents: inputBlocked ? 'none' : 'auto' }}
+        tabIndex={inputBlocked ? -1 : 0}
       />
       {!isLoaded && (
         <div style={loadingStyle}>

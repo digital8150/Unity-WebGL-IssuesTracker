@@ -5,6 +5,9 @@ build/
 .env.local
 *.log
 
+# Server builds
+server/storage/builds/
+
 # Unity
 unity/Library/
 unity/Temp/

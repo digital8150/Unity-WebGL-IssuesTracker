@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useI18n } from '../i18n.jsx';
 import { getGame, uploadBuild, activateBuild, getGameReports, updateGame } from '../api.js';
 import './DashboardPage.css';
 import './GameDetailPage.css';
 
-function fmtDate(iso) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+function fmtDate(iso, lang) {
+  return new Date(iso).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  });
 }
 
 export default function GameDetailPage() {
   const { gameId } = useParams();
   const navigate = useNavigate();
+  const { lang, toggleLang, t } = useI18n();
 
   const [game, setGame] = useState(null);
   const [builds, setBuilds] = useState([]);
@@ -43,7 +48,7 @@ export default function GameDetailPage() {
     e.preventDefault();
     const files = fileInputRef.current?.files;
     if (!files || !files.length) {
-      setUploadError('Select at least one file');
+      setUploadError(t.gameDetail.chooseFiles);
       return;
     }
     setUploadError('');
@@ -83,6 +88,8 @@ export default function GameDetailPage() {
     }
   }
 
+  const td = t.gameDetail;
+
   if (loading) {
     return (
       <div className="dash-layout">
@@ -90,7 +97,7 @@ export default function GameDetailPage() {
           <div className="dash-logo">BugDrop</div>
         </aside>
         <main className="dash-main">
-          <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
+          <p className="dash-loading">{t.loading}</p>
         </main>
       </div>
     );
@@ -103,8 +110,13 @@ export default function GameDetailPage() {
       <aside className="dash-sidebar">
         <div className="dash-logo">BugDrop</div>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard">← All Games</Link>
+          <Link className="dash-nav-item" to="/dashboard">{td.back}</Link>
         </nav>
+        <div className="dash-sidebar-footer">
+          <button className="dash-footer-btn" onClick={toggleLang}>
+            {lang === 'en' ? '한국어' : 'English'}
+          </button>
+        </div>
       </aside>
 
       <main className="dash-main">
@@ -112,7 +124,7 @@ export default function GameDetailPage() {
           <div>
             <h1 className="dash-page-title">{game.name}</h1>
             <p className="dash-page-sub">
-              Play URL:{' '}
+              {td.playUrl}:{' '}
               <a className="gd-play-link" href={playUrl} target="_blank" rel="noopener noreferrer">
                 {window.location.origin}{playUrl}
               </a>
@@ -123,31 +135,31 @@ export default function GameDetailPage() {
         {/* Tabs */}
         <div className="gd-tabs">
           <button className={`gd-tab${tab === 'builds' ? ' active' : ''}`} onClick={() => setTab('builds')}>
-            Builds ({builds.length})
+            {td.builds} ({builds.length})
           </button>
           <button className={`gd-tab${tab === 'reports' ? ' active' : ''}`} onClick={() => setTab('reports')}>
-            Reports ({reports.length})
+            {td.reports} ({reports.length})
           </button>
           <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
-            Settings
+            {td.settings}
           </button>
         </div>
 
-        {/* ── Builds tab ── */}
+        {/* ── Builds ── */}
         {tab === 'builds' && (
           <div className="gd-section">
-            <h2 className="gd-section-title">Upload new build</h2>
+            <h2 className="gd-section-title">{td.uploadTitle}</h2>
             <form className="gd-upload-form" onSubmit={handleUpload}>
               <div className="gd-upload-row">
                 <input
                   type="text"
                   className="form-input gd-version-input"
-                  placeholder="Version (optional, e.g. 1.2.0)"
+                  placeholder={td.versionPlaceholder}
                   value={uploadVersion}
                   onChange={(e) => setUploadVersion(e.target.value)}
                 />
                 <label className="btn btn-ghost gd-file-label">
-                  Choose files
+                  {td.chooseFiles}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -156,26 +168,24 @@ export default function GameDetailPage() {
                     style={{ display: 'none' }}
                   />
                 </label>
-                <button type="submit" className="btn btn-primary" disabled={uploading}>
-                  {uploading ? 'Uploading…' : 'Upload'}
+                <button type="submit" className="btn btn-primary btn-sm" disabled={uploading}>
+                  {uploading ? td.uploading : td.upload}
                 </button>
               </div>
-              <p className="gd-upload-hint">
-                Select the 4 files from your Unity WebGL Build/ folder: <code>*.loader.js</code>, <code>*.data</code>, <code>*.framework.js</code>, <code>*.wasm</code> (compressed variants accepted).
-              </p>
+              <p className="gd-upload-hint">{td.uploadHint}</p>
               {uploadError && <div className="gd-error">{uploadError}</div>}
             </form>
 
             {builds.length === 0 ? (
-              <p className="gd-empty-text">No builds uploaded yet.</p>
+              <p className="gd-empty-text">{td.noBuilds}</p>
             ) : (
               <div className="gd-build-list">
                 {builds.map((b) => (
                   <div key={b._id} className={`gd-build-row${b.isActive ? ' active' : ''}`}>
                     <div className="gd-build-meta">
-                      {b.isActive && <span className="gd-badge">Active</span>}
-                      <span className="gd-build-version">{b.version || 'No version'}</span>
-                      <span className="gd-build-date">{fmtDate(b.createdAt)}</span>
+                      {b.isActive && <span className="gd-badge">{td.active}</span>}
+                      <span className="gd-build-version">{b.version || '—'}</span>
+                      <span className="gd-build-date">{fmtDate(b.createdAt, lang)}</span>
                     </div>
                     <div className="gd-build-files">
                       {['loader', 'data', 'framework', 'wasm'].map((role) =>
@@ -188,7 +198,7 @@ export default function GameDetailPage() {
                     </div>
                     {!b.isActive && (
                       <button className="btn btn-ghost gd-activate-btn" onClick={() => handleActivate(b._id)}>
-                        Set active
+                        {td.setActive}
                       </button>
                     )}
                   </div>
@@ -198,32 +208,36 @@ export default function GameDetailPage() {
           </div>
         )}
 
-        {/* ── Reports tab ── */}
+        {/* ── Reports ── */}
         {tab === 'reports' && (
           <div className="gd-section">
             {reports.length === 0 ? (
-              <p className="gd-empty-text">No reports yet. Share the play URL with testers.</p>
+              <p className="gd-empty-text">{td.noReports}</p>
             ) : (
               <div className="gd-report-list">
                 {reports.map((r) => (
-                  <div key={r._id} className="gd-report-row">
+                  <Link key={r._id} className="gd-report-row" to={`/dashboard/games/${gameId}/issues/${r._id}`}>
                     <div className="gd-report-title">{r.title}</div>
                     <div className="gd-report-meta">
-                      {r.description && <span className="gd-report-desc">{r.description.slice(0, 80)}{r.description.length > 80 ? '…' : ''}</span>}
-                      <span className="gd-report-date">{fmtDate(r.createdAt)}</span>
+                      {r.description && (
+                        <span className="gd-report-desc">
+                          {r.description.slice(0, 80)}{r.description.length > 80 ? '…' : ''}
+                        </span>
+                      )}
+                      <span className="gd-report-date">{fmtDate(r.createdAt, lang)}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Settings tab ── */}
+        {/* ── Settings ── */}
         {tab === 'settings' && (
           <div className="gd-section">
-            <h2 className="gd-section-title">Discord webhook</h2>
-            <p className="gd-section-desc">New reports will be forwarded to this webhook. Leave blank to use the server-level fallback.</p>
+            <h2 className="gd-section-title">{td.discordTitle}</h2>
+            <p className="gd-section-desc">{td.discordDesc}</p>
             {editingWebhook ? (
               <form className="gd-webhook-form" onSubmit={handleSaveWebhook}>
                 <input
@@ -234,17 +248,21 @@ export default function GameDetailPage() {
                   onChange={(e) => setWebhookVal(e.target.value)}
                   autoFocus
                 />
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button type="submit" className="btn btn-primary" disabled={savingWebhook}>
-                    {savingWebhook ? 'Saving…' : 'Save'}
+                <div className="gd-webhook-actions">
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={savingWebhook}>
+                    {savingWebhook ? td.saving : td.save}
                   </button>
-                  <button type="button" className="btn btn-ghost" onClick={() => setEditingWebhook(false)}>Cancel</button>
+                  <button type="button" className="btn btn-ghost" onClick={() => setEditingWebhook(false)}>
+                    {td.cancel}
+                  </button>
                 </div>
               </form>
             ) : (
               <div className="gd-webhook-display">
-                <span className="gd-webhook-val">{game.discordWebhookUrl || <em style={{ color: 'var(--text-dim)' }}>Not set</em>}</span>
-                <button className="btn btn-ghost" onClick={() => setEditingWebhook(true)}>Edit</button>
+                <span className="gd-webhook-val">
+                  {game.discordWebhookUrl || <em className="gd-not-set">{td.notSet}</em>}
+                </span>
+                <button className="btn btn-ghost" onClick={() => setEditingWebhook(true)}>{td.edit}</button>
               </div>
             )}
           </div>

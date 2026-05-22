@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useI18n } from '../i18n.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 import { listGames, createGame } from '../api.js';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
+  const { lang, toggleLang, t } = useI18n();
   const navigate = useNavigate();
 
   const [games, setGames] = useState([]);
@@ -46,10 +48,11 @@ export default function DashboardPage() {
 
   return (
     <div className="dash-layout">
+      {/* Sidebar */}
       <aside className="dash-sidebar">
         <div className="dash-logo">BugDrop</div>
         <nav className="dash-nav">
-          <span className="dash-nav-item active">Games</span>
+          <span className="dash-nav-item active">{t.dash.title}</span>
         </nav>
         <div className="dash-sidebar-footer">
           <div className="dash-user">
@@ -59,18 +62,22 @@ export default function DashboardPage() {
               <div className="dash-user-email">{user?.email}</div>
             </div>
           </div>
-          <button className="dash-logout" onClick={handleLogout}>Sign out</button>
+          <button className="dash-footer-btn" onClick={toggleLang}>
+            {lang === 'en' ? '한국어' : 'English'}
+          </button>
+          <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
       </aside>
 
+      {/* Main */}
       <main className="dash-main">
         <header className="dash-header">
           <div>
-            <h1 className="dash-page-title">Games</h1>
-            <p className="dash-page-sub">Manage your Unity WebGL builds and bug reports</p>
+            <h1 className="dash-page-title">{t.dash.title}</h1>
+            <p className="dash-page-sub">{t.dash.sub}</p>
           </div>
-          <button className="btn btn-primary" onClick={() => { setShowForm(true); setFormError(''); }}>
-            + New Game
+          <button className="btn btn-primary btn-sm" onClick={() => { setShowForm(true); setFormError(''); }}>
+            {t.dash.newGame}
           </button>
         </header>
 
@@ -79,17 +86,17 @@ export default function DashboardPage() {
             <div className="dash-create-row">
               <input
                 className="form-input"
-                placeholder="Game name"
+                placeholder={t.dash.gameName}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 autoFocus
                 required
               />
-              <button type="submit" className="btn btn-primary" disabled={creating}>
-                {creating ? 'Creating…' : 'Create'}
+              <button type="submit" className="btn btn-primary btn-sm" disabled={creating}>
+                {creating ? t.dash.creating : t.dash.create}
               </button>
               <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>
-                Cancel
+                {t.dash.cancel}
               </button>
             </div>
             {formError && <div className="dash-form-error">{formError}</div>}
@@ -97,23 +104,19 @@ export default function DashboardPage() {
         )}
 
         {loading ? (
-          <div className="dash-empty"><p style={{ color: 'var(--text-muted)' }}>Loading…</p></div>
+          <div className="dash-empty"><p className="dash-loading">{t.dash.loading}</p></div>
         ) : games.length === 0 ? (
           <div className="dash-empty">
-            <div className="dash-empty-icon">🎮</div>
-            <h2 className="dash-empty-title">No games yet</h2>
-            <p className="dash-empty-desc">
-              Create your first game to upload a Unity WebGL build and start collecting bug reports.
-            </p>
-            <button className="btn btn-primary" onClick={() => { setShowForm(true); setFormError(''); }}>
-              Create your first game
+            <h2 className="dash-empty-title">{t.dash.noGames}</h2>
+            <p className="dash-empty-desc">{t.dash.noGamesDesc}</p>
+            <button className="btn btn-primary btn-sm" onClick={() => { setShowForm(true); setFormError(''); }}>
+              {t.dash.createFirst}
             </button>
           </div>
         ) : (
           <div className="dash-game-grid">
             {games.map((game) => (
               <Link key={game._id} className="dash-game-card" to={`/dashboard/games/${game._id}`}>
-                <div className="dash-game-icon">🎮</div>
                 <div className="dash-game-info">
                   <div className="dash-game-name">{game.name}</div>
                   <div className="dash-game-slug">/{game.slug}</div>

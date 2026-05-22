@@ -38,6 +38,13 @@ export default function PlayPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Blur Unity canvas when overlay opens so keyboard events stop reaching the game.
+  useEffect(() => {
+    if (overlayOpen) {
+      document.activeElement?.blur();
+    }
+  }, [overlayOpen]);
+
   useEffect(() => {
     window.__issueTrackerReceive = async (payloadJson) => {
       try {
@@ -103,6 +110,7 @@ export default function PlayPage() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       <UnityGame
         {...urls}
+        inputBlocked={overlayOpen}
         renderOverlay={(sendMessage) => (
           <>
             <button onClick={() => setOverlayOpen(true)} style={overlayButtonStyle}>

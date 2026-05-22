@@ -1,7 +1,8 @@
-const WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
+const GLOBAL_WEBHOOK = process.env.DISCORD_WEBHOOK_URL;
 
-export async function sendDiscordNotification(issue) {
-  if (!WEBHOOK) return;
+export async function sendDiscordNotification(issue, webhookUrl) {
+  const url = webhookUrl || GLOBAL_WEBHOOK;
+  if (!url) return;
 
   const exception = (issue.logs ?? []).find((l) => l.type === 'Exception');
   const snippet = exception
@@ -30,7 +31,7 @@ export async function sendDiscordNotification(issue) {
     footer: { text: `issue ${issue._id}` },
   };
 
-  const res = await fetch(WEBHOOK, {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ embeds: [embed] }),

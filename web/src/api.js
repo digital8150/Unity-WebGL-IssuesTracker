@@ -75,6 +75,10 @@ export async function getGameReports(gameId) {
   return request(`/api/games/${gameId}/reports`);
 }
 
+export async function getIssue(issueId) {
+  return request(`/api/issues/${issueId}`);
+}
+
 // ── Play (public) ─────────────────────────────────────────────────────────────
 
 export async function getPlayInfo(gameSlug, buildId = null) {
