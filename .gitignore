@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# Unity
+unity/Library/
+unity/Temp/
+unity/Logs/
+unity/obj/
+unity/Build/
+unity/UserSettings/
+
+# Web public Unity build artifacts
+web/public/unity/

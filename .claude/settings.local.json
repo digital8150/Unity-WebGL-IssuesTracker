@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\server\\\\src\\\\middleware\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\web\\\\src\\\\context\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\web\\\\src\\\\pages\")",
+      "Bash(find /e/repos/unity-webgl-issuetracker/server -type f -not -path \"*/node_modules/*\" 2>/dev/null | sort)",
+      "Read(//e/repos/unity-webgl-issuetracker/server/**)",
+      "Bash(find /e/repos/unity-webgl-issuetracker/web -type f -not -path \"*/node_modules/*\" 2>/dev/null | sort)",
+      "Read(//e/repos/unity-webgl-issuetracker/web/**)"
+    ]
+  }
+}
