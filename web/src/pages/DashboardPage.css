@@ -316,10 +316,9 @@
   background: var(--color-link-bg-soft);
   color: var(--color-link-deep);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.04em;
   flex-shrink: 0;
-  font-family: var(--font-mono);
 }
 
 .dash-game-name {

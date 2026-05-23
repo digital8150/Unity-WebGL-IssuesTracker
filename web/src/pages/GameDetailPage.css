@@ -99,9 +99,9 @@
 
 .gd-empty-text {
   font-size: 14px;
+  font-weight: 300;
   color: var(--color-mute);
   padding: var(--space-xl) 0;
-  font-family: var(--font-mono);
 }
 
 /* ── Build list ── */
@@ -146,12 +146,11 @@
   background: var(--color-primary);
   color: var(--color-on-primary);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   padding: 3px 9px;
   border-radius: var(--radius-full);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-family: var(--font-mono);
   flex-shrink: 0;
 }
 
@@ -164,8 +163,8 @@
 
 .gd-build-date {
   font-size: 12px;
+  font-weight: 300;
   color: var(--color-mute);
-  font-family: var(--font-mono);
 }
 
 .gd-build-files {
@@ -176,12 +175,12 @@
 
 .gd-file-chip {
   font-size: 11px;
+  font-weight: 400;
   padding: 3px 7px;
   border-radius: var(--radius-xs);
   background: var(--color-canvas-soft);
   color: var(--color-mute);
   border: 1px solid var(--color-hairline);
-  font-family: var(--font-mono);
 }
 
 .gd-file-chip.missing {
@@ -226,9 +225,9 @@
 
 .gd-storage-summary {
   font-size: 12px;
+  font-weight: 300;
   color: var(--color-mute);
   margin-bottom: var(--space-sm);
-  font-family: var(--font-mono);
 }
 
 .gd-storage-summary strong {
@@ -299,8 +298,8 @@
 
 .gd-filter-count {
   font-size: 12px;
+  font-weight: 300;
   color: var(--color-mute);
-  font-family: var(--font-mono);
   white-space: nowrap;
 }
 
@@ -359,12 +358,12 @@
 
 .gd-tag-chip {
   font-size: 10px;
+  font-weight: 400;
   padding: 2px 7px;
   border-radius: var(--radius-full);
   background: var(--color-canvas-soft);
   color: var(--color-mute);
   border: 1px solid var(--color-hairline);
-  font-family: var(--font-mono);
 }
 
 .gd-report-meta {
@@ -384,9 +383,9 @@
 
 .gd-report-date {
   font-size: 11px;
+  font-weight: 300;
   color: var(--color-mute);
   flex-shrink: 0;
-  font-family: var(--font-mono);
 }
 
 /* Quick status selector on row */
@@ -413,10 +412,9 @@
   padding: 0 8px;
   border-radius: var(--radius-full);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  font-family: var(--font-mono);
   flex-shrink: 0;
 }
 
@@ -739,9 +737,9 @@
 
 .gd-arcade-counter {
   font-size: 11px;
+  font-weight: 300;
   color: var(--color-mute);
   text-align: right;
-  font-family: var(--font-mono);
   margin-top: 4px;
 }
 

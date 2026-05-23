@@ -842,7 +842,7 @@ export default function GameDetailPage() {
         setIsOwner(game.isOwner ?? true);
         setWebhookVal(game.discordWebhookUrl || '');
       })
-      .catch(() => navigate('/dashboard', { replace: true }))
+      .catch((err) => { console.error('[GameDetail] load failed:', err); navigate('/dashboard', { replace: true }); })
       .finally(() => setLoading(false));
   }, [gameId]);
 
