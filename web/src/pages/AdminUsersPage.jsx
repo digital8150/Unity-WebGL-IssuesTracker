@@ -18,6 +18,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
   const [busyId, setBusyId] = useState(null);
+  const [quotaEdit, setQuotaEdit] = useState(null); // { userId, valueMB }
 
   useEffect(() => {
     refresh();
@@ -45,6 +46,13 @@ export default function AdminUsersPage() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function handleQuotaSave(userId) {
+    const mb = parseFloat(quotaEdit.valueMB);
+    if (!Number.isFinite(mb) || mb < 0) return;
+    setQuotaEdit(null);
+    await patch(userId, { storageQuota: Math.round(mb * 1024 * 1024) });
   }
 
   async function handleDelete(userId) {
@@ -128,6 +136,7 @@ export default function AdminUsersPage() {
                   <th>{t.admin.role}</th>
                   <th>{t.admin.status}</th>
                   <th>{t.admin.joined}</th>
+                  <th>{t.admin.quota}</th>
                   <th className="adm-action-col">{t.admin.actions}</th>
                 </tr>
               </thead>
@@ -150,6 +159,55 @@ export default function AdminUsersPage() {
                       <td><span className={`adm-status ${u.status}`}>{t.admin.statuses[u.status]}</span></td>
                       <td className="adm-date">
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="adm-quota-cell">
+                        {quotaEdit?.userId === u.id ? (
+                          <div className="adm-quota-editor">
+                            <input
+                              className="adm-quota-input"
+                              type="number"
+                              min="0"
+                              step="100"
+                              value={quotaEdit.valueMB}
+                              onChange={(e) => setQuotaEdit({ ...quotaEdit, valueMB: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleQuotaSave(u.id);
+                                if (e.key === 'Escape') setQuotaEdit(null);
+                              }}
+                              autoFocus
+                            />
+                            <span className="adm-quota-unit">{t.admin.quotaUnit}</span>
+                            <button
+                              className="adm-btn adm-quota-save"
+                              disabled={busy}
+                              onClick={() => handleQuotaSave(u.id)}
+                            >
+                              {t.admin.quotaSave}
+                            </button>
+                            <button
+                              className="adm-btn"
+                              onClick={() => setQuotaEdit(null)}
+                            >
+                              {t.admin.quotaCancel}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="adm-quota-display">
+                            <span className="adm-quota-value">
+                              {Math.round((u.storageQuota ?? 500 * 1024 * 1024) / (1024 * 1024))} {t.admin.quotaUnit}
+                            </span>
+                            <button
+                              className="adm-quota-edit-btn"
+                              title={t.admin.quotaEdit}
+                              onClick={() => setQuotaEdit({
+                                userId: u.id,
+                                valueMB: Math.round((u.storageQuota ?? 500 * 1024 * 1024) / (1024 * 1024)),
+                              })}
+                            >
+                              ✎
+                            </button>
+                          </div>
+                        )}
                       </td>
                       <td className="adm-actions">
                         {u.status !== 'approved' && (

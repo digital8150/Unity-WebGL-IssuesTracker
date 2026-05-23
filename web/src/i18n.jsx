@@ -168,6 +168,11 @@ const translations = {
       lastAdminError: 'Cannot demote or delete the last admin.',
       githubBadge: 'GitHub',
       discordBadge: 'Discord',
+      quota: 'Quota',
+      quotaEdit: 'Edit quota',
+      quotaSave: 'Save',
+      quotaCancel: 'Cancel',
+      quotaUnit: 'MB',
     },
     gameDetail: {
       back: '← All Games',
@@ -510,6 +515,11 @@ const translations = {
       lastAdminError: '마지막 관리자는 권한 변경 또는 삭제할 수 없습니다.',
       githubBadge: 'GitHub',
       discordBadge: 'Discord',
+      quota: '할당량',
+      quotaEdit: '할당량 편집',
+      quotaSave: '저장',
+      quotaCancel: '취소',
+      quotaUnit: 'MB',
     },
     gameDetail: {
       back: '← 전체 게임',

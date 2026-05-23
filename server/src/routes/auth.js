@@ -30,6 +30,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     status: user.status,
+    storageQuota: user.storageQuota ?? 500 * 1024 * 1024,
   };
 }
 
@@ -277,6 +278,7 @@ router.get('/admin/users', requireAuth, requireApproved, requireAdmin, async (re
         createdAt: u.createdAt,
         hasGithub: Boolean(u.githubId),
         hasDiscord: Boolean(u.discordId),
+        storageQuota: u.storageQuota ?? 500 * 1024 * 1024,
       })),
     });
   } catch (err) {
@@ -291,10 +293,17 @@ router.patch(
   requireAdmin,
   async (req, res, next) => {
     try {
-      const { status, role } = req.body;
+      const { status, role, storageQuota } = req.body;
       const update = {};
       if (status && ['pending', 'approved', 'rejected'].includes(status)) update.status = status;
       if (role && ['user', 'admin'].includes(role)) update.role = role;
+      if (storageQuota !== undefined) {
+        const quota = Number(storageQuota);
+        if (!Number.isFinite(quota) || quota < 0) {
+          return res.status(400).json({ error: 'storageQuota must be a non-negative number' });
+        }
+        update.storageQuota = Math.round(quota);
+      }
       if (!Object.keys(update).length) return res.status(400).json({ error: 'Nothing to update' });
 
       // Prevent demoting the last admin.
