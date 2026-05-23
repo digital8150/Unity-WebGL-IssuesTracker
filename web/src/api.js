@@ -1,4 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+// Upload subdomain bypasses Cloudflare proxy — no size/speed limits.
+const UPLOAD_BASE = import.meta.env.VITE_UPLOAD_BASE ?? API_BASE;
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
@@ -10,11 +12,12 @@ async function request(path, options = {}) {
   return body;
 }
 
-async function requestRaw(path, options = {}) {
+async function requestRaw(path, options = {}, useUploadBase = false) {
   const token = localStorage.getItem('token');
   const headers = { ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  const base = useUploadBase ? UPLOAD_BASE : API_BASE;
+  const res = await fetch(`${base}${path}`, { ...options, headers });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
   return body;
@@ -60,7 +63,7 @@ export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1
   fd.append('canvasWidth',  String(canvasWidth));
   fd.append('canvasHeight', String(canvasHeight));
   for (const file of files) fd.append('files', file);
-  return requestRaw(`/api/games/${gameId}/builds`, { method: 'POST', body: fd });
+  return requestRaw(`/api/games/${gameId}/builds`, { method: 'POST', body: fd }, true);
 }
 
 export async function activateBuild(gameId, buildId) {
@@ -143,7 +146,7 @@ export async function getArcadeGames() {
 export async function uploadThumbnail(gameId, file) {
   const fd = new FormData();
   fd.append('file', file);
-  return requestRaw(`/api/games/${gameId}/thumbnail`, { method: 'POST', body: fd });
+  return requestRaw(`/api/games/${gameId}/thumbnail`, { method: 'POST', body: fd }, true);
 }
 
 export async function deleteThumbnail(gameId) {
