@@ -10,14 +10,19 @@ export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, o
   });
   const [focused, setFocused] = useState(false);
   const containerRef = useRef(null);
+  const unloadRef = useRef(unload);
+
+  useEffect(() => { unloadRef.current = unload; }, [unload]);
 
   useEffect(() => {
     if (isLoaded) onReady?.(sendMessage);
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Run only on unmount. Using a ref avoids re-running (and premature cleanup)
+  // every time useUnityContext re-creates the unload reference during loading.
   useEffect(() => {
-    return () => { unload(); };
-  }, [unload]);
+    return () => { unloadRef.current(); };
+  }, []);
 
   // Once the game is loaded, tell the browser not to activate IME on the canvas.
   // Without this, Korean IME intercepts A/S/D (ㅁ/ㄴ/ㅇ) as composition keys
