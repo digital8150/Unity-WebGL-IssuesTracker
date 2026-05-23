@@ -4,6 +4,8 @@ import { collectBrowserMetadata } from '../browserMetadata.js';
 import { postIssue, getPlayInfo, getPublicIssues, voteIssue, addComment, getIssue } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import BrandLogo from '../components/BrandLogo.jsx';
+import './LandingPage.css';
 
 // ── UA helpers ────────────────────────────────────────────────────────────────
 
@@ -64,6 +66,7 @@ export default function ReportPage() {
 
   const browserMeta = useRef(collectBrowserMetadata());
   const unityData = useRef(null);
+  const navRef = useRef(null);
 
   useEffect(() => {
     if (gameSlug) {
@@ -77,6 +80,14 @@ export default function ReportPage() {
       try { unityData.current = JSON.parse(stored); } catch {}
     }
   }, [gameSlug, buildId]);
+
+  useEffect(() => {
+    function onScroll() {
+      navRef.current?.classList.toggle('scrolled', window.scrollY > 8);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Load board once on mount when gameSlug is known
   useEffect(() => {
@@ -171,22 +182,34 @@ export default function ReportPage() {
 
   return (
     <div style={pageWrap}>
-      <nav style={subNav}>
-        <div style={subNavInner}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <span style={subNavName}>{t.report.navTitle}: {gameName}</span>
-            <button className="l-lang-toggle" onClick={toggleLang} style={langToggleStyle}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            {!user && (
-              <Link to="/login" style={subNavCta}>{t.nav.signIn}</Link>
-            )}
-            <button onClick={() => window.close()} style={subNavCta}>{t.report.backToGame}</button>
-          </div>
+      {/* ── Global Nav ── */}
+      <nav className="l-nav" ref={navRef}>
+        <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
+        <div className="l-nav-links">
+          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
+          <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
+            {lang === 'en' ? '한국어' : 'English'}
+          </button>
+          {user ? (
+            <Link
+              to={user.status === 'approved' ? '/dashboard' : '/pending'}
+              className="btn btn-primary btn-sm"
+            >
+              {t.nav.dashboard}
+            </Link>
+          ) : (
+            <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
+          )}
         </div>
       </nav>
+
+      {/* ── Report context bar ── */}
+      <div style={contextBar}>
+        <div style={contextBarInner}>
+          <span style={contextTitle}>{t.report.navTitle}: {gameName}</span>
+          <button onClick={() => window.close()} style={backBtn}>{t.report.backToGame}</button>
+        </div>
+      </div>
 
       {/* ── Report form section ── */}
       <section style={reportSection}>
@@ -264,7 +287,7 @@ export default function ReportPage() {
 
       {/* ── Browse Reports section (full width, below form) ── */}
       {gameSlug && (
-        <section style={boardSection}>
+        <section style={boardSection} id="board">
           <div style={container}>
             <h2 style={boardSectionTitle}>{tb.title}</h2>
             {boardLoading ? (
@@ -385,6 +408,12 @@ export default function ReportPage() {
           </div>
         </section>
       )}
+
+      {/* ── Footer ── */}
+      <footer className="l-footer">
+        <span className="l-footer-logo"><BrandLogo size="sm" /></span>
+        <span className="l-footer-copy">{t.footer.tagline}</span>
+      </footer>
     </div>
   );
 }
@@ -467,10 +496,6 @@ const PARCH   = '#fafafa';
 const HAIRLINE= '#ebebeb';
 const BLUE    = '#171717';
 
-const langToggleStyle = {
-  background: 'none', border: `1px solid ${HAIRLINE}`,
-  borderRadius: 6, padding: '4px 8px', fontSize: 11, cursor: 'pointer', color: MUTED,
-};
 const centeredPage = {
   minHeight: '100vh', display: 'flex', flexDirection: 'column',
   alignItems: 'center', justifyContent: 'center', fontFamily: FONT, background: '#fff',
@@ -479,23 +504,26 @@ const errSub    = { fontSize: 14, color: MUTED, marginTop: 8 };
 const pageWrap  = { fontFamily: FONT, background: '#fff', minHeight: '100vh', color: INK };
 const container = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
 
-const subNav = {
-  position: 'sticky', top: 0, zIndex: 100,
-  background: 'rgba(245,245,247,0.85)',
+/* report context bar (secondary, below global nav) */
+const contextBar = {
+  position: 'sticky',
+  top: 'var(--nav-height)',
+  zIndex: 100,
+  background: 'rgba(250,250,250,0.88)',
   backdropFilter: 'blur(20px) saturate(180%)',
   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderBottom: `1px solid ${HAIRLINE}`, height: 52,
+  borderBottom: `1px solid ${HAIRLINE}`,
+  height: 44,
 };
-const subNavInner = {
+const contextBarInner = {
   maxWidth: 1080, margin: '0 auto', padding: '0 24px',
   height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
 };
-const subNavName = { fontSize: 17, fontWeight: 600, color: INK, letterSpacing: '-0.374px' };
-const subNavCta  = {
-  padding: '8px 18px', background: '#e0e0e0', color: INK,
+const contextTitle = { fontSize: 14, fontWeight: 600, color: INK, letterSpacing: '-0.02em' };
+const backBtn = {
+  padding: '0 14px', height: 28, background: '#e8e8e8', color: INK,
   border: 'none', borderRadius: 9999, cursor: 'pointer',
-  fontSize: 14, fontWeight: 400, fontFamily: FONT, textDecoration: 'none',
-  display: 'inline-flex', alignItems: 'center',
+  fontSize: 12, fontWeight: 500, fontFamily: FONT,
 };
 
 const reportSection = { background: PARCH, padding: '56px 0 64px' };
@@ -536,7 +564,7 @@ const debugAside = { display: 'flex', flexDirection: 'column' };
 const debugCard  = { background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 18, padding: '16px 18px' };
 const debugCardTitle = {
   fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-  textTransform: 'uppercase', color: HAIRLINE, margin: '0 0 10px',
+  textTransform: 'uppercase', color: '#777', margin: '0 0 10px',
 };
 const tableBlock = { background: PARCH, borderRadius: 8, overflow: 'hidden', border: `1px solid ${HAIRLINE}` };
 const infoRow    = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px', borderBottom: `1px solid ${HAIRLINE}` };

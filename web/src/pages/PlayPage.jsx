@@ -1,10 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import UnityGame from '../components/UnityGame.jsx';
 import { getPlayInfo } from '../api.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useI18n } from '../i18n.jsx';
+import BrandLogo from '../components/BrandLogo.jsx';
+import './LandingPage.css';
 
 export default function PlayPage() {
   const { gameSlug, buildId } = useParams();
+  const { user } = useAuth();
+  const { lang, toggleLang, t } = useI18n();
 
   const [buildInfo,    setBuildInfo]    = useState(null);
   const [loadError,    setLoadError]    = useState('');
@@ -13,6 +19,7 @@ export default function PlayPage() {
   const sendMessageFn = useRef(null);
   const gameWrapRef   = useRef(null);
   const isWaitingForReport = useRef(false);
+  const navRef = useRef(null);
 
   // ── Load build info ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -25,7 +32,6 @@ export default function PlayPage() {
   // ── Unity receive hook ───────────────────────────────────────────────────
   useEffect(() => {
     window.__issueTrackerReceive = (payloadJson) => {
-      // Save data for the report page and open it in a new tab
       sessionStorage.setItem('pendingReport', payloadJson);
       const url = `/report/${gameSlug || 'local'}${buildId ? `/${buildId}` : ''}`;
       window.open(url, '_blank');
@@ -41,22 +47,24 @@ export default function PlayPage() {
     return () => document.removeEventListener('fullscreenchange', handler);
   }, []);
 
+  // ── Nav scroll effect ────────────────────────────────────────────────────
+  useEffect(() => {
+    function onScroll() {
+      navRef.current?.classList.toggle('scrolled', window.scrollY > 8);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // ── Trigger Report ───────────────────────────────────────────────────────
   const handleReportClick = () => {
     if (!sendMessageFn.current) {
-      // If Unity isn't ready or it's a legacy build without the bridge, just open the page
       const url = `/report/${gameSlug || 'local'}${buildId ? `/${buildId}` : ''}`;
       window.open(url, '_blank');
       return;
     }
-    
     isWaitingForReport.current = true;
-    // Tell Unity to gather its data and call __issueTrackerReceive
-    sendMessageFn.current('IssueTracker', 'SubmitReport', JSON.stringify({
-      manualTrigger: true
-    }));
-
-    // Fallback: if Unity doesn't respond in 2 seconds (e.g. bridge missing in old build), open the page anyway
+    sendMessageFn.current('IssueTracker', 'SubmitReport', JSON.stringify({ manualTrigger: true }));
     setTimeout(() => {
       if (isWaitingForReport.current) {
         const url = `/report/${gameSlug || 'local'}${buildId ? `/${buildId}` : ''}`;
@@ -103,7 +111,6 @@ export default function PlayPage() {
     : { loaderUrl: buildInfo.urls.loader, dataUrl: buildInfo.urls.data,
         frameworkUrl: buildInfo.urls.framework, codeUrl: buildInfo.urls.wasm };
 
-  // Game container: maintain aspect ratio, never taller than 72 vh
   const gameContainerStyle = {
     maxWidth: `min(100%, calc(72vh * ${canvasW / canvasH}))`,
     aspectRatio: `${canvasW} / ${canvasH}`,
@@ -117,18 +124,39 @@ export default function PlayPage() {
   return (
     <div style={pageWrap}>
 
-      {/* ── Sticky sub-nav ─────────────────────────────────────────────── */}
-      <nav style={subNav}>
-        <div style={subNavInner}>
-          <span style={subNavName}>{gameName}</span>
-          <button
-            onClick={handleReportClick}
-            style={subNavCta}
-          >
+      {/* ── Global Nav ─────────────────────────────────────────────────── */}
+      <nav className="l-nav" ref={navRef}>
+        <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
+        <div className="l-nav-links">
+          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
+          <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
+            {lang === 'en' ? '한국어' : 'English'}
+          </button>
+          {user ? (
+            <Link
+              to={user.status === 'approved' ? '/dashboard' : '/pending'}
+              className="btn btn-primary btn-sm"
+            >
+              {t.nav.dashboard}
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
+              <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
+            </>
+          )}
+        </div>
+      </nav>
+
+      {/* ── Game context bar ───────────────────────────────────────────── */}
+      <div style={contextBar}>
+        <div style={contextBarInner}>
+          <span style={contextGameName}>{gameName}</span>
+          <button onClick={handleReportClick} style={reportBtn}>
             Report a Bug
           </button>
         </div>
-      </nav>
+      </div>
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section style={heroSection}>
@@ -163,6 +191,12 @@ export default function PlayPage() {
         </div>
       </section>
 
+      {/* ── Footer ─────────────────────────────────────────────────────── */}
+      <footer className="l-footer">
+        <span className="l-footer-logo"><BrandLogo size="sm" /></span>
+        <span className="l-footer-copy">{t.footer.tagline}</span>
+      </footer>
+
     </div>
   );
 }
@@ -186,24 +220,26 @@ const errSub   = { fontSize: 14, color: MUTED, marginTop: 8, fontFamily: FONT };
 const pageWrap = { fontFamily: FONT, background: '#ffffff', minHeight: '100vh', color: INK };
 const container = { maxWidth: 980, margin: '0 auto', padding: '0 24px' };
 
-/* sub-nav */
-const subNav = {
-  position: 'sticky', top: 0, zIndex: 100,
+/* game context bar (secondary, below global nav) */
+const contextBar = {
+  position: 'sticky',
+  top: 'var(--nav-height)',
+  zIndex: 100,
   background: 'rgba(255,255,255,0.85)',
   backdropFilter: 'saturate(1.8) blur(16px)',
   WebkitBackdropFilter: 'saturate(1.8) blur(16px)',
   borderBottom: `1px solid ${HAIRLINE}`,
-  height: 56,
+  height: 48,
 };
-const subNavInner = {
+const contextBarInner = {
   maxWidth: 980, margin: '0 auto', padding: '0 24px',
   height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
 };
-const subNavName = { fontSize: 15, fontWeight: 600, color: INK, letterSpacing: '-0.02em' };
-const subNavCta  = {
-  padding: '0 18px', height: 32, background: INK, color: '#fff',
+const contextGameName = { fontSize: 14, fontWeight: 600, color: INK, letterSpacing: '-0.02em' };
+const reportBtn = {
+  padding: '0 16px', height: 30, background: INK, color: '#fff',
   border: 'none', borderRadius: 100, cursor: 'pointer',
-  fontSize: 13, fontWeight: 500, fontFamily: FONT,
+  fontSize: 12, fontWeight: 500, fontFamily: FONT,
   transition: 'opacity 0.15s',
 };
 
