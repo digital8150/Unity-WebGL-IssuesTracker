@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import Game from '../models/Game.js';
@@ -10,11 +11,31 @@ import User from '../models/User.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 512 * 1024 * 1024 } });
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, os.tmpdir()),
+    filename: (_req, file, cb) =>
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}-${path.basename(file.originalname)}`),
+  }),
+  limits: { fileSize: 2 * 1024 * 1024 * 1024 },
+});
 const thumbUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
+
+async function moveFile(src, dest) {
+  try {
+    await fs.rename(src, dest);
+  } catch (err) {
+    if (err.code === 'EXDEV') {
+      await fs.copyFile(src, dest);
+      await fs.rm(src, { force: true });
+    } else {
+      throw err;
+    }
+  }
+}
 
 const STORAGE_ROOT = path.resolve('storage', 'builds');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
@@ -273,6 +294,7 @@ router.post(
     try {
       const game = await Game.findById(req.params.gameId);
       if (!game || !isAuthorized(game, req.user.sub)) {
+        for (const f of req.files ?? []) await fs.rm(f.path, { force: true });
         return res.status(404).json({ error: 'Game not found' });
       }
 
@@ -293,8 +315,10 @@ router.post(
       let totalBytes = 0;
       for (const file of files) {
         const safe = path.basename(file.originalname);
-        await fs.writeFile(path.join(dir, safe), file.buffer);
-        totalBytes += file.size;
+        const dest = path.join(dir, safe);
+        await moveFile(file.path, dest);
+        const stat = await fs.stat(dest);
+        totalBytes += stat.size;
         const role = detectRole(safe);
         if (role === 'other') {
           filesMeta.other.push(safe);

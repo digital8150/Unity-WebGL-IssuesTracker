@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 
 export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, onReady }) {
-  const { unityProvider, sendMessage, isLoaded, loadingProgression } = useUnityContext({
+  const { unityProvider, sendMessage, unload, isLoaded, loadingProgression } = useUnityContext({
     loaderUrl,
     dataUrl,
     frameworkUrl,
@@ -14,6 +14,10 @@ export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, o
   useEffect(() => {
     if (isLoaded) onReady?.(sendMessage);
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => { unload(); };
+  }, [unload]);
 
   // Once the game is loaded, tell the browser not to activate IME on the canvas.
   // Without this, Korean IME intercepts A/S/D (ㅁ/ㄴ/ㅇ) as composition keys
