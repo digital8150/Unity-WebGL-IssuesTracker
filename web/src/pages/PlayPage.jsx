@@ -87,23 +87,23 @@ export default function PlayPage() {
   // ── Error / loading states ────────────────────────────────────────────────
   if (loadError) return (
     <div style={centeredPage}>
-      <p style={errTitle}>Unable to Load Game</p>
+      <p style={errTitle}>{t.play.loadError}</p>
       <p style={errSub}>{loadError}</p>
     </div>
   );
   if (!buildInfo) return (
     <div style={centeredPage}>
-      <p style={errSub}>Loading…</p>
+      <p style={errSub}>{t.loading}</p>
     </div>
   );
 
   // ── Derived values ────────────────────────────────────────────────────────
   const isLegacy      = buildInfo === 'legacy';
-  const gameName      = isLegacy ? 'Local Build'   : (buildInfo.gameName      ?? 'Untitled Game');
-  const buildVersion  = isLegacy ? null             : (buildInfo.buildVersion  ?? null);
-  const developerName = isLegacy ? null             : (buildInfo.developerName ?? null);
-  const canvasW       = isLegacy ? 1920             : (buildInfo.canvasWidth   ?? 1920);
-  const canvasH       = isLegacy ? 1080             : (buildInfo.canvasHeight  ?? 1080);
+  const gameName      = isLegacy ? t.play.localBuild : (buildInfo.gameName      ?? 'Untitled Game');
+  const buildVersion  = isLegacy ? null               : (buildInfo.buildVersion  ?? null);
+  const developerName = isLegacy ? null               : (buildInfo.developerName ?? null);
+  const canvasW       = isLegacy ? 1920               : (buildInfo.canvasWidth   ?? 1920);
+  const canvasH       = isLegacy ? 1080               : (buildInfo.canvasHeight  ?? 1080);
 
   const urls = isLegacy
     ? { loaderUrl: '/unity/Build/game.loader.js', dataUrl: '/unity/Build/game.data',
@@ -145,22 +145,24 @@ export default function PlayPage() {
               <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
             </>
           )}
-          <button onClick={handleReportClick} style={reportBtn}>
-            Report a Bug
-          </button>
         </div>
       </nav>
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section style={heroSection}>
         <div style={container}>
-          <h1 style={heroTitle}>{gameName}</h1>
+          <div style={heroRow}>
+            <h1 style={heroTitle}>{gameName}</h1>
+            <button onClick={handleReportClick} style={reportBtn}>
+              {t.play.reportBug}
+            </button>
+          </div>
           <p style={heroMeta}>
             {buildVersion  && <span>v{buildVersion}</span>}
             {buildVersion && developerName && <span style={dot}>·</span>}
-            {developerName && <span>by {developerName}</span>}
+            {developerName && <span>{t.play.by} {developerName}</span>}
             {!buildVersion && !developerName && (
-              <span style={{ opacity: 0.45 }}>Bug reporting is integrated with Unity logs</span>
+              <span style={{ opacity: 0.45 }}>{t.play.unityLogsNote}</span>
             )}
           </p>
         </div>
@@ -178,7 +180,7 @@ export default function PlayPage() {
           <div style={gameActions}>
             <span style={canvasLabel}>{canvasW} × {canvasH}</span>
             <button onClick={toggleFullscreen} style={fsBtn}>
-              {isFullscreen ? '✕ Exit Full Screen' : '⛶ Full Screen'}
+              {isFullscreen ? `✕ ${t.play.exitFullScreen}` : `⛶ ${t.play.fullScreen}`}
             </button>
           </div>
         </div>
@@ -214,17 +216,22 @@ const pageWrap = { fontFamily: FONT, background: '#ffffff', minHeight: '100vh', 
 const container = { maxWidth: 980, margin: '0 auto', padding: '0 24px' };
 
 const reportBtn = {
-  padding: '0 16px', height: 30, background: INK, color: '#fff',
+  padding: '0 20px', height: 36, background: INK, color: '#fff',
   border: 'none', borderRadius: 100, cursor: 'pointer',
-  fontSize: 12, fontWeight: 500, fontFamily: FONT,
+  fontSize: 13, fontWeight: 500, fontFamily: FONT,
+  flexShrink: 0,
   transition: 'opacity 0.15s',
 };
 
 /* hero */
 const heroSection = { padding: '56px 0 40px', background: '#ffffff' };
+const heroRow     = {
+  display: 'flex', alignItems: 'center', gap: 20,
+  flexWrap: 'wrap', marginBottom: 8,
+};
 const heroTitle   = {
   fontSize: 36, fontWeight: 600, color: INK,
-  letterSpacing: '-0.04em', lineHeight: 1.1, margin: '0 0 8px',
+  letterSpacing: '-0.04em', lineHeight: 1.1, margin: 0,
 };
 const heroMeta = { fontSize: 14, color: MUTED, margin: 0, display: 'flex', gap: 8, alignItems: 'center', fontFamily: FONT };
 const dot = { color: HAIRLINE };

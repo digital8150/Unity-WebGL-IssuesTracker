@@ -322,6 +322,15 @@ const translations = {
     },
     storage: { label: 'Storage' },
     loading: 'Loading…',
+    play: {
+      localBuild: 'Local Build',
+      reportBug: 'Report a Bug',
+      loadError: 'Unable to Load Game',
+      unityLogsNote: 'Bug reporting is integrated with Unity logs',
+      fullScreen: 'Full Screen',
+      exitFullScreen: 'Exit Full Screen',
+      by: 'by',
+    },
     report: {
       navTitle: 'Report a Bug',
       backToGame: 'Back to Game',
@@ -671,6 +680,15 @@ const translations = {
     },
     storage: { label: '저장 용량' },
     loading: '불러오는 중…',
+    play: {
+      localBuild: '로컬 빌드',
+      reportBug: '버그 신고',
+      loadError: '게임을 불러올 수 없습니다',
+      unityLogsNote: '버그 리포팅이 Unity 로그와 연동되어 있습니다',
+      fullScreen: '전체 화면',
+      exitFullScreen: '전체 화면 종료',
+      by: 'by',
+    },
     report: {
       navTitle: '버그 리포트',
       backToGame: '게임으로 돌아가기',
