@@ -12,7 +12,8 @@
       "Bash(npm run *)",
       "Bash(npx playwright *)",
       "Bash(Get-Content \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\web\\\\src\\\\pages\\\\AuthPage.css\")",
-      "Bash(Select-Object -Last 20)"
+      "Bash(Select-Object -Last 20)",
+      "Bash(node --input-type=module --eval \"import './src/routes/auth.js'\")"
     ]
   }
 }

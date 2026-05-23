@@ -141,6 +141,7 @@ export default function AdminUsersPage() {
                         <div className="adm-name-row">
                           <span className="adm-name">{u.name}</span>
                           {u.hasGithub && <span className="adm-github">{t.admin.githubBadge}</span>}
+                          {u.hasDiscord && <span className="adm-discord">{t.admin.discordBadge}</span>}
                           {isSelf && <span className="adm-self">you</span>}
                         </div>
                       </td>

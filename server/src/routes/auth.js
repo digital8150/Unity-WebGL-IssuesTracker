@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Game from '../models/Game.js';
@@ -11,6 +10,10 @@ const router = Router();
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 const GITHUB_API = 'https://api.github.com';
+
+const DISCORD_AUTHORIZE_URL = 'https://discord.com/api/oauth2/authorize';
+const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
+const DISCORD_API = 'https://discord.com/api/v10';
 
 function signToken(user) {
   return jwt.sign(
@@ -38,43 +41,6 @@ async function bootstrapDefaults() {
   }
   return { role: 'user', status: 'pending' };
 }
-
-router.post('/register', async (req, res, next) => {
-  try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'name, email and password are required' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-    if (await User.findOne({ email })) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-    const passwordHash = await bcrypt.hash(password, 12);
-    const defaults = await bootstrapDefaults();
-    const user = await User.create({ name, email, passwordHash, ...defaults });
-    res.status(201).json({ token: signToken(user), user: publicUser(user) });
-  } catch (err) {
-    next(err);
-  }
-});
-
-router.post('/login', async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email and password are required' });
-    }
-    const user = await User.findOne({ email });
-    if (!user || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    res.json({ token: signToken(user), user: publicUser(user) });
-  } catch (err) {
-    next(err);
-  }
-});
 
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
@@ -194,6 +160,84 @@ router.get('/github/callback', async (req, res, next) => {
   }
 });
 
+// ── Discord OAuth ─────────────────────────────────────────────────────────────
+
+router.get('/discord', (req, res) => {
+  const clientId = process.env.DISCORD_CLIENT_ID;
+  if (!clientId) {
+    return res.status(503).json({ error: 'Discord OAuth is not configured on this server' });
+  }
+  const callbackUrl = `${process.env.SERVER_URL || 'http://localhost:4000'}/api/auth/discord/callback`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: callbackUrl,
+    response_type: 'code',
+    scope: 'identify email',
+  });
+  res.redirect(`${DISCORD_AUTHORIZE_URL}?${params}`);
+});
+
+router.get('/discord/callback', async (req, res, next) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  try {
+    const { code, error } = req.query;
+    if (error || !code) {
+      return res.redirect(`${frontendUrl}/login?error=discord_denied`);
+    }
+
+    const callbackUrl = `${process.env.SERVER_URL || 'http://localhost:4000'}/api/auth/discord/callback`;
+
+    const tokenRes = await fetch(DISCORD_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID,
+        client_secret: process.env.DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: callbackUrl,
+      }),
+    });
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      return res.redirect(`${frontendUrl}/login?error=discord_token`);
+    }
+
+    const profileRes = await fetch(`${DISCORD_API}/users/@me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const profile = await profileRes.json();
+
+    const discordId = String(profile.id);
+    const email = profile.email?.toLowerCase();
+
+    let user = await User.findOne({ discordId });
+    if (!user && email) {
+      user = await User.findOne({ email });
+    }
+    if (user) {
+      if (!user.discordId) {
+        user.discordId = discordId;
+        await user.save();
+      }
+    } else {
+      const defaults = await bootstrapDefaults();
+      user = await User.create({
+        name: profile.global_name || profile.username,
+        email: email || `${profile.username}@discord.invalid`,
+        discordId,
+        ...defaults,
+      });
+    }
+
+    const token = signToken(user);
+    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── User search (approved only) ───────────────────────────────────────────────
 
 router.get('/search-users', requireAuth, requireApproved, async (req, res, next) => {
@@ -232,6 +276,7 @@ router.get('/admin/users', requireAuth, requireApproved, requireAdmin, async (re
         status: u.status,
         createdAt: u.createdAt,
         hasGithub: Boolean(u.githubId),
+        hasDiscord: Boolean(u.discordId),
       })),
     });
   } catch (err) {

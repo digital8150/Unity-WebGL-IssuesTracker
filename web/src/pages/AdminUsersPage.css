@@ -92,6 +92,15 @@
   border-radius: var(--radius-full);
 }
 
+.adm-discord {
+  font-size: 10.5px;
+  font-weight: 400;
+  padding: 2px 7px;
+  background: rgba(88, 101, 242, 0.12);
+  color: #5865f2;
+  border-radius: var(--radius-full);
+}
+
 .adm-self {
   font-size: 11px;
   padding: 2px 7px;

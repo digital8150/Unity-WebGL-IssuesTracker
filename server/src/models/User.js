@@ -12,6 +12,7 @@ const userSchema = new mongoose.Schema(
     },
     passwordHash: { type: String },
     githubId: { type: String, sparse: true, unique: true },
+    discordId: { type: String, sparse: true, unique: true },
     storageQuota: { type: Number, default: 500 * 1024 * 1024 },
     role: { type: String, enum: ['user', 'admin'], default: 'user', index: true },
     status: {

@@ -133,8 +133,14 @@
   margin-bottom: var(--space-xl);
 }
 
-/* GitHub button */
-.btn-github {
+/* OAuth button stack */
+.auth-oauth-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.btn-oauth {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,10 +148,7 @@
   width: 100%;
   padding: 0 var(--space-lg);
   height: 40px;
-  background: #24292e;
-  border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius-sm);
-  color: #e6edf3;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -155,8 +158,32 @@
   box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
 
+.btn-oauth:active { transform: scale(0.98); }
+
+.btn-github {
+  background: #24292e;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #e6edf3;
+}
+
 .btn-github:hover { background: #2d333b; box-shadow: 0 2px 6px rgba(0,0,0,0.18); }
-.btn-github:active { transform: scale(0.98); }
+
+.btn-discord {
+  background: #5865f2;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.btn-discord:hover { background: #4752c4; box-shadow: 0 2px 6px rgba(88,101,242,0.35); }
+
+/* Footer note */
+.auth-footer-note {
+  margin-top: var(--space-lg);
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.55;
+}
 
 /* Divider */
 .auth-divider {
