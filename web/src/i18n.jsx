@@ -16,23 +16,23 @@ const translations = {
       signOut: 'Sign out',
     },
     hero: {
-      badge: 'BCSDLab. · Game Track · Internal Tool',
-      title: 'Ship Unity games to your team.',
-      titleAccent: 'Catch bugs without leaving the browser.',
+      badge: 'BCSDLab. Game Track',
+      title: 'Deploy your game to the web instantly.',
+      titleAccent: 'No download required.',
       subtitle:
-        'A WebGL game platform built for the BCSDLab. Game track. Upload a build, share the link, and let teammates play in-browser — one click opens a dedicated report page that already carries the full debug snapshot.',
+        'Publish WebGL-built games directly to the web. No complex server setup needed. Players and testers can submit bugs with one click, complete with a session snapshot.',
       startFree: 'Request access',
       signIn: 'Sign in',
       goDashboard: 'Open Dashboard',
       goArcade: 'Browse Arcade',
     },
     features: {
-      sectionLabel: 'WHAT IT DOES',
-      title: 'A pipeline built around Unity WebGL.',
+      sectionLabel: 'KEY FEATURES',
+      title: 'Optimized for the Unity WebGL workflow.',
       items: [
         {
           title: 'Zero-download distribution',
-          desc: 'Drop your Unity WebGL build into the dashboard. Teammates open the play URL — no installer, no launcher, no platform store.',
+          desc: 'Upload your Unity WebGL build to the dashboard. Teammates open the play URL — no installer, no launcher, no platform store.',
         },
         {
           title: 'One-click bug reporting',
@@ -40,24 +40,24 @@ const translations = {
         },
         {
           title: 'Automatic debug snapshot',
-          desc: 'Every report ships with Unity logs, custom game state, browser environment, viewport, GPU vendor, and the exact build it was filed against.',
+          desc: 'Reports capture Unity logs, custom game state, and browser environment automatically.',
         },
         {
           title: 'Discord webhook integration',
-          desc: 'Wire each game to a Discord channel. Reports land in your team server the moment they are submitted — fully formatted, fully linkable.',
+          desc: 'Register a webhook and receive Discord notifications the moment a report is submitted.',
         },
         {
           title: 'Arcade gallery',
-          desc: 'Mark a game public and it shows up in the BCSDLab. Arcade — a single page where everyone in the track can play what the others are building.',
+          desc: 'Play games from the BCSDLab Game Track all in one place.',
         },
         {
           title: 'Per-game collaborators',
-          desc: 'Invite teammates by email. Collaborators can upload builds and triage reports without owning the game.',
+          desc: 'Invite teammates by email. Collaborators can upload builds and manage reports without owning the game.',
         },
       ],
     },
     flow: {
-      sectionLabel: 'HOW THE FLOW WORKS',
+      sectionLabel: 'FLOW',
       title: 'From a Unity build to a triaged report in four steps.',
       steps: [
         {
@@ -77,27 +77,27 @@ const translations = {
         },
         {
           n: '04',
-          title: 'You triage in the dashboard',
-          desc: 'Filter by status, priority, tags. Vote, comment, change state. Every report is permanently linked to the exact build that produced it.',
+          title: 'Triage in the dashboard',
+          desc: 'Filter incoming reports by status, priority, and tags. Leave comments and let users vote to organically surface feedback.',
         },
       ],
     },
     showcase: {
-      sectionLabel: 'INSIDE THE PLATFORM',
-      dashTitle: 'A focused triage view.',
+      sectionLabel: 'DASHBOARD',
+      dashTitle: 'Manage issues systematically.',
       dashDesc:
-        'Every report is scoped to its game and build. Filter by status, sort by priority, jump straight to the captured debug snapshot.',
-      reportTitle: 'A dedicated page for every report.',
+        'Filter all issues by status, sort by priority, and jump directly to captured debug snapshots.',
+      reportTitle: 'Understand problems at a glance.',
       reportDesc:
         'The reporter just types title, description, and a category. Console logs, custom game state, browser environment, and WebGL info sit in the snapshot panel right next to the form — captured the instant the Report button was clicked.',
-      arcadeTitle: 'Public games on a single page.',
+      arcadeTitle: 'Publish directly to the web.',
       arcadeDesc:
         'Toggle a game public and it appears in the Arcade with its thumbnail, description, and a one-click play button.',
     },
     cta: {
-      title: 'Built by BCSDLab. — for BCSDLab.',
+      title: 'Deploy your game today.',
       subtitle:
-        'This platform is restricted to the BCSDLab. Game track. Request access and an admin will approve your account.',
+        'This platform is exclusive to the BCSDLab. Game track. Submit a request and an admin will activate your account.',
       action: 'Request access',
       browse: 'Browse the Arcade',
     },
@@ -142,7 +142,7 @@ const translations = {
     },
     dash: {
       title: 'My Games',
-      sub: 'Unity WebGL builds and bug reports owned by you',
+      sub: 'Builds and reports for games you own or collaborate on',
       newGame: '+ New Game',
       loading: 'Loading…',
       noGames: 'No games yet',
@@ -227,10 +227,10 @@ const translations = {
       copied: 'Copied!',
       download: 'Download',
       deleteBuild: 'Delete',
-      deleteConfirm: 'Delete this build? All uploaded files will be permanently removed.',
+      deleteConfirm: 'Delete this build?',
       deleting: 'Deleting…',
       deleteReport: 'Delete',
-      deleteReportConfirm: 'Delete this report? This action cannot be undone.',
+      deleteReportConfirm: 'Delete this report?',
       totalStorage: 'Total storage',
       // Arcade settings
       arcadeTitle: 'Arcade visibility',
