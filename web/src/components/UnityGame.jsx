@@ -1,38 +1,87 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 
-export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, renderOverlay, inputBlocked }) {
+export default function UnityGame({ loaderUrl, dataUrl, frameworkUrl, codeUrl, onReady }) {
   const { unityProvider, sendMessage, isLoaded, loadingProgression } = useUnityContext({
     loaderUrl,
     dataUrl,
     frameworkUrl,
     codeUrl,
   });
+  const [focused, setFocused] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (isLoaded) onReady?.(sendMessage);
+  }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Once the game is loaded, tell the browser not to activate IME on the canvas.
+  // Without this, Korean IME intercepts A/S/D (ㅁ/ㄴ/ㅇ) as composition keys
+  // and fires keydown with isComposing:true — which Unity's input system ignores.
+  useEffect(() => {
+    if (!isLoaded || !containerRef.current) return;
+    const canvas = containerRef.current.querySelector('canvas');
+    if (canvas) {
+      canvas.setAttribute('inputmode', 'none');
+    }
+  }, [isLoaded]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', width: '100%', height: '100%' }}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+    >
+      {/*
+        tabIndex={1}: Unity only captures keyboard events when this canvas is
+        focused. Clicking a form field blurs the canvas → game input stops.
+      */}
       <Unity
         unityProvider={unityProvider}
-        style={{ width: '100%', height: '100%', background: '#000', pointerEvents: inputBlocked ? 'none' : 'auto' }}
-        tabIndex={inputBlocked ? -1 : 0}
+        style={{ width: '100%', height: '100%', display: 'block' }}
+        tabIndex={1}
       />
       {!isLoaded && (
         <div style={loadingStyle}>
-          Loading… {Math.round(loadingProgression * 100)}%
+          <div style={loadingBarTrack}>
+            <div style={{ ...loadingBarFill, width: `${Math.round(loadingProgression * 100)}%` }} />
+          </div>
+          <div style={loadingLabel}>{Math.round(loadingProgression * 100)}%</div>
         </div>
       )}
-      {isLoaded && renderOverlay?.(sendMessage)}
+      {isLoaded && !focused && (
+        <div style={focusHintStyle}>
+          Click to activate controls
+        </div>
+      )}
     </div>
   );
 }
 
 const loadingStyle = {
-  position: 'absolute',
-  inset: 0,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#eee',
-  background: '#111',
-  fontSize: 20,
+  position: 'absolute', inset: 0,
+  display: 'flex', flexDirection: 'column',
+  alignItems: 'center', justifyContent: 'center',
+  background: '#000', gap: 12,
+};
+const loadingBarTrack = {
+  width: 200, height: 3, background: '#222', borderRadius: 2, overflow: 'hidden',
+};
+const loadingBarFill = {
+  height: '100%', background: '#0066cc', borderRadius: 2,
+  transition: 'width 0.15s ease',
+};
+const loadingLabel = {
+  fontSize: 12, color: '#555', fontVariantNumeric: 'tabular-nums',
+};
+const focusHintStyle = {
+  position: 'absolute', inset: 0,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  pointerEvents: 'none',
+  background: 'rgba(0,0,0,0.35)',
+  color: 'rgba(255,255,255,0.7)',
+  fontSize: 13,
+  letterSpacing: '0.04em',
+  fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
 };

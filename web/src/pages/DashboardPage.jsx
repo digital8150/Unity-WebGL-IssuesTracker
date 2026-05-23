@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { useNavigate, Link } from 'react-router-dom';
 import { listGames, createGame } from '../api.js';
+import StorageBar from '../components/StorageBar.jsx';
+import BrandLogo from '../components/BrandLogo.jsx';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
@@ -50,11 +52,16 @@ export default function DashboardPage() {
     <div className="dash-layout">
       {/* Sidebar */}
       <aside className="dash-sidebar">
-        <div className="dash-logo">BugDrop</div>
+        <Link to="/" className="dash-logo"><BrandLogo /></Link>
         <nav className="dash-nav">
           <span className="dash-nav-item active">{t.dash.title}</span>
+          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
+          {user?.role === 'admin' && (
+            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
+          )}
         </nav>
         <div className="dash-sidebar-footer">
+          <StorageBar label={t.storage.label} />
           <div className="dash-user">
             <div className="dash-avatar">{user?.name?.[0]?.toUpperCase()}</div>
             <div className="dash-user-info">
@@ -118,7 +125,12 @@ export default function DashboardPage() {
             {games.map((game) => (
               <Link key={game._id} className="dash-game-card" to={`/dashboard/games/${game._id}`}>
                 <div className="dash-game-info">
-                  <div className="dash-game-name">{game.name}</div>
+                  <div className="dash-game-name-row">
+                    <div className="dash-game-name">{game.name}</div>
+                    {!game.isOwner && (
+                      <span className="dash-collab-badge">{t.collab.collabBadge}</span>
+                    )}
+                  </div>
                   <div className="dash-game-slug">/{game.slug}</div>
                 </div>
                 <div className="dash-game-arrow">›</div>

@@ -14,6 +14,9 @@ const buildSchema = new mongoose.Schema(
       other: { type: [String], default: [] },
     },
     isActive: { type: Boolean, default: false, index: true },
+    canvasWidth:  { type: Number, default: 1920 },
+    canvasHeight: { type: Number, default: 1080 },
+    storageBytes: { type: Number, default: 0 },
   },
   { timestamps: true },
 );

@@ -1,6 +1,6 @@
-# BugDrop — Unity WebGL Issue Tracking Platform
+# BCSDLab. Arcade — Unity WebGL Distribution & Playtest Platform
 
-A hosted platform for Unity WebGL developers. Upload your build through the dashboard, share a play URL with testers, and collect structured bug reports straight from inside the game.
+Internal WebGL game distribution and playtest tool for the BCSDLab. Game track. Upload a Unity WebGL build through the dashboard, share a play URL with track members, and collect structured bug reports — every report carries a full debug snapshot (Unity logs, custom state, browser env, GPU info). Public games are listed in the **Arcade** gallery.
 
 ## Repo layout
 

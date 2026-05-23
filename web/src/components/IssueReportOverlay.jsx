@@ -232,9 +232,10 @@ const inputStyle = {
 };
 
 const btnPrimary = {
-  padding: '8px 16px', background: '#c0392b', color: '#fff',
-  border: 'none', borderRadius: 5, cursor: 'pointer',
-  fontWeight: 600, fontSize: 12, letterSpacing: '0.03em',
+  padding: '8px 16px', background: '#171717', color: '#fff',
+  border: 'none', borderRadius: 6, cursor: 'pointer',
+  fontWeight: 500, fontSize: 12, letterSpacing: '-0.01em',
+  transition: 'opacity 0.15s',
 };
 const btnSecondary = {
   padding: '8px 14px', background: '#252525', color: '#999',

@@ -2,20 +2,37 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export default function ProtectedRoute({ children }) {
+export default function ProtectedRoute({ children, requireApproved = true, requireAdmin = false }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#0a0a0f', color: '#94a3b8' }}>
-        Loading...
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100vh',
+          background: 'var(--color-canvas)',
+          color: 'var(--color-mute)',
+        }}
+      >
+        Loading…
       </div>
     );
   }
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireApproved && user.status !== 'approved') {
+    return <Navigate to="/pending" replace />;
+  }
+
+  if (requireAdmin && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;

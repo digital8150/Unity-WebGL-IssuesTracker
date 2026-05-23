@@ -38,6 +38,10 @@ export async function getMe(token) {
   return request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
 }
 
+export async function getUsage() {
+  return request('/api/auth/usage');
+}
+
 // ── Games ─────────────────────────────────────────────────────────────────────
 
 export async function listGames() {
@@ -58,9 +62,11 @@ export async function updateGame(gameId, fields) {
 
 // ── Builds ────────────────────────────────────────────────────────────────────
 
-export async function uploadBuild(gameId, files, version = '') {
+export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1920, canvasHeight = 1080 } = {}) {
   const fd = new FormData();
   fd.append('version', version);
+  fd.append('canvasWidth',  String(canvasWidth));
+  fd.append('canvasHeight', String(canvasHeight));
   for (const file of files) fd.append('files', file);
   return requestRaw(`/api/games/${gameId}/builds`, { method: 'POST', body: fd });
 }
@@ -69,14 +75,101 @@ export async function activateBuild(gameId, buildId) {
   return request(`/api/games/${gameId}/builds/${buildId}/activate`, { method: 'PATCH' });
 }
 
+export async function deleteBuild(gameId, buildId) {
+  return request(`/api/games/${gameId}/builds/${buildId}`, { method: 'DELETE' });
+}
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 
-export async function getGameReports(gameId) {
-  return request(`/api/games/${gameId}/reports`);
+export async function getGameReports(gameId, { status, priority, tag } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (priority) params.set('priority', priority);
+  if (tag) params.set('tag', tag);
+  const qs = params.toString();
+  return request(`/api/games/${gameId}/reports${qs ? `?${qs}` : ''}`);
 }
 
 export async function getIssue(issueId) {
   return request(`/api/issues/${issueId}`);
+}
+
+export async function updateIssue(issueId, fields) {
+  return request(`/api/issues/${issueId}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function deleteIssue(issueId) {
+  return request(`/api/issues/${issueId}`, { method: 'DELETE' });
+}
+
+export async function addComment(issueId, body, authorName) {
+  return request(`/api/issues/${issueId}/comments`, { method: 'POST', body: JSON.stringify({ body, authorName }) });
+}
+
+export async function deleteComment(issueId, commentId) {
+  return request(`/api/issues/${issueId}/comments/${commentId}`, { method: 'DELETE' });
+}
+
+export async function voteIssue(issueId) {
+  return request(`/api/issues/${issueId}/vote`, { method: 'POST' });
+}
+
+// ── Public tester board ───────────────────────────────────────────────────────
+
+export async function getPublicIssues(gameSlug) {
+  return request(`/api/games/play/${gameSlug}/issues`);
+}
+
+// ── Collaborators ─────────────────────────────────────────────────────────────
+
+export async function getCollaborators(gameId) {
+  return request(`/api/games/${gameId}/collaborators`);
+}
+
+export async function inviteCollaborator(gameId, email) {
+  return request(`/api/games/${gameId}/collaborators`, { method: 'POST', body: JSON.stringify({ email }) });
+}
+
+export async function removeCollaborator(gameId, userId) {
+  return request(`/api/games/${gameId}/collaborators/${userId}`, { method: 'DELETE' });
+}
+
+// ── User search ───────────────────────────────────────────────────────────────
+
+export async function searchUsers(q) {
+  return request(`/api/auth/search-users?q=${encodeURIComponent(q)}`);
+}
+
+// ── Arcade (public gallery) ──────────────────────────────────────────────────
+
+export async function getArcadeGames() {
+  return request('/api/games/arcade');
+}
+
+// ── Game arcade settings ─────────────────────────────────────────────────────
+
+export async function uploadThumbnail(gameId, file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return requestRaw(`/api/games/${gameId}/thumbnail`, { method: 'POST', body: fd });
+}
+
+export async function deleteThumbnail(gameId) {
+  return request(`/api/games/${gameId}/thumbnail`, { method: 'DELETE' });
+}
+
+// ── Admin ────────────────────────────────────────────────────────────────────
+
+export async function listAllUsers() {
+  return request('/api/auth/admin/users');
+}
+
+export async function updateUser(userId, fields) {
+  return request(`/api/auth/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function deleteUser(userId) {
+  return request(`/api/auth/admin/users/${userId}`, { method: 'DELETE' });
 }
 
 // ── Play (public) ─────────────────────────────────────────────────────────────

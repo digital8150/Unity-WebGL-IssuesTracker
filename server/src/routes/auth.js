@@ -2,7 +2,9 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
-import { requireAuth } from '../middleware/auth.js';
+import Game from '../models/Game.js';
+import Build from '../models/Build.js';
+import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -12,14 +14,29 @@ const GITHUB_API = 'https://api.github.com';
 
 function signToken(user) {
   return jwt.sign(
-    { sub: user._id, email: user.email },
+    { sub: user._id, email: user.email, name: user.name },
     process.env.JWT_SECRET,
     { expiresIn: '7d' },
   );
 }
 
 function publicUser(user) {
-  return { id: user._id, name: user.name, email: user.email };
+  return {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    status: user.status,
+  };
+}
+
+// First-ever account becomes admin + approved (bootstrap).
+async function bootstrapDefaults() {
+  const userCount = await User.estimatedDocumentCount();
+  if (userCount === 0) {
+    return { role: 'admin', status: 'approved' };
+  }
+  return { role: 'user', status: 'pending' };
 }
 
 router.post('/register', async (req, res, next) => {
@@ -35,7 +52,8 @@ router.post('/register', async (req, res, next) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ name, email, passwordHash });
+    const defaults = await bootstrapDefaults();
+    const user = await User.create({ name, email, passwordHash, ...defaults });
     res.status(201).json({ token: signToken(user), user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -63,6 +81,24 @@ router.get('/me', requireAuth, async (req, res, next) => {
     const user = await User.findById(req.user.sub).select('-passwordHash');
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/usage', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.sub).select('storageQuota');
+    const games = await Game.find({ ownerId: req.user.sub }).select('_id');
+    const gameIds = games.map((g) => g._id);
+    const [agg] = await Build.aggregate([
+      { $match: { gameId: { $in: gameIds } } },
+      { $group: { _id: null, total: { $sum: '$storageBytes' } } },
+    ]);
+    res.json({
+      usedBytes: agg?.total ?? 0,
+      quotaBytes: user?.storageQuota ?? 500 * 1024 * 1024,
+    });
   } catch (err) {
     next(err);
   }
@@ -113,7 +149,7 @@ router.get('/github/callback', async (req, res, next) => {
     const ghHeaders = {
       Authorization: `Bearer ${accessToken}`,
       Accept: 'application/vnd.github.v3+json',
-      'User-Agent': 'BugDrop',
+      'User-Agent': 'BCSDLab-Arcade',
     };
 
     const profileRes = await fetch(`${GITHUB_API}/user`, { headers: ghHeaders });
@@ -142,10 +178,12 @@ router.get('/github/callback', async (req, res, next) => {
         await user.save();
       }
     } else {
+      const defaults = await bootstrapDefaults();
       user = await User.create({
         name: profile.name || profile.login,
         email: email || `${profile.login}@users.noreply.github.com`,
         githubId,
+        ...defaults,
       });
     }
 
@@ -155,5 +193,111 @@ router.get('/github/callback', async (req, res, next) => {
     next(err);
   }
 });
+
+// ── User search (approved only) ───────────────────────────────────────────────
+
+router.get('/search-users', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q || q.length < 2) return res.json({ users: [] });
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const users = await User.find({
+      $or: [{ name: regex }, { email: regex }],
+      _id: { $ne: req.user.sub },
+      status: 'approved',
+    })
+      .select('name email')
+      .limit(10)
+      .lean();
+    res.json({ users });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Admin: user management ───────────────────────────────────────────────────
+
+router.get('/admin/users', requireAuth, requireApproved, requireAdmin, async (req, res, next) => {
+  try {
+    const users = await User.find({})
+      .select('-passwordHash')
+      .sort({ status: 1, createdAt: -1 })
+      .lean();
+    res.json({
+      users: users.map((u) => ({
+        id: u._id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        status: u.status,
+        createdAt: u.createdAt,
+        hasGithub: Boolean(u.githubId),
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch(
+  '/admin/users/:userId',
+  requireAuth,
+  requireApproved,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      const { status, role } = req.body;
+      const update = {};
+      if (status && ['pending', 'approved', 'rejected'].includes(status)) update.status = status;
+      if (role && ['user', 'admin'].includes(role)) update.role = role;
+      if (!Object.keys(update).length) return res.status(400).json({ error: 'Nothing to update' });
+
+      // Prevent demoting the last admin.
+      if (update.role === 'user') {
+        const target = await User.findById(req.params.userId).select('role');
+        if (target?.role === 'admin') {
+          const adminCount = await User.countDocuments({ role: 'admin' });
+          if (adminCount <= 1) {
+            return res.status(400).json({ error: 'Cannot demote the last admin' });
+          }
+        }
+      }
+
+      const user = await User.findByIdAndUpdate(req.params.userId, update, { new: true }).select(
+        '-passwordHash',
+      );
+      if (!user) return res.status(404).json({ error: 'User not found' });
+      res.json({ user: publicUser(user) });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.delete(
+  '/admin/users/:userId',
+  requireAuth,
+  requireApproved,
+  requireAdmin,
+  async (req, res, next) => {
+    try {
+      if (String(req.params.userId) === String(req.user.sub)) {
+        return res.status(400).json({ error: 'Cannot delete your own account' });
+      }
+      const target = await User.findById(req.params.userId).select('role');
+      if (!target) return res.status(404).json({ error: 'User not found' });
+      if (target.role === 'admin') {
+        const adminCount = await User.countDocuments({ role: 'admin' });
+        if (adminCount <= 1) {
+          return res.status(400).json({ error: 'Cannot delete the last admin' });
+        }
+      }
+      await User.findByIdAndDelete(req.params.userId);
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export default router;

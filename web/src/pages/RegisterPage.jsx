@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { register as apiRegister } from '../api.js';
+import BrandLogo from '../components/BrandLogo.jsx';
 import './AuthPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -29,7 +30,7 @@ export default function RegisterPage() {
     try {
       const { token, user } = await apiRegister(form.name, form.email, form.password);
       login(token, user);
-      navigate('/dashboard', { replace: true });
+      navigate(user.status === 'approved' ? '/dashboard' : '/pending', { replace: true });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,7 +41,7 @@ export default function RegisterPage() {
   return (
     <div className="auth-page">
       <nav className="auth-topbar">
-        <Link to="/" className="auth-logo">BugDrop</Link>
+        <Link to="/" className="auth-logo"><BrandLogo /></Link>
         <button className="l-lang-toggle auth-lang-toggle" onClick={toggleLang}>
           {lang === 'en' ? '한국어' : 'English'}
         </button>

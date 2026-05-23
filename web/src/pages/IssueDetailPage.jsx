@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
-import { getIssue } from '../api.js';
+import { getIssue, updateIssue, addComment, deleteComment, voteIssue } from '../api.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import BrandLogo from '../components/BrandLogo.jsx';
 import './DashboardPage.css';
 import './IssueDetailPage.css';
 
@@ -21,31 +23,138 @@ const LOG_TYPE_CLASS = {
   Assert: 'log-warn',
 };
 
+const STATUS_LIST   = ['open', 'in-progress', 'resolved', 'closed'];
+const PRIORITY_LIST = ['none', 'low', 'medium', 'high'];
+
 export default function IssueDetailPage() {
   const { gameId, issueId } = useParams();
   const navigate = useNavigate();
   const { lang, toggleLang, t } = useI18n();
+  const { user } = useAuth();
   const [issue, setIssue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [logsExpanded, setLogsExpanded] = useState(false);
+  const [voting, setVoting] = useState(false);
+
+  // Triage state — mirrors issue fields, updated optimistically
+  const [status,   setStatusLocal]   = useState('open');
+  const [priority, setPriorityLocal] = useState('none');
+  const [tags,     setTagsLocal]     = useState([]);
+  const [tagInput, setTagInput]      = useState('');
+
+  // Comments state
+  const [commentBody,  setCommentBody]  = useState('');
+  const [posting,      setPosting]      = useState(false);
+  const [deletingCid,  setDeletingCid]  = useState(null);
 
   useEffect(() => {
     getIssue(issueId)
-      .then(setIssue)
+      .then((data) => {
+        setIssue(data);
+        setStatusLocal(data.status   || 'open');
+        setPriorityLocal(data.priority || 'none');
+        setTagsLocal(data.tags       || []);
+      })
       .catch(() => navigate(`/dashboard/games/${gameId}`, { replace: true }))
       .finally(() => setLoading(false));
   }, [issueId]);
 
+  async function handleStatusChange(newStatus) {
+    setStatusLocal(newStatus);
+    try {
+      const updated = await updateIssue(issueId, { status: newStatus });
+      setIssue((prev) => ({ ...prev, status: updated.status }));
+    } catch { setStatusLocal(issue?.status || 'open'); }
+  }
+
+  async function handlePriorityChange(newPriority) {
+    setPriorityLocal(newPriority);
+    try {
+      const updated = await updateIssue(issueId, { priority: newPriority });
+      setIssue((prev) => ({ ...prev, priority: updated.priority }));
+    } catch { setPriorityLocal(issue?.priority || 'none'); }
+  }
+
+  function handleTagKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag();
+    }
+  }
+
+  function addTag() {
+    const newTag = tagInput.trim().replace(/,+$/, '');
+    if (!newTag || tags.includes(newTag)) { setTagInput(''); return; }
+    const next = [...tags, newTag];
+    setTagsLocal(next);
+    setTagInput('');
+    updateIssue(issueId, { tags: next }).then((updated) => {
+      setIssue((prev) => ({ ...prev, tags: updated.tags }));
+      setTagsLocal(updated.tags);
+    }).catch(() => setTagsLocal(tags));
+  }
+
+  function removeTag(tag) {
+    const next = tags.filter((t) => t !== tag);
+    setTagsLocal(next);
+    updateIssue(issueId, { tags: next }).then((updated) => {
+      setIssue((prev) => ({ ...prev, tags: updated.tags }));
+      setTagsLocal(updated.tags);
+    }).catch(() => setTagsLocal(tags));
+  }
+
+  async function handleVote() {
+    if (!user || voting) return;
+    setVoting(true);
+    try {
+      const { voteCount, hasVoted } = await voteIssue(issueId);
+      setIssue((prev) => {
+        if (!prev) return prev;
+        const votes = hasVoted
+          ? [...(prev.votes ?? []), user.id]
+          : (prev.votes ?? []).filter((v) => v !== user.id);
+        return { ...prev, votes };
+      });
+    } finally { setVoting(false); }
+  }
+
+  async function handleAddComment(e) {
+    e.preventDefault();
+    if (!commentBody.trim()) return;
+    setPosting(true);
+    try {
+      const { comment } = await addComment(issueId, commentBody.trim());
+      setIssue((prev) => ({ ...prev, comments: [...(prev.comments ?? []), comment] }));
+      setCommentBody('');
+    } catch { /* show nothing — could add an error state */ }
+    finally { setPosting(false); }
+  }
+
+  async function handleDeleteComment(commentId) {
+    setDeletingCid(commentId);
+    try {
+      await deleteComment(issueId, commentId);
+      setIssue((prev) => ({
+        ...prev,
+        comments: (prev.comments ?? []).filter((c) => c._id !== commentId),
+      }));
+    } finally { setDeletingCid(null); }
+  }
+
   if (loading) {
     return (
       <div className="dash-layout">
-        <aside className="dash-sidebar"><div className="dash-logo">BugDrop</div></aside>
+        <aside className="dash-sidebar"><Link to="/" className="dash-logo"><BrandLogo /></Link></aside>
         <main className="dash-main"><p className="dash-loading">{t.loading}</p></main>
       </div>
     );
   }
 
   const ti = t.issue;
+  const tt = t.triage;
+  const tb = t.board;
+  const voteCount = issue.votes?.length ?? 0;
+  const hasVoted  = user ? (issue.votes ?? []).some((v) => v.toString() === user.id) : false;
   const b = issue.browser ?? {};
   const screen = b.screen ?? {};
   const viewport = b.viewport ?? {};
@@ -53,11 +162,12 @@ export default function IssueDetailPage() {
   const logs = issue.logs ?? [];
   const visibleLogs = logsExpanded ? logs : logs.slice(0, 20);
   const hasCustomState = issue.customState && Object.keys(issue.customState).length > 0;
+  const comments = issue.comments ?? [];
 
   return (
     <div className="dash-layout">
       <aside className="dash-sidebar">
-        <div className="dash-logo">BugDrop</div>
+        <Link to="/" className="dash-logo"><BrandLogo /></Link>
         <nav className="dash-nav">
           <Link className="dash-nav-item" to={`/dashboard/games/${gameId}`}>{t.gameDetail.backReports}</Link>
         </nav>
@@ -70,12 +180,79 @@ export default function IssueDetailPage() {
 
       <main className="dash-main">
         <header className="dash-header">
-          <div>
+          <div style={{ flex: 1 }}>
             <p className="id-breadcrumb">{ti.breadcrumb} #{issueId.slice(-8)}</p>
             <h1 className="dash-page-title">{issue.title}</h1>
             <p className="id-date">{fmtDate(issue.createdAt, lang)}</p>
           </div>
+          {/* Vote button */}
+          <button
+            className={`id-vote-btn${hasVoted ? ' voted' : ''}${!user ? ' disabled' : ''}`}
+            disabled={voting || !user}
+            title={!user ? tb.loginToVote : undefined}
+            onClick={handleVote}
+          >
+            <span className="id-vote-arrow">{hasVoted ? '▲' : '△'}</span>
+            <span className="id-vote-count">{voteCount}</span>
+            <span className="id-vote-label">{hasVoted ? tb.voted : tb.voteBtn}</span>
+          </button>
         </header>
+
+        {/* ── Triage panel ─────────────────────────────────────────────── */}
+        <section className="id-section id-triage-panel">
+          {/* Status */}
+          <div className="id-triage-row">
+            <span className="id-triage-label">{tt.status}</span>
+            <div className="id-status-group">
+              {STATUS_LIST.map((s) => (
+                <button
+                  key={s}
+                  className={`id-status-btn status-${s}${status === s ? ' active' : ''}`}
+                  onClick={() => handleStatusChange(s)}
+                >
+                  {tt.statuses[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Priority */}
+          <div className="id-triage-row">
+            <span className="id-triage-label">{tt.priority}</span>
+            <div className="id-priority-group">
+              {PRIORITY_LIST.map((p) => (
+                <button
+                  key={p}
+                  className={`id-priority-btn priority-${p}${priority === p ? ' active' : ''}`}
+                  onClick={() => handlePriorityChange(p)}
+                >
+                  {tt.priorities[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="id-triage-row">
+            <span className="id-triage-label">{tt.tags}</span>
+            <div className="id-tags-area">
+              {tags.map((tag) => (
+                <span key={tag} className="id-tag-chip">
+                  {tag}
+                  <button className="id-tag-remove" onClick={() => removeTag(tag)}>×</button>
+                </span>
+              ))}
+              <input
+                className="id-tag-input"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                onBlur={addTag}
+                placeholder={tags.length === 0 ? tt.tagsPlaceholder : ''}
+              />
+            </div>
+          </div>
+        </section>
 
         {issue.description && (
           <section className="id-section">
@@ -135,6 +312,44 @@ export default function IssueDetailPage() {
             )}
           </section>
         )}
+
+        {/* ── Comments ─────────────────────────────────────────────────── */}
+        <section className="id-section">
+          <h2 className="id-section-title">{tt.comments}</h2>
+          {comments.length === 0 && (
+            <p className="id-no-comments">{tt.noComments}</p>
+          )}
+          <div className="id-comment-list">
+            {comments.map((c) => (
+              <div key={c._id} className="id-comment">
+                <div className="id-comment-header">
+                  <span className="id-comment-author">{c.authorName || 'Developer'}</span>
+                  <span className="id-comment-date">{fmtDate(c.createdAt, lang)}</span>
+                  <button
+                    className="id-comment-delete"
+                    disabled={deletingCid === c._id}
+                    onClick={() => handleDeleteComment(c._id)}
+                  >
+                    {tt.deleteComment}
+                  </button>
+                </div>
+                <p className="id-comment-body">{c.body}</p>
+              </div>
+            ))}
+          </div>
+          <form className="id-comment-form" onSubmit={handleAddComment}>
+            <textarea
+              className="id-comment-textarea"
+              rows={3}
+              placeholder={tt.commentPlaceholder}
+              value={commentBody}
+              onChange={(e) => setCommentBody(e.target.value)}
+            />
+            <button type="submit" className="btn btn-primary btn-sm" disabled={posting || !commentBody.trim()}>
+              {posting ? tt.posting : tt.addComment}
+            </button>
+          </form>
+        </section>
       </main>
     </div>
   );

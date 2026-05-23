@@ -116,16 +116,27 @@ namespace IssueTracker
 
         private void BuildAndSend(string title, string description)
         {
-            Dictionary<string, object> customState = null;
+            var customState = new Dictionary<string, object>();
             if (OnCollectCustomState != null)
             {
-                try
+                foreach (Delegate d in OnCollectCustomState.GetInvocationList())
                 {
-                    customState = OnCollectCustomState.Invoke();
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[IssueTracker] Custom state handler threw: {ex}");
+                    try
+                    {
+                        var handler = (CollectCustomStateHandler)d;
+                        var state = handler.Invoke();
+                        if (state != null)
+                        {
+                            foreach (var kvp in state)
+                            {
+                                customState[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[IssueTracker] Custom state handler threw: {ex}");
+                    }
                 }
             }
 

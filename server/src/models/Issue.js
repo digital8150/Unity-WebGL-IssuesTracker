@@ -26,6 +26,14 @@ const BrowserSchema = new Schema(
   { _id: false },
 );
 
+const CommentSchema = new Schema(
+  {
+    body: { type: String, required: true, maxlength: 5000 },
+    authorName: { type: String, default: '' },
+  },
+  { timestamps: true },
+);
+
 const IssueSchema = new Schema(
   {
     gameId: { type: Schema.Types.ObjectId, ref: 'Game', index: true },
@@ -41,6 +49,23 @@ const IssueSchema = new Schema(
     customState: { type: Schema.Types.Mixed, default: null },
     logs: { type: [LogEntrySchema], default: [] },
     browser: { type: BrowserSchema, default: {} },
+    // Upvotes — stores voter IDs; voteCount is computed from length
+    votes: { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], default: [] },
+    // Triage fields
+    status: {
+      type: String,
+      enum: ['open', 'in-progress', 'resolved', 'closed'],
+      default: 'open',
+      index: true,
+    },
+    priority: {
+      type: String,
+      enum: ['none', 'low', 'medium', 'high'],
+      default: 'none',
+      index: true,
+    },
+    tags: { type: [String], default: [] },
+    comments: { type: [CommentSchema], default: [] },
   },
   { timestamps: true },
 );

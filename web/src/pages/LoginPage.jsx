@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { login as apiLogin } from '../api.js';
+import BrandLogo from '../components/BrandLogo.jsx';
 import './AuthPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -29,7 +30,11 @@ export default function LoginPage() {
     try {
       const { token, user } = await apiLogin(form.email, form.password);
       login(token, user);
-      navigate(from, { replace: true });
+      if (user.status !== 'approved') {
+        navigate('/pending', { replace: true });
+      } else {
+        navigate(from, { replace: true });
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -40,7 +45,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <nav className="auth-topbar">
-        <Link to="/" className="auth-logo">BugDrop</Link>
+        <Link to="/" className="auth-logo"><BrandLogo /></Link>
         <button className="l-lang-toggle auth-lang-toggle" onClick={toggleLang}>
           {lang === 'en' ? '한국어' : 'English'}
         </button>

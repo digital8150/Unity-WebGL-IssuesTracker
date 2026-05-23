@@ -6,17 +6,17 @@ Drop-in WebGL bug-report capture for any Unity project.
 
 1. Copy `Assets/Scripts/IssueTrackerIntegration.cs` and `Assets/Plugins/WebGL/IssueTracker.jslib` into your Unity project (preserve the `Plugins/WebGL/` path so Unity recognises the jslib).
 2. Add an empty GameObject named `IssueTracker` to your bootstrap scene and attach `IssueTrackerIntegration`.
-3. (Optional) Subscribe to `OnCollectCustomState` to attach game-specific state:
+3. (Optional) Subscribe to `OnCollectCustomState` to attach game-specific state. Multiple scripts can subscribe; their dictionaries will be merged into a single object (duplicate keys will be overwritten by the last subscriber):
 
 ```csharp
 void Start()
 {
+    // Example in Player script
     IssueTracker.IssueTrackerIntegration.Instance.OnCollectCustomState += () =>
         new Dictionary<string, object>
         {
-            { "scene", SceneManager.GetActiveScene().name },
-            { "playerPos", player.transform.position },
             { "hp", player.Health },
+            { "pos", player.transform.position }
         };
 }
 ```

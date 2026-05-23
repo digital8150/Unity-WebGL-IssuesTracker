@@ -20,7 +20,7 @@ export default function AuthCallbackPage() {
     getMe(token)
       .then(({ user }) => {
         login(token, user);
-        navigate('/dashboard', { replace: true });
+        navigate(user.status === 'approved' ? '/dashboard' : '/pending', { replace: true });
       })
       .catch(() => navigate('/login?error=github', { replace: true }));
   }, []);
