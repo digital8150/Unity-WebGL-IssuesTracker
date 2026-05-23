@@ -145,18 +145,11 @@ export default function PlayPage() {
               <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
             </>
           )}
-        </div>
-      </nav>
-
-      {/* ── Game context bar ───────────────────────────────────────────── */}
-      <div style={contextBar}>
-        <div style={contextBarInner}>
-          <span style={contextGameName}>{gameName}</span>
           <button onClick={handleReportClick} style={reportBtn}>
             Report a Bug
           </button>
         </div>
-      </div>
+      </nav>
 
       {/* ── Hero ───────────────────────────────────────────────────────── */}
       <section style={heroSection}>
@@ -220,22 +213,6 @@ const errSub   = { fontSize: 14, color: MUTED, marginTop: 8, fontFamily: FONT };
 const pageWrap = { fontFamily: FONT, background: '#ffffff', minHeight: '100vh', color: INK };
 const container = { maxWidth: 980, margin: '0 auto', padding: '0 24px' };
 
-/* game context bar (secondary, below global nav) */
-const contextBar = {
-  position: 'sticky',
-  top: 'var(--nav-height)',
-  zIndex: 100,
-  background: 'rgba(255,255,255,0.85)',
-  backdropFilter: 'saturate(1.8) blur(16px)',
-  WebkitBackdropFilter: 'saturate(1.8) blur(16px)',
-  borderBottom: `1px solid ${HAIRLINE}`,
-  height: 48,
-};
-const contextBarInner = {
-  maxWidth: 980, margin: '0 auto', padding: '0 24px',
-  height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-};
-const contextGameName = { fontSize: 14, fontWeight: 600, color: INK, letterSpacing: '-0.02em' };
 const reportBtn = {
   padding: '0 16px', height: 30, background: INK, color: '#fff',
   border: 'none', borderRadius: 100, cursor: 'pointer',

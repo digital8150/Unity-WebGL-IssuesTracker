@@ -200,16 +200,9 @@ export default function ReportPage() {
           ) : (
             <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
           )}
-        </div>
-      </nav>
-
-      {/* ── Report context bar ── */}
-      <div style={contextBar}>
-        <div style={contextBarInner}>
-          <span style={contextTitle}>{t.report.navTitle}: {gameName}</span>
           <button onClick={() => window.close()} style={backBtn}>{t.report.backToGame}</button>
         </div>
-      </div>
+      </nav>
 
       {/* ── Report form section ── */}
       <section style={reportSection}>
@@ -504,22 +497,6 @@ const errSub    = { fontSize: 14, color: MUTED, marginTop: 8 };
 const pageWrap  = { fontFamily: FONT, background: '#fff', minHeight: '100vh', color: INK };
 const container = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
 
-/* report context bar (secondary, below global nav) */
-const contextBar = {
-  position: 'sticky',
-  top: 'var(--nav-height)',
-  zIndex: 100,
-  background: 'rgba(250,250,250,0.88)',
-  backdropFilter: 'blur(20px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderBottom: `1px solid ${HAIRLINE}`,
-  height: 44,
-};
-const contextBarInner = {
-  maxWidth: 1080, margin: '0 auto', padding: '0 24px',
-  height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-};
-const contextTitle = { fontSize: 14, fontWeight: 600, color: INK, letterSpacing: '-0.02em' };
 const backBtn = {
   padding: '0 14px', height: 28, background: '#e8e8e8', color: INK,
   border: 'none', borderRadius: 9999, cursor: 'pointer',
