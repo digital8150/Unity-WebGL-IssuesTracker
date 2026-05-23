@@ -235,9 +235,3 @@
   }
   .auth-title { font-size: 24px; }
 }
-
-
-/* Pending approval card */
-.pending-card { max-width: 460px; text-align: center; }
-.pending-icon {
-  width: 64px; height: 64px; border-radius: 50

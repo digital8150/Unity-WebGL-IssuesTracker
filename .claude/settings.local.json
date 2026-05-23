@@ -10,7 +10,9 @@
       "Bash(find /e/repos/unity-webgl-issuetracker/web -type f -not -path \"*/node_modules/*\" 2>/dev/null | sort)",
       "Read(//e/repos/unity-webgl-issuetracker/web/**)",
       "Bash(npm run *)",
-      "Bash(npx playwright *)"
+      "Bash(npx playwright *)",
+      "Bash(Get-Content \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\web\\\\src\\\\pages\\\\AuthPage.css\")",
+      "Bash(Select-Object -Last 20)"
     ]
   }
 }
