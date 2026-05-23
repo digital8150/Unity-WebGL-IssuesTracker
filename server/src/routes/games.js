@@ -33,7 +33,7 @@ function isOwner(game, userId) {
 
 function isAuthorized(game, userId) {
   if (isOwner(game, userId)) return true;
-  return game.collaborators.some((c) => c.toString() === String(userId));
+  return game.collaborators.some((c) => (c._id ?? c).toString() === String(userId));
 }
 
 // ── Public Arcade gallery ────────────────────────────────────────────────────
