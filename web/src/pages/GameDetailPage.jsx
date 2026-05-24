@@ -355,6 +355,13 @@ void Start()
         };
 }`;
 
+const GAME_OVER_CS = `// Call this wherever your game ends (scene transition, death screen, credits, etc.)
+void EndGame()
+{
+    IssueTracker.IssueTrackerIntegration.NotifyGameOver();
+    Application.Quit(); // no-op in WebGL; keeps desktop builds clean
+}`;
+
 function ArcadeSection({ gameId, game, setGame, builds, t }) {
   const td = t.gameDetail;
   const hasActiveBuild = builds.some((b) => b.isActive);
@@ -1154,6 +1161,12 @@ export default function GameDetailPage() {
               <h2 className="gi-step-title">{td.buildSettingsTitle}</h2>
               <p className="gi-step-desc">{td.buildSettingsDesc}</p>
               <div className="gi-step-hint">{td.buildSettingsHint}</div>
+            </div>
+
+            <div className="gi-step">
+              <h2 className="gi-step-title">{td.gameOverTitle}</h2>
+              <p className="gi-step-desc">{td.gameOverDesc}</p>
+              <CodeBlock filename="GameOverExample.cs" code={GAME_OVER_CS} />
             </div>
           </div>
         )}
