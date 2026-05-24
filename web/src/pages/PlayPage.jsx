@@ -75,12 +75,15 @@ export default function PlayPage() {
   };
 
   // ── Fullscreen toggle ─────────────────────────────────────────────────────
-  const toggleFullscreen = () => {
+  const toggleFullscreen = async () => {
     if (!gameWrapRef.current) return;
     if (document.fullscreenElement) {
+      navigator.keyboard?.unlock?.();
       document.exitFullscreen();
     } else {
-      gameWrapRef.current.requestFullscreen?.();
+      await gameWrapRef.current.requestFullscreen?.();
+      // Keyboard Lock API (Chrome/Edge): short ESC → game, long ESC → exit fullscreen
+      await navigator.keyboard?.lock?.(['Escape']).catch(() => {});
     }
   };
 
@@ -175,6 +178,9 @@ export default function PlayPage() {
             <UnityGame
               {...urls}
               onReady={(fn) => { sendMessageFn.current = fn; }}
+              gameOverTitle={t.play.gameOver}
+              gameOverReload={t.play.reload}
+              clickToActivate={t.play.clickToActivate}
             />
           </div>
           <div style={gameActions}>

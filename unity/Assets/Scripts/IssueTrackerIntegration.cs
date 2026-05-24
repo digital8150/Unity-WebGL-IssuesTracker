@@ -41,12 +41,25 @@ namespace IssueTracker
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")]
         private static extern void IssueTracker_SubmitReport(string payloadJson);
+
+        [DllImport("__Internal")]
+        private static extern void IssueTracker_GameOver();
 #else
         private static void IssueTracker_SubmitReport(string payloadJson)
         {
             Debug.Log($"[IssueTracker] (Editor stub) payload:\n{payloadJson}");
         }
+
+        private static void IssueTracker_GameOver() { }
 #endif
+
+        /// <summary>
+        /// Call this when the game ends to show the reload overlay in the browser.
+        /// </summary>
+        public static void NotifyGameOver()
+        {
+            IssueTracker_GameOver();
+        }
 
         private void Awake()
         {

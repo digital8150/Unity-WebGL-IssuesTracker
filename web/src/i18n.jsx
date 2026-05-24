@@ -318,6 +318,9 @@ const translations = {
       fullScreen: 'Full Screen',
       exitFullScreen: 'Exit Full Screen',
       by: 'by',
+      gameOver: 'Game Over',
+      reload: 'Reload',
+      clickToActivate: 'Click to activate controls',
     },
     report: {
       navTitle: 'Report a Bug',
@@ -664,6 +667,9 @@ const translations = {
       fullScreen: '전체 화면',
       exitFullScreen: '전체 화면 종료',
       by: 'by',
+      gameOver: '게임이 종료되었습니다',
+      reload: '다시 로드하기',
+      clickToActivate: '클릭하여 컨트롤 활성화',
     },
     report: {
       navTitle: '버그 리포트',

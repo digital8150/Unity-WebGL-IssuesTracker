@@ -11,4 +11,9 @@ mergeInto(LibraryManager.library, {
       console.error('[IssueTracker] submit failed', e);
     }
   },
+  IssueTracker_GameOver: function () {
+    if (typeof window.__unityGameOver === 'function') {
+      window.__unityGameOver();
+    }
+  },
 });
