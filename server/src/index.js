@@ -23,8 +23,10 @@ if (JWT_SECRET === 'dev-secret-change-in-production' && process.env.NODE_ENV ===
 
 const STORAGE_ROOT = path.resolve('storage', 'builds');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
+const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
 await fs.mkdir(STORAGE_ROOT, { recursive: true });
 await fs.mkdir(THUMBNAIL_ROOT, { recursive: true });
+await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
 const app = express();
 app.use(cors({ origin: CORS_ORIGIN }));
@@ -75,6 +77,23 @@ app.get('/thumbnails/:filename', async (req, res, next) => {
     const ext = fname.split('.').pop();
     res.setHeader('Content-Type', THUMB_MIME[ext] || 'application/octet-stream');
     res.setHeader('Cache-Control', 'public, max-age=3600');
+    createReadStream(filePath).pipe(res);
+  } catch (err) { next(err); }
+});
+
+// ── Serve blog images ─────────────────────────────────────────────────────────
+
+const BLOG_IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+
+app.get('/blog-images/:filename', async (req, res, next) => {
+  try {
+    const fname = req.params.filename;
+    if (!fname || fname.includes('..') || fname.includes('/')) return res.status(400).end();
+    const filePath = path.join(BLOG_IMAGE_ROOT, fname);
+    try { await fs.access(filePath); } catch { return res.status(404).end(); }
+    const ext = fname.split('.').pop().toLowerCase();
+    res.setHeader('Content-Type', BLOG_IMAGE_MIME[ext] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     createReadStream(filePath).pipe(res);
   } catch (err) { next(err); }
 });

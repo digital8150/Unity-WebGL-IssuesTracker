@@ -1,8 +1,16 @@
 import express from 'express';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import multer from 'multer';
 import BlogPost from '../models/BlogPost.js';
 import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
 
 const router = express.Router();
+const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
+const blogUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+});
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 
@@ -48,6 +56,37 @@ router.get('/:slug', async (req, res, next) => {
 });
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
+
+// POST /api/blog/admin/upload-image — upload image for blog
+router.post(
+  '/admin/upload-image',
+  requireAuth, requireApproved, requireAdmin,
+  blogUpload.single('file'),
+  async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+      const mimeToExt = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/webp': 'webp',
+        'image/gif': 'gif',
+      };
+      const ext = mimeToExt[req.file.mimetype];
+      if (!ext) return res.status(400).json({ error: 'Unsupported image type' });
+
+      await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
+
+      const fname = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      await fs.writeFile(path.join(BLOG_IMAGE_ROOT, fname), req.file.buffer);
+
+      res.json({ imageUrl: `/blog-images/${fname}` });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // GET /api/blog/admin/posts — list ALL posts (draft + published) for admin
 router.get(

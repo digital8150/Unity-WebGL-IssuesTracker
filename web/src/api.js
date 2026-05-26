@@ -210,3 +210,9 @@ export async function deleteBlogPost(id) {
   return request(`/api/blog/admin/posts/${id}`, { method: 'DELETE' });
 }
 
+export async function uploadBlogImage(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return requestRaw('/api/blog/admin/upload-image', { method: 'POST', body: fd }, true);
+}
+
