@@ -186,7 +186,7 @@ export default function LandingPage() {
             </Link>
           ) : (
             <>
-              <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
+              <Link to="/login" className="l-nav-link nav-signin">{t.nav.signIn}</Link>
               <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
             </>
           )}

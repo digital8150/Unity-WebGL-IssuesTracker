@@ -426,12 +426,15 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* ── Mock surfaces (illustrative product chrome) ── */
 .l-mock {
   width: 100%;
   max-width: 640px;
+  min-width: 0;
   border-radius: var(--radius-lg);
   background: var(--color-canvas);
   box-shadow: var(--shadow-5);
@@ -461,6 +464,11 @@
   font-size: 11px;
   color: var(--color-mute);
   letter-spacing: -0.01em;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Dashboard mock */
@@ -635,5 +643,16 @@
   .l-features-grid { grid-template-columns: 1fr; }
   .l-step { gap: var(--space-lg); }
   .l-footer { flex-direction: column; gap: 8px; text-align: center; padding: var(--space-lg); }
-  .l-nav-links { gap: var(--space-xs); }
+
+  /* Dashboard mock: hide sidebar, collapse to content-only */
+  .l-mock-side { display: none; }
+  .l-mock-body { grid-template-columns: 1fr; }
+  .l-mock-content { padding: 16px; }
+  /* Hide date — too narrow to show */
+  .l-mock-date { display: none; }
+}
+
+@media (max-width: 480px) {
+  .l-lang-toggle { display: none; }
+  .nav-signin { display: none; }
 }

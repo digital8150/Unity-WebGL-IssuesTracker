@@ -6,6 +6,12 @@
 }
 
 /* Nav (re-uses .l-nav-link / .l-lang-toggle from LandingPage.css) */
+.arcade-nav-active {
+  font-weight: 600 !important;
+  color: var(--color-ink) !important;
+  cursor: default;
+}
+
 .arcade-nav {
   position: sticky;
   top: 0;
@@ -197,4 +203,8 @@
 @media (max-width: 640px) {
   .arcade-hero-title { font-size: 32px; }
   .arcade-hero-sub   { font-size: 16px; }
+}
+
+@media (max-width: 834px) {
+  .arcade-nav { padding: 0 var(--space-md); }
 }
