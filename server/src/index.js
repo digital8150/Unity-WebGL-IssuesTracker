@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
+import blogRouter from './routes/blog.js';
 
 const {
   PORT = 4000,
@@ -33,6 +34,7 @@ app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/blog', blogRouter);
 
 // ── Serve Unity build files ───────────────────────────────────────────────────
 

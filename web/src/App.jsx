@@ -13,6 +13,10 @@ import PlayPage from './pages/PlayPage.jsx';
 import ReportPage from './pages/ReportPage.jsx';
 import ArcadePage from './pages/ArcadePage.jsx';
 import AdminUsersPage from './pages/AdminUsersPage.jsx';
+import AdminBlogPage from './pages/AdminBlogPage.jsx';
+import AdminBlogEditorPage from './pages/AdminBlogEditorPage.jsx';
+import BlogListPage from './pages/BlogListPage.jsx';
+import BlogPostPage from './pages/BlogPostPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 
 export default function App() {
@@ -26,11 +30,19 @@ export default function App() {
         <Route path="/pending" element={<ProtectedRoute requireApproved={false}><PendingPage /></ProtectedRoute>} />
         <Route path="/arcade" element={<ArcadePage />} />
 
+        {/* Blog (public) */}
+        <Route path="/blog" element={<BlogListPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
+
         <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
         <Route path="/dashboard/games/:gameId" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
         <Route path="/dashboard/games/:gameId/issues/:issueId" element={<ProtectedRoute><IssueDetailPage /></ProtectedRoute>} />
 
+        {/* Admin */}
         <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute>} />
+        <Route path="/admin/blog" element={<ProtectedRoute requireAdmin><AdminBlogPage /></ProtectedRoute>} />
+        <Route path="/admin/blog/new" element={<ProtectedRoute requireAdmin><AdminBlogEditorPage /></ProtectedRoute>} />
+        <Route path="/admin/blog/:id/edit" element={<ProtectedRoute requireAdmin><AdminBlogEditorPage /></ProtectedRoute>} />
 
         <Route path="/play/:gameSlug" element={<PlayPage />} />
         <Route path="/play/:gameSlug/:buildId" element={<PlayPage />} />
@@ -42,3 +54,4 @@ export default function App() {
     </I18nProvider>
   );
 }
+

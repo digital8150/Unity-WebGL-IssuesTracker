@@ -173,6 +173,7 @@ export default function LandingPage() {
         <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
         <div className="l-nav-links">
           <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
+          <Link to="/blog" className="l-nav-link">{t.nav.blog}</Link>
           <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
             {lang === 'en' ? '한국어' : 'English'}
           </button>

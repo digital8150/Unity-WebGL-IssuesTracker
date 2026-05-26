@@ -82,6 +82,7 @@ export default function AdminUsersPage() {
         <nav className="dash-nav">
           <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
+          <Link className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
           <span className="dash-nav-item active">{t.nav.admin}</span>
         </nav>
         <div className="dash-sidebar-footer">

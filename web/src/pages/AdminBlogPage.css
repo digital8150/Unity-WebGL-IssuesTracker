@@ -1,0 +1,149 @@
+/* ── Admin Blog Table ── */
+.ablog-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+  border: 1px solid var(--color-hairline);
+  animation: fadeUp 0.35s ease both;
+}
+
+.ablog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ablog-table thead th {
+  background: var(--color-canvas-soft);
+  padding: 10px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  color: var(--color-mute);
+  border-bottom: 1px solid var(--color-hairline);
+  white-space: nowrap;
+}
+
+.ablog-table tbody tr {
+  border-bottom: 1px solid var(--color-hairline);
+  transition: background 0.1s;
+}
+
+.ablog-table tbody tr:last-child { border-bottom: none; }
+.ablog-table tbody tr:hover { background: var(--color-canvas-soft); }
+
+.ablog-table td {
+  padding: 14px 16px;
+  vertical-align: middle;
+}
+
+.ablog-title-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ablog-title {
+  font-weight: 600;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.ablog-slug {
+  font-size: 12px;
+  color: var(--color-mute);
+  font-family: var(--font-mono);
+}
+
+/* Status badge */
+.ablog-status {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.ablog-status.published {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.ablog-status.draft {
+  background: var(--color-canvas-soft-2);
+  color: var(--color-mute);
+}
+
+.ablog-tags-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ablog-date {
+  font-size: 12px;
+  color: var(--color-mute);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.ablog-action-col { width: 200px; }
+
+.ablog-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.ablog-btn {
+  font-size: 13px;
+  padding: 0 10px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  color: var(--color-body);
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  white-space: nowrap;
+}
+
+.ablog-btn:hover:not(:disabled) {
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-hairline-strong);
+  color: var(--color-ink);
+}
+
+.ablog-btn.view {
+  color: var(--color-link);
+  border-color: var(--color-link-bg-soft);
+  background: var(--color-link-bg-soft);
+}
+
+.ablog-btn.view:hover {
+  background: #bfdbfe;
+  border-color: var(--color-link);
+}
+
+.ablog-btn.danger { color: var(--color-error); }
+.ablog-btn.danger:hover:not(:disabled) {
+  background: var(--color-error-soft);
+  border-color: var(--color-error);
+  color: var(--color-error-deep);
+}
+
+.ablog-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

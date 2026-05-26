@@ -42,6 +42,7 @@ export default function ArcadePage() {
         <Link to="/" className="arcade-logo"><BrandLogo size="md" /></Link>
         <div className="arcade-nav-links">
           <Link to="/" className="l-nav-link">{t.arcade.back}</Link>
+          <Link to="/blog" className="l-nav-link">{t.nav.blog}</Link>
           <button className="l-lang-toggle" onClick={toggleLang}>
             {lang === 'en' ? '한국어' : 'English'}
           </button>
