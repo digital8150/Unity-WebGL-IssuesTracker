@@ -2,6 +2,9 @@
 
 Shared, append-only-ish status log. Update at the end of any session that changes scope or completes a milestone. Keep entries terse.
 
+> **[CRITICAL INSTRUCTION FOR AI AGENTS]**
+> Due to token efficiency, all entries in this progress file **MUST be written in English**. 
+
 ## How to update this file
 Append a new dated section above when scope shifts. Don't rewrite history — note what changed, what's still TODO, and any decisions made.
 
@@ -76,108 +79,173 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ## Session 2026-05-23 (4)
 
-### Completed — nolt.io-급 피드백 관리 기능
-- **Issue 모델 확장**: `status` (open/in-progress/resolved/closed), `priority` (none/low/medium/high), `tags` ([String]), `comments` (subdocument: body, authorName, timestamps) 추가.
-- **Issues API 확장**:
-  - `PATCH /api/issues/:id` — status/priority/tags 업데이트 (auth 필요).
-  - `POST /api/issues/:id/comments` — 댓글 추가 (auth 필요, authorName은 JWT에서 추출).
-  - `DELETE /api/issues/:id/comments/:commentId` — 댓글 삭제 (auth 필요).
-- **Games reports 필터링**: `GET /api/games/:gameId/reports?status=&priority=&tag=` 지원. select에 status/priority/tags 추가.
-- **api.js**: `updateIssue`, `addComment`, `deleteComment` 추가. `getGameReports`에 필터 파라미터 지원.
-- **GameDetailPage Reports 탭**:
-  - 필터 바 (텍스트 검색 + 상태 칩 필터 + 우선순위 드롭다운 + 정렬) — 클라이언트 사이드 필터링.
-  - 각 리포트 행에 색깔 배지 (StatusBadge) + 우선순위 점 (PriorityDot) 표시.
-  - 행 우측에 빠른 상태 변경 select 드롭다운.
-  - `ReportsTab` 컴포넌트로 분리.
+### Completed — nolt.io-grade feedback management features
+- **Expanded Issue model**: status (open/in-progress/resolved/closed), priority (none/low/medium/high), tags ([String]), comments (subdocument: body, authorName, timestamps).
+- **Expanded Issues API**:
+  - `PATCH /api/issues/:id` — status/priority/tags update (auth required).
+  - `POST /api/issues/:id/comments` — add comment (auth required, authorName extracted from JWT).
+  - `DELETE /api/issues/:id/comments/:commentId` — delete comment (auth required).
+- **Games reports filtering**: support `GET /api/games/:gameId/reports?status=&priority=&tag=`. Added status/priority/tags fields to query.
+- **api.js**: Added `updateIssue`, `addComment`, `deleteComment`. `getGameReports` now supports filter parameters.
+- **GameDetailPage Reports Tab**:
+  - Filter bar (text search + status chip filter + priority dropdown + sort) — client-side filtering.
+  - Render color badges (StatusBadge) + priority dots (PriorityDot) on each report row.
+  - Inline quick status change select dropdown on the right of each row.
+  - Extracted into a separate `ReportsTab` component.
 - **IssueDetailPage**:
-  - 트리아지 패널 (상태 버튼 그룹 + 우선순위 버튼 그룹 + 태그 칩 입력) — 낙관적 업데이트.
-  - 댓글 섹션: 댓글 목록 + 작성 폼 + 삭제 버튼.
-- **i18n**: `triage` 네임스페이스 추가 (en/ko 모두).
-- **CSS**: 필터 바, 상태 배지, 우선순위 점, 트리아지 패널, 댓글 스타일 추가.
+  - Triage panel (status button group + priority button group + tag chip input) — optimistic updates.
+  - Comments section: comment list + reply form + delete button.
+- **i18n**: Added `triage` namespace (both en/ko).
+- **CSS**: Added styles for filter bar, status badge, priority dot, triage panel, and comments.
 
 ---
 
 ## Session 2026-05-23 (5)
 
-### Completed — 투표·테스터 보드·협업자 초대
+### Completed — Voting, Tester Board, and Collaborator Invitation
 
-**백엔드**
-- `auth.js`: `signToken`에 `name` 포함. `GET /api/auth/search-users?q=` — 이름/이메일로 유저 검색 (auth 필요).
-- `middleware/auth.js`: `optionalAuth` 추가 (토큰 있으면 파싱, 없으면 그냥 통과).
-- `Issue` 모델: `votes: [ObjectId]` 필드 추가.
-- `issues.js`: `POST /:id/vote` — 토글 방식, 임의 인증 유저. `POST /:id/comments` — 임의 인증 유저로 완화 (게임 소유자 불필요).
-- `Game` 모델: `collaborators: [ObjectId]` 필드 추가.
-- `games.js` 전면 재작성:
-  - `isOwner` / `isAuthorized` 헬퍼.
-  - `GET /api/games` — 소유+협업 게임 통합 반환, `isOwner` 플래그 포함.
-  - `GET/PATCH /:gameId` — PATCH는 소유자 전용, GET은 협업자 허용.
-  - Build upload/activate — 협업자 허용. Build 삭제 — 소유자 전용.
-  - `GET /:gameId/reports` — 협업자 허용, `voteCount/hasVoted` 포함.
-  - `GET /:gameId/collaborators` — 협업자 목록.
-  - `POST /:gameId/collaborators` — 이메일로 초대 (소유자 전용).
-  - `DELETE /:gameId/collaborators/:userId` — 제거 (소유자 전용).
-  - `GET /play/:gameSlug/issues` — **공개** 이슈 보드 (optionalAuth, closed 제외, 투표순 정렬).
+**Backend**
+- `auth.js`: Included name in `signToken`. `GET /api/auth/search-users?q=` — search users by name/email (auth required).
+- `middleware/auth.js`: Added `optionalAuth` middleware (parses token if present, otherwise passes through).
+- `Issue` model: Added `votes: [ObjectId]` field.
+- `issues.js`: `POST /:id/vote` — toggle voting, allowed for any authenticated user. `POST /:id/comments` — relaxed restriction (any authenticated user can comment, game owner check not required).
+- `Game` model: Added `collaborators: [ObjectId]` field.
+- Refactored `games.js`:
+  - `isOwner` / `isAuthorized` helpers.
+  - `GET /api/games` — Consolidated list returns both owned and collaborated games, including isOwner flag.
+  - `GET/PATCH /:gameId` — PATCH restricted to owner, GET allowed for collaborators.
+  - Build upload/activate allowed for collaborators. Build deletion restricted to owner.
+  - `GET /:gameId/reports` — Allowed for collaborators, includes `voteCount` and `hasVoted`.
+  - `GET /:gameId/collaborators` — Collaborator list.
+  - `POST /:gameId/collaborators` — Invite by email (owner only).
+  - `DELETE /:gameId/collaborators/:userId` — Remove collaborator (owner only).
+  - `GET /play/:gameSlug/issues` — Public issues board (optionalAuth, closed issues excluded, sorted by votes).
 
-**프론트엔드**
-- `api.js`: `voteIssue`, `getPublicIssues`, `getCollaborators`, `inviteCollaborator`, `removeCollaborator`, `searchUsers` 추가.
-- `i18n.jsx`: `collab`, `board` 네임스페이스 추가 (en/ko).
-- `ReportPage.jsx`: 우측 패널 탭화 (Debug Snapshot | Browse Reports). Browse 탭에서 게임의 공개 이슈 목록 열람, 투표 버튼, 댓글 확장 패널, 미로그인 시 로그인 유도. 네비게이션 바에 로그인 링크 추가.
-- `IssueDetailPage.jsx`: 헤더에 투표 버튼(카운트+토글), 로그인 필요 시 비활성.
-- `GameDetailPage.jsx`: Settings 탭에 `CollaboratorSection` 컴포넌트 — 협업자 목록 + 이메일 초대 폼 + 제거 버튼 (소유자 전용). Discord webhook은 소유자에게만 표시.
-- `DashboardPage.jsx`: 협업자로 참여한 게임에 "Collaborator" 배지 표시.
-- CSS: 협업자 목록/초대 폼, 대시보드 배지 추가.
+**Frontend**
+- `api.js`: Added `voteIssue`, `getPublicIssues`, `getCollaborators`, `inviteCollaborator`, `removeCollaborator`, `searchUsers`.
+- `i18n.jsx`: Added `collab` and `board` namespaces (en/ko).
+- `ReportPage.jsx`: Tabbed right panel (Debug Snapshot | Browse Reports). Browse tab supports viewing public issues, voting, expanding comments, prompting login for guests. Added login link in nav bar.
+- `IssueDetailPage.jsx`: Added voting button in header (count + toggle), disabled if login is required.
+- `GameDetailPage.jsx`: `CollaboratorSection` in Settings tab — collaborator list + email invite form + remove button (owner only). Discord webhook settings visible only to owners.
+- `DashboardPage.jsx`: Show "Collaborator" badge for collaborated games on the dashboard.
+- CSS: Added collaborator list/invite form, dashboard badges styles.
 
 ---
 
-## Session 2026-05-23 (7) — 리브랜딩: BugDrop → **BCSDLab. Arcade**
+## Session 2026-05-23 (7) — Rebranding: BugDrop → BCSDLab. Arcade
 
 ### Backend
-- `User` 모델: `role` (`user`|`admin`), `status` (`pending`|`approved`|`rejected`) 추가. 최초 가입자는 자동 `admin` + `approved` (bootstrap).
-- `middleware/auth.js`: `requireApproved`, `requireAdmin` 추가.
-- `auth.js`: register/login 응답에 role/status 포함. 신규 admin 라우트 `GET /api/auth/admin/users`, `PATCH /api/auth/admin/users/:id`, `DELETE /api/auth/admin/users/:id`. 마지막 admin demote/delete 차단.
-- `Game` 모델: `visibility` (`private`|`public`, default private), `description` (500자), `thumbnailUrl` 추가.
-- `games.js`: 모든 인증 라우트에 `requireApproved` 적용. PATCH가 visibility/description 수정 허용. 신규: `POST/DELETE /:gameId/thumbnail` (이미지 업로드 5MB 제한, png/jpeg/webp/gif), `GET /api/games/arcade` (public 갤러리, active build 있는 게임만 노출).
-- `index.js`: `storage/thumbnails/` 디렉터리 + `/thumbnails/:filename` 정적 서빙.
-- 협업자 초대는 `status: 'approved'` 인 유저만 검색되도록 제한.
+- `User` model: added `role` (`user`|`admin`), `status` (`pending`|`approved`|`rejected`). First registered user is automatically `admin` + `approved` (bootstrap).
+- `middleware/auth.js`: Added `requireApproved`, `requireAdmin`.
+- `auth.js`: Included role/status in register/login responses. New admin routes: `GET /api/auth/admin/users`, `PATCH /api/auth/admin/users/:id`, `DELETE /api/auth/admin/users/:id`. Prevented demoting/deleting the last admin.
+- `Game` model: added `visibility` (`private`|`public`, default private), `description` (500-char max), `thumbnailUrl`.
+- `games.js`: Applied `requireApproved` to all auth routes. `PATCH` allows updating visibility and description. New: `POST/DELETE /:gameId/thumbnail` (image upload limited to 5MB, supports png/jpeg/webp/gif), `GET /api/games/arcade` (public gallery, showing only games with active builds).
+- `index.js`: Created `storage/thumbnails/` directory and added static serving for `/thumbnails/:filename`.
+- Limit collaborator searches to users with status: `approved`.
 
-### Frontend — 리브랜딩
-- 서비스 이름: **BugDrop** → **BCSDLab. Arcade**. `components/BrandLogo.jsx` 신설 (두 톤 워드마크). 모든 페이지(Dashboard, GameDetail, IssueDetail, Login, Register, Landing, Arcade, Admin, Pending)에서 사용.
-- `index.html` title, README, i18n 전면 개편 (브랜드/카피/네임스페이스). "신용카드 불필요" 등 소비자형 멘트 제거. 트랙 내부 도구로 톤 재조정.
+### Frontend — Rebranding
+- Service name: **BugDrop** → **BCSDLab. Arcade**. Created `components/BrandLogo.jsx` (two-tone wordmark). Used across all pages (Dashboard, GameDetail, IssueDetail, Login, Register, Landing, Arcade, Admin, Pending).
+- Overhauled `index.html` title, README, `i18n` (brand/copy/namespaces). Removed consumer-facing copywriting (e.g. "no credit card required"). Retuned tone as an internal tool.
 
-### Frontend — 신규 페이지
-- **`/`** Landing 재작성: hero + 6개 feature card + 3개 showcase 섹션 (mock 대시보드/F2 오버레이/아케이드 갤러리) + 4-step flow (다크 밴드) + CTA + footer. 새 카피는 "WebGL 다운로드 불필요", "F2 인게임 리포트", "자동 디버깅 스냅샷", "Discord 웹훅", "Arcade 갤러리", "협업자" 중심.
-- **`/arcade`** (`ArcadePage`): public/active-build 게임 그리드. 썸네일 → 폴백 그라디언트, 게임명, 개발자명, 설명, latest version + Play 버튼. 비로그인 접근 허용.
-- **`/pending`** (`PendingPage`): 신규 가입자 / rejected 유저용 대기 화면. "Check again" 버튼은 `/api/auth/me`로 상태 새로고침, 승인되면 자동으로 `/dashboard`.
-- **`/admin/users`** (`AdminUsersPage`): admin 전용. 필터 칩(all/pending/approved/rejected), 테이블: 이름/이메일/role/status/joined/actions. approve, reject, promote, demote, delete 인라인 액션. GitHub 가입자 배지, "you" 배지.
-- `App.jsx`: 신규 라우트 4개 (`/arcade`, `/pending`, `/admin/users`) 추가. `ProtectedRoute`에 `requireApproved`/`requireAdmin` 옵션 추가.
-- `LoginPage`, `RegisterPage`, `AuthCallbackPage`: 승인되지 않은 유저는 `/pending`으로 리다이렉트.
+### Frontend — New Pages
+- **`/`** Landing page rewrote: hero + 6 feature cards + 3 showcase sections (mock dashboard/F2 overlay/arcade gallery) + 4-step flow (dark band) + CTA + footer. Focused on "no WebGL downloads," "F2 in-game reports," "automated debug snapshot," "Discord webhooks," "Arcade gallery," and "collaborators".
+- **`/arcade`** (`ArcadePage`): Public/active-build game grid. Thumbnail falls back to gradient, shows game name, developer, description, latest version + Play button. Guests allowed.
+- **`/pending`** (`PendingPage`): Waiting screen for pending/rejected users. "Check again" button refreshes status via `/api/auth/me`, auto-redirects to `/dashboard` upon approval.
+- **`/admin/users`** (`AdminUsersPage`): Admin only. Filter chips (all/pending/approved/rejected), table: name/email/role/status/joined/actions. Inline actions for approve, reject, promote, demote, delete. GitHub provider badge, "you" badge.
+- `App.jsx`: Added 4 new routes (`/arcade`, `/pending`, `/admin/users`). Added `requireApproved`/`requireAdmin` options in `ProtectedRoute`.
+- `LoginPage`, `RegisterPage`, `AuthCallbackPage`: Redirect unapproved users to `/pending`.
 
-### Frontend — GameDetailPage 아케이드 설정
-- Settings 탭에 `ArcadeSection` 신설 (소유자 전용): Private/Public 카드형 라디오, 설명 텍스트에어리어 (500자 카운터), 16:9 썸네일 업로드/교체/제거, 활성 빌드 없으면 Public 비활성 + 경고 표시.
-- `api.js`: `getArcadeGames`, `uploadThumbnail`, `deleteThumbnail`, `listAllUsers`, `updateUser`, `deleteUser` 추가.
+### Frontend — GameDetailPage Arcade Settings
+- Settings tab: `ArcadeSection` (owner only) — Private/Public card radio buttons, description textarea (500-char counter), 16:9 thumbnail upload/replace/remove, disables Public visibility with a warning if no active build exists.
+- `api.js`: Added `getArcadeGames`, `uploadThumbnail`, `deleteThumbnail`, `listAllUsers`, `updateUser`, `deleteUser`.
 
 ### Decisions
-- 서비스 이름: **BCSDLab. Arcade** (사용자가 후보 중 선택). 아케이드 갤러리는 단순 카드 그리드로 시작 — 검색/필터/태그는 게임 수가 늘면 추가.
-- 최초 가입자 자동 admin 전략: 운영자가 별도 시드 없이 첫 가입 후 본인 계정으로 다른 사용자 승인 가능.
-- 썸네일 저장: `storage/thumbnails/<gameId>.<ext>` 한 게임당 한 장. 이전 확장자는 업로드 시 정리.
-- pending 유저는 `/api/games`, `/api/auth/usage` 등 모든 보호 라우트에서 403 — 프론트는 `/pending` 화면으로 우회.
+- Service Name: **BCSDLab. Arcade** (chosen by user). Arcade gallery starts as a simple card grid — search/filter/tags deferred until game count grows.
+- First-user auto-admin bootstrap: allows operator to approve other users without separate database seeding.
+- Thumbnail storage: `storage/thumbnails/<gameId>.<ext>`, one per game. Cleans up old extensions on upload.
+- Pending users get 403 on protected endpoints (e.g. `/api/games`, `/api/auth/usage`) — frontend redirects them to `/pending` page.
 
 ---
 
-## Session 2026-05-23 (6)
+## Session 2026-05-23 (6) — ReportPage UX Improvement
 
-### Completed — ReportPage UX 개선
-- **레이아웃 재구성**: 리포트 보기(Browse Reports)를 우측 패널 탭에서 꺼내 폼 아래 전체 너비 섹션으로 이동. 우측 패널은 항상 디버그 스냅샷만 표시 (탭 제거).
-- **리포트 제출 시 태그 선택**: 폼에 카테고리 칩 피커 추가 (Bug / Suggestion 프리셋). 선택한 태그가 `POST /api/issues` 페이로드에 포함됨.
-- **테스터 익명 댓글**: `POST /api/issues/:id/comments` 를 `optionalAuth`로 변경. 비로그인 사용자도 이름 입력 후 댓글 작성 가능 (이름 미입력 시 'Anonymous'). `api.js` `addComment`에 `authorName` 파라미터 추가.
+### Completed
+- **Layout Restructuring**: Extracted 'Browse Reports' list from the right panel tab, moved below form in full width. Right panel now dedicated exclusively to the Debug Snapshot (tabs removed).
+- **Category tag selection**: Added chip picker (Bug/Suggestion presets) in the submission form. Selected tags are included in `POST /api/issues` payload.
+- **Anonymous comments for testers**: Relaxed `POST /api/issues/:id/comments` to `optionalAuth`. Guest players can post comments by providing a name (defaults to 'Anonymous'). Added `authorName` parameter to `addComment` in `api.js`.
 
 ---
 
-## Open / TODO (as of 2026-05-23)
+## Session 2026-05-26 — Full Blog Feature Implementation
 
-- ~~**Discord per-game webhook**~~: done (see Session 2026-05-23).
-- ~~**Issue detail view**~~: done (see Session 2026-05-23).
-- ~~**Discord per-game webhook**~~: done (see Session 2026-05-23).
+### Backend
+- Created `BlogPost` model: `title`, `slug` (unique index, auto-generated), `summary`, `content` (raw markdown), `coverImageUrl`, `tags[]`, `published` (bool), `publishedAt`, `author` (ref User), timestamps.
+- Created `server/src/routes/blog.js`:
+  - `GET /api/blog` — List published posts (published=true, sorted by latest, supports ?page&limit&tag).
+  - `GET /api/blog/:slug` — Get single published post by slug.
+  - `GET /api/blog/admin/posts` — Admin: List all posts (including drafts).
+  - `GET /api/blog/admin/posts/:id` — Admin: Get full post details.
+  - `POST /api/blog/admin/posts` — Admin: Create post. Slug collisions auto-resolved with -1, -2 suffixes.
+  - `PATCH /api/blog/admin/posts/:id` — Admin: Edit post. Sets publishedAt automatically on initial publish.
+  - `DELETE /api/blog/admin/posts/:id` — Admin: Delete post.
+- `index.js`: Mount `blogRouter` at `/api/blog`.
+
+### Frontend — Packages
+- Installed `marked` (markdown parser) and `dompurify` (XSS sanitizer).
+
+### Frontend — API (`web/src/api.js`)
+- Added `listBlogPosts`, `getBlogPost`, `listAdminBlogPosts`, `getAdminBlogPost`, `createBlogPost`, `updateBlogPost`, `deleteBlogPost`.
+
+### Frontend — Public Blog Pages
+- `BlogListPage.jsx` + `BlogListPage.css` (`/blog`): Grid layout, 16:9 cover image with hover zoom, tag badges, summary, date, author, pagination. Matches Arcade page layout.
+- `BlogPostPage.jsx` + `BlogPostPage.css` (`/blog/:slug`): markdown-body rendering via `marked` + `DOMPurify` + `highlight.js` (dark code blocks, tables, images, blockquotes, etc.).
+
+### Frontend — Admin CMS
+- `AdminBlogPage.jsx` + `AdminBlogPage.css` (`/admin/blog`): Table of all posts, status badges (published/draft), actions (edit, preview, delete).
+- `AdminBlogEditorPage.jsx` + `AdminBlogEditorPage.css` (`/admin/blog/new`, `/admin/blog/:id/edit`):
+  - Three view modes: Write / Split / Preview.
+  - 12 toolbar actions: H2, H3, Bold, Italic, inline code, codeblock, link, bullet list, ordered list, blockquote, horizontal rule, image.
+  - Tab key inserts 2-space indentation.
+  - Auto-slug (from title) with manual override support.
+  - Meta fields for title, slug, summary, tags, cover URL.
+  - Publish toggle switch + separate "Save as Draft" / "Publish" buttons.
+
+### Frontend — Navigation & Routing
+- `App.jsx`: Added routes for `/blog`, `/blog/:slug`, `/admin/blog`, `/admin/blog/new`, and `/admin/blog/:id/edit` (admin protected).
+- `LandingPage.jsx`, `ArcadePage.jsx`: Added Blog link next to Arcade in nav bar.
+- `DashboardPage.jsx`, `AdminUsersPage.jsx`: Added Blog CMS link in sidebar.
+- `i18n.jsx`: Added `nav.blog`, `nav.blogAdmin`, and `blog.*` namespaces in both English and Korean.
+
+### Decisions
+- Markdown rendering: `marked` (leveraging pre-installed `highlight.js` to minimize dependencies) + `DOMPurify`.
+- Public access allowed for blog list/details without auth. Create/edit/delete restricted to `requireAdmin`.
+- Image upload and static serving successfully integrated (local storage at `storage/blog-images/` and served at `/blog-images/:filename`).
+- Build verification: successful `npm run build` with zero errors.
+
+---
+
+## Session 2026-05-26 (2) — Blog Image Upload Feature
+
+### Backend
+- Created `storage/blog-images/` directory and registered `/blog-images/:filename` route for static serving.
+- New admin API endpoint `POST /api/blog/admin/upload-image` (multer-powered, 5MB limit, supports png/jpeg/webp/gif, random unique filename).
+
+### Frontend — API & i18n
+- Added `uploadBlogImage(file)` to `api.js`.
+- `i18n.jsx`: Expanded namespaces with English/Korean translations for drag-and-drop, cover upload limits, uploading status, etc.
+
+### Frontend — CMS Editor UX Improvements
+- **Cover Image Upload**: Redesigned as a beautiful 16:9 dropzone with cover image preview. Supports drag-and-drop / local file browse, with "Remove" / "Replace" controls.
+- **Content Image Upload (Drag-and-Drop / Paste)**:
+  - Renders a glassmorphism drag-over overlay when dragging images over the textarea.
+  - Triggers immediate upload when user drops or pastes (`Ctrl+V`) an image.
+  - Inserts temporary placeholder `![Uploading file_name...]()` at cursor position. Auto-replaces it with final markdown `![file_name](imageUrl)` on upload success.
+- **Toolbar Image Action**: Clicking 🖼️ opens a mini modal supporting local file upload or manual web image URL entry.
+
+---
+
+## Open / TODO (as of 2026-05-26)
+
 - No tests or linter configured (prefer Vitest for web, `node --test` for server).
 - Production: rate-limit `POST /api/issues`; validate upload file types server-side.
 - `unity/` is a drop-in folder, not a real Unity project — E2E flow untested with an actual WebGL build.

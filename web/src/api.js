@@ -175,3 +175,44 @@ export async function getPlayInfo(gameSlug, buildId = null) {
     : `/api/games/play/${gameSlug}`;
   return request(path);
 }
+
+// ── Blog (public) ─────────────────────────────────────────────────────────────
+
+export async function listBlogPosts({ page = 1, limit = 10, tag = '' } = {}) {
+  const params = new URLSearchParams({ page, limit });
+  if (tag) params.set('tag', tag);
+  return request(`/api/blog?${params.toString()}`);
+}
+
+export async function getBlogPost(slug) {
+  return request(`/api/blog/${slug}`);
+}
+
+// ── Blog Admin ────────────────────────────────────────────────────────────────
+
+export async function listAdminBlogPosts() {
+  return request('/api/blog/admin/posts');
+}
+
+export async function getAdminBlogPost(id) {
+  return request(`/api/blog/admin/posts/${id}`);
+}
+
+export async function createBlogPost(data) {
+  return request('/api/blog/admin/posts', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateBlogPost(id, data) {
+  return request(`/api/blog/admin/posts/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteBlogPost(id) {
+  return request(`/api/blog/admin/posts/${id}`, { method: 'DELETE' });
+}
+
+export async function uploadBlogImage(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return requestRaw('/api/blog/admin/upload-image', { method: 'POST', body: fd }, true);
+}
+

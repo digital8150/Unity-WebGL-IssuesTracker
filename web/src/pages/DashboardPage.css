@@ -353,18 +353,84 @@
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .dash-layout { flex-direction: column; height: auto; min-height: 100vh; }
+
+  /* Sidebar becomes a top nav bar split into two rows:
+     Row 1: logo (left) + user controls (right)
+     Row 2: nav tabs (full-width, horizontally scrollable) */
   .dash-sidebar {
     width: 100%;
     flex-direction: row;
-    align-items: center;
     flex-wrap: wrap;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-md);
+    align-items: center;
+    gap: 0;
+    padding: 0;
     border-right: none;
     border-bottom: 1px solid var(--color-hairline);
   }
-  .dash-nav { flex-direction: row; flex: none; }
-  .dash-sidebar-footer { border-top: none; padding-top: 0; flex-direction: row; margin-left: auto; align-items: center; }
+
+  /* Logo — row 1 left, takes remaining space */
+  .dash-logo {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: 0;
+    order: 0;
+  }
+
+  /* User controls — row 1 right */
+  .dash-sidebar-footer {
+    order: 1;
+    border-top: none;
+    padding: var(--space-sm) var(--space-md);
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-xs);
+  }
+
+  /* Nav tabs — row 2 (full width) */
+  .dash-nav {
+    order: 2;
+    width: 100%;
+    flex-direction: row;
+    flex: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 var(--space-md);
+    gap: 2px;
+    border-top: 1px solid var(--color-hairline);
+  }
+  .dash-nav::-webkit-scrollbar { display: none; }
+
+  .dash-nav-item {
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 8px var(--space-sm);
+    font-size: 13px;
+  }
+
+  /* Hide storage bar — not useful in a compact header */
+  .storage-bar-wrap { display: none; }
+
+  .dash-user { margin-bottom: 0; min-width: 0; }
   .dash-user-email { display: none; }
+  .dash-user-info { display: none; }
+
+  .dash-footer-btn {
+    width: auto;
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding: 5px 10px;
+  }
+
   .dash-main { padding: var(--space-lg); }
+}
+
+@media (max-width: 400px) {
+  .dash-user { display: none; }
+  .dash-logo { padding: var(--space-sm); }
+  .dash-sidebar-footer { padding: var(--space-sm); gap: 4px; }
+  .dash-footer-btn { font-size: 11px; padding: 4px 8px; }
 }
