@@ -47,6 +47,7 @@
   text-decoration: none;
   padding: var(--space-xxs) var(--space-xs);
   border-radius: var(--radius-full);
+  white-space: nowrap;
   transition: color 0.15s, background 0.15s;
 }
 
@@ -611,6 +612,29 @@
   padding: 6px 12px 12px; font-family: var(--font-mono);
 }
 
+/* ── Report page ── */
+.report-back-btn {
+  padding: 0 14px;
+  height: 28px;
+  background: #e8e8e8;
+  color: var(--color-ink, #171717);
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+/* ── Report page form grid ── */
+.report-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
+}
+
 /* ── Responsive ── */
 @media (max-width: 960px) {
   .l-showcase-inner,
@@ -634,6 +658,7 @@
   .l-hero { padding-top: 80px; padding-bottom: 80px; }
   .l-mock-report-body  { grid-template-columns: 1fr; }
   .l-mock-report-form  { border-right: none; border-bottom: 1px solid var(--color-hairline); }
+  .report-form-grid    { grid-template-columns: 1fr; }
   .l-mock-arcade-grid { grid-template-columns: 1fr; }
 }
 
@@ -643,6 +668,10 @@
   .l-features-grid { grid-template-columns: 1fr; }
   .l-step { gap: var(--space-lg); }
   .l-footer { flex-direction: column; gap: 8px; text-align: center; padding: var(--space-lg); }
+
+  /* Report page: hide secondary nav items to prevent crowding */
+  .report-back-btn { display: none; }
+  .report-nav-blog { display: none; }
 
   /* Dashboard mock: hide sidebar, collapse to content-only */
   .l-mock-side { display: none; }

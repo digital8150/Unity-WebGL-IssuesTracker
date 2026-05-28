@@ -187,6 +187,7 @@ export default function ReportPage() {
         <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
         <div className="l-nav-links">
           <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
+          <Link to="/blog" className="l-nav-link report-nav-blog">{t.nav.blog}</Link>
           <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
             {lang === 'en' ? '한국어' : 'English'}
           </button>
@@ -198,9 +199,12 @@ export default function ReportPage() {
               {t.nav.dashboard}
             </Link>
           ) : (
-            <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
+            <>
+              <Link to="/login" className="l-nav-link nav-signin">{t.nav.signIn}</Link>
+              <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
+            </>
           )}
-          <button onClick={() => window.close()} style={backBtn}>{t.report.backToGame}</button>
+          <button onClick={() => window.close()} className="report-back-btn">{t.report.backToGame}</button>
         </div>
       </nav>
 
@@ -210,7 +214,7 @@ export default function ReportPage() {
           <h1 style={reportTitle}>{t.report.title}</h1>
           <p style={reportSub}>{t.report.subtitle}</p>
 
-          <form onSubmit={handleSubmit} style={reportForm}>
+          <form onSubmit={handleSubmit} className="report-form-grid">
             {/* Left: form fields */}
             <div style={formFields}>
               <label style={fieldGroup}>
@@ -497,16 +501,10 @@ const errSub    = { fontSize: 14, color: MUTED, marginTop: 8 };
 const pageWrap  = { fontFamily: FONT, background: '#fff', minHeight: '100vh', color: INK };
 const container = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
 
-const backBtn = {
-  padding: '0 14px', height: 28, background: '#e8e8e8', color: INK,
-  border: 'none', borderRadius: 9999, cursor: 'pointer',
-  fontSize: 12, fontWeight: 500, fontFamily: FONT,
-};
 
 const reportSection = { background: PARCH, padding: '56px 0 64px' };
 const reportTitle   = { fontSize: 28, fontWeight: 600, color: INK, letterSpacing: '-0.28px', margin: '0 0 10px' };
 const reportSub     = { fontSize: 17, color: MUTED, margin: '0 0 36px', lineHeight: 1.5 };
-const reportForm    = { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 360px', gap: 32, alignItems: 'start' };
 
 const formFields = { display: 'flex', flexDirection: 'column', gap: 16 };
 const fieldGroup = { display: 'flex', flexDirection: 'column', gap: 6 };
