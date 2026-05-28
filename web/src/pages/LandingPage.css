@@ -26,6 +26,10 @@
   box-shadow: var(--shadow-3);
 }
 
+[data-theme="dark"] .l-nav {
+  background: rgba(10, 10, 10, 0.88);
+}
+
 .l-logo {
   font-size: 18px;
   font-weight: 600;
@@ -47,6 +51,7 @@
   text-decoration: none;
   padding: var(--space-xxs) var(--space-xs);
   border-radius: var(--radius-full);
+  white-space: nowrap;
   transition: color 0.15s, background 0.15s;
 }
 
@@ -81,7 +86,16 @@
 
 .l-tile-white     { background: var(--color-canvas); }
 .l-tile-parchment { background: var(--color-canvas-soft); }
-.l-tile-dark      { background: var(--color-primary); }
+.l-tile-dark      { background: #171717; }
+
+[data-theme="dark"] .l-tile-dark { background: #0d0d0d; }
+
+/* .l-tile-dark is always a dark surface — its text must always be white */
+.l-tile-dark .l-title-on-dark,
+.l-tile-dark .l-step-title { color: #ffffff; }
+.l-tile-dark .l-section-label { color: rgba(255,255,255,0.45); }
+.l-tile-dark .l-step-number  { color: rgba(255,255,255,0.12); }
+.l-tile-dark .l-step-desc    { color: rgba(255,255,255,0.55); }
 
 .l-tile-inner {
   max-width: 1040px;
@@ -216,7 +230,7 @@
   max-width: 540px;
 }
 
-.l-title-on-dark { color: var(--color-on-primary); }
+.l-title-on-dark { color: #ffffff; }
 
 /* ── Features grid ── */
 .l-features-grid {
@@ -328,7 +342,7 @@
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: var(--color-on-primary);
+  color: #ffffff;
   margin-bottom: 8px;
 }
 
@@ -611,6 +625,29 @@
   padding: 6px 12px 12px; font-family: var(--font-mono);
 }
 
+/* ── Report page ── */
+.report-back-btn {
+  padding: 0 14px;
+  height: 28px;
+  background: #e8e8e8;
+  color: var(--color-ink, #171717);
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+/* ── Report page form grid ── */
+.report-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
+}
+
 /* ── Responsive ── */
 @media (max-width: 960px) {
   .l-showcase-inner,
@@ -634,6 +671,7 @@
   .l-hero { padding-top: 80px; padding-bottom: 80px; }
   .l-mock-report-body  { grid-template-columns: 1fr; }
   .l-mock-report-form  { border-right: none; border-bottom: 1px solid var(--color-hairline); }
+  .report-form-grid    { grid-template-columns: 1fr; }
   .l-mock-arcade-grid { grid-template-columns: 1fr; }
 }
 
@@ -643,6 +681,10 @@
   .l-features-grid { grid-template-columns: 1fr; }
   .l-step { gap: var(--space-lg); }
   .l-footer { flex-direction: column; gap: 8px; text-align: center; padding: var(--space-lg); }
+
+  /* Report page: hide secondary nav items to prevent crowding */
+  .report-back-btn { display: none; }
+  .report-nav-blog { display: none; }
 
   /* Dashboard mock: hide sidebar, collapse to content-only */
   .l-mock-side { display: none; }

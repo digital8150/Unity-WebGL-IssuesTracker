@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { listGames, createGame } from '../api.js';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
@@ -70,9 +71,12 @@ export default function DashboardPage() {
               <div className="dash-user-email">{user?.email}</div>
             </div>
           </div>
-          <button className="dash-footer-btn" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
+          <div className="dash-footer-row">
+            <button className="dash-footer-btn" onClick={toggleLang}>
+              {lang === 'en' ? '한국어' : 'English'}
+            </button>
+            <DarkModeToggle />
+          </div>
           <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
       </aside>

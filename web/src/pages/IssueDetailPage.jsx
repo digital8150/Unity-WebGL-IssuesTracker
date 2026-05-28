@@ -4,6 +4,7 @@ import { useI18n } from '../i18n.jsx';
 import { getIssue, updateIssue, addComment, deleteComment, voteIssue } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './IssueDetailPage.css';
 
@@ -172,9 +173,12 @@ export default function IssueDetailPage() {
           <Link className="dash-nav-item" to={`/dashboard/games/${gameId}`}>{t.gameDetail.backReports}</Link>
         </nav>
         <div className="dash-sidebar-footer">
-          <button className="dash-footer-btn" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
+          <div className="dash-footer-row">
+            <button className="dash-footer-btn" onClick={toggleLang}>
+              {lang === 'en' ? '한국어' : 'English'}
+            </button>
+            <DarkModeToggle />
+          </div>
         </div>
       </aside>
 

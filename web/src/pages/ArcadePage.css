@@ -26,6 +26,10 @@
   padding: 0 var(--space-lg);
 }
 
+[data-theme="dark"] .arcade-nav {
+  background: rgba(10, 10, 10, 0.88);
+}
+
 .arcade-logo { display: inline-flex; }
 
 .arcade-nav-links {
