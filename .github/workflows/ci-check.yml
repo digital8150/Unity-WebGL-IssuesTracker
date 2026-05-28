@@ -1,0 +1,44 @@
+name: CI Build Check
+
+on:
+  pull_request:
+    branches: [ "develop", "main" ]
+
+jobs:
+  build-check-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Node.js 세팅
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # 프로젝트 버전에 맞게 수정해!
+
+      - name: 📦 Web 패키지 설치
+        run: npm ci
+
+      - name: 🏗️ Web 빌드 (Vite)
+        run: npm run build
+
+  build-check-server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+      - name: 📥 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Node.js 세팅
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 📦 Server 패키지 설치 (오류 검사)
+        run: npm ci
+        # Express 환경이라 빌드 과정이 없다면 설치만 확인! (만약 TS 쓰면 run build 추가해)

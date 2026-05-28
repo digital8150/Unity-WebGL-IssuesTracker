@@ -1,0 +1,33 @@
+name: CD Oracle Auto Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚀 오라클 서버 접속 및 배포 스크립트 실행
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: 22
+          script: |
+            # 1. 형의 서버 프로젝트 폴더로 이동
+            cd /home/ubuntu/bcsdlabArcade/Unity-WebGL-IssuesTracker/
+            
+            # 2. 최신 코드 가져오기
+            git pull origin main
+            
+            # 3. Web 프론트엔드 의존성 설치 및 빌드
+            cd web
+            npm install
+            npm run build
+            
+            # 4. Server 백엔드 이동, 의존성 설치 및 PM2 재시작
+            cd ../server
+            npm install
+            pm2 restart arcade-server
