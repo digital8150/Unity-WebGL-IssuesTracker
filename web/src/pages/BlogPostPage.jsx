@@ -8,6 +8,7 @@ import { useI18n } from '../i18n.jsx';
 import { getBlogPost } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
 
@@ -50,6 +51,15 @@ export default function BlogPostPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const contentRef = useRef(null);
+
+  const SITE = 'BCSDLab. Arcade';
+  useDocumentMeta(post ? {
+    title: `${post.title} — ${SITE}`,
+    description: post.summary || undefined,
+    image: post.coverImageUrl || undefined,
+    url: window.location.href,
+    type: 'article',
+  } : {});
 
   useEffect(() => {
     setLoading(true);
