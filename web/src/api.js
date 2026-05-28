@@ -216,3 +216,16 @@ export async function uploadBlogImage(file) {
   return requestRaw('/api/blog/admin/upload-image', { method: 'POST', body: fd }, true);
 }
 
+// ── Blog Comments (public) ───────────────────────────────────────────────────
+
+export async function addBlogComment(slug, body, authorName, turnstileToken) {
+  return request(`/api/blog/${slug}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body, authorName, turnstileToken }),
+  });
+}
+
+export async function deleteBlogComment(slug, commentId) {
+  return request(`/api/blog/${slug}/comments/${commentId}`, { method: 'DELETE' });
+}
+

@@ -243,6 +243,142 @@
   margin: 2em 0;
 }
 
+/* ── Comments ── */
+.bpost-comments {
+  margin-top: var(--space-3xl);
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.bpost-comments-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-lg);
+}
+
+.bpost-comments-empty {
+  font-size: 14px;
+  color: var(--color-mute);
+  margin-bottom: var(--space-xl);
+}
+
+.bpost-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-bottom: var(--space-2xl);
+}
+
+.bpost-comment-item {
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+}
+
+.bpost-comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.bpost-comment-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.bpost-comment-date {
+  font-size: 12px;
+  color: var(--color-mute);
+  font-family: var(--font-mono);
+  margin-left: auto;
+}
+
+.bpost-comment-delete {
+  font-size: 11px;
+  color: var(--color-mute);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  transition: color 0.15s;
+}
+
+.bpost-comment-delete:hover { color: #c0392b; }
+
+.bpost-comment-body {
+  font-size: 14px;
+  color: var(--color-body);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+/* Comment form */
+.bpost-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.bpost-comment-form-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-xs);
+}
+
+.bpost-comment-name,
+.bpost-comment-textarea {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+  outline: none;
+  transition: border-color 0.15s;
+  resize: vertical;
+}
+
+.bpost-comment-name:focus,
+.bpost-comment-textarea:focus {
+  border-color: var(--color-primary);
+}
+
+.bpost-comment-name { height: 36px; resize: none; }
+.bpost-comment-textarea { min-height: 96px; }
+
+.bpost-comment-error {
+  font-size: 13px;
+  color: #c0392b;
+  margin: 0;
+}
+
+.bpost-comment-submit {
+  align-self: flex-start;
+}
+
+/* Login hint inside the Turnstile widget area */
+.auth-turnstile { margin: var(--space-md) 0; }
+.auth-turnstile-hint {
+  font-size: 13px;
+  color: var(--color-mute);
+  text-align: center;
+  margin-top: 4px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .bpost-main { padding: var(--space-xl) var(--space-md); }

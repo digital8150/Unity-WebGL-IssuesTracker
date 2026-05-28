@@ -3,7 +3,8 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import multer from 'multer';
 import BlogPost from '../models/BlogPost.js';
-import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
+import { requireAuth, requireApproved, requireAdmin, optionalAuth } from '../middleware/auth.js';
+import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
@@ -54,6 +55,58 @@ router.get('/:slug', async (req, res, next) => {
     next(err);
   }
 });
+
+// ── Public comment routes ─────────────────────────────────────────────────────
+
+// POST /api/blog/:slug/comments — add comment (optionalAuth; guests need Turnstile)
+router.post(
+  '/:slug/comments',
+  optionalAuth,
+  requireTurnstileIfGuest,
+  async (req, res, next) => {
+    try {
+      const { body: commentBody, authorName: guestName } = req.body ?? {};
+      if (!commentBody || typeof commentBody !== 'string' || !commentBody.trim()) {
+        return res.status(400).json({ error: 'Comment body is required' });
+      }
+
+      const authorName = req.user
+        ? (req.user.name || req.user.email || 'User')
+        : (typeof guestName === 'string' && guestName.trim() ? guestName.trim() : 'Anonymous');
+
+      const post = await BlogPost.findOneAndUpdate(
+        { slug: req.params.slug, published: true },
+        { $push: { comments: { body: commentBody.trim(), authorName } } },
+        { new: true },
+      ).select('comments');
+
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      const added = post.comments[post.comments.length - 1];
+      res.status(201).json({ comment: added });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// DELETE /api/blog/:slug/comments/:commentId — delete comment (requireAuth)
+router.delete(
+  '/:slug/comments/:commentId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const post = await BlogPost.findOneAndUpdate(
+        { slug: req.params.slug },
+        { $pull: { comments: { _id: req.params.commentId } } },
+        { new: true },
+      );
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
 
