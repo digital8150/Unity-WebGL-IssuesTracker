@@ -60,7 +60,7 @@ router.get('/:slug', async (req, res, next) => {
 // POST /api/blog/admin/upload-image — upload image for blog
 router.post(
   '/admin/upload-image',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   blogUpload.single('file'),
   async (req, res, next) => {
     try {
@@ -88,13 +88,14 @@ router.post(
   },
 );
 
-// GET /api/blog/admin/posts — list ALL posts (draft + published) for admin
+// GET /api/blog/admin/posts — list posts; admins see all, others see own
 router.get(
   '/admin/posts',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   async (req, res, next) => {
     try {
-      const posts = await BlogPost.find()
+      const filter = req.user.role === 'admin' ? {} : { author: req.user.sub };
+      const posts = await BlogPost.find(filter)
         .sort({ createdAt: -1 })
         .populate('author', 'name')
         .select('-content')
@@ -106,14 +107,17 @@ router.get(
   },
 );
 
-// GET /api/blog/admin/posts/:id — get full post by id (admin)
+// GET /api/blog/admin/posts/:id — get full post by id (own or admin)
 router.get(
   '/admin/posts/:id',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   async (req, res, next) => {
     try {
       const post = await BlogPost.findById(req.params.id).populate('author', 'name').lean();
       if (!post) return res.status(404).json({ error: 'Post not found' });
+      if (req.user.role !== 'admin' && String(post.author?._id ?? post.author) !== req.user.sub) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
       res.json({ post });
     } catch (err) {
       next(err);
@@ -121,10 +125,10 @@ router.get(
   },
 );
 
-// POST /api/blog/admin/posts — create post
+// POST /api/blog/admin/posts — create post (any approved user)
 router.post(
   '/admin/posts',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   async (req, res, next) => {
     try {
       const { title, slug, summary, content, coverImageUrl, tags, published } = req.body;
@@ -161,28 +165,31 @@ router.post(
   },
 );
 
-// PATCH /api/blog/admin/posts/:id — update post
+// PATCH /api/blog/admin/posts/:id — update post (own or admin)
 router.patch(
   '/admin/posts/:id',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   async (req, res, next) => {
     try {
+      const existing = await BlogPost.findById(req.params.id).select('author publishedAt');
+      if (!existing) return res.status(404).json({ error: 'Post not found' });
+      if (req.user.role !== 'admin' && String(existing.author) !== req.user.sub) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
       const allowed = ['title', 'slug', 'summary', 'content', 'coverImageUrl', 'tags', 'published'];
       const updates = {};
       for (const key of allowed) {
         if (key in req.body) updates[key] = req.body[key];
       }
 
-      // Set publishedAt when publishing for first time
-      if (updates.published === true) {
-        const existing = await BlogPost.findById(req.params.id).select('publishedAt');
-        if (existing && !existing.publishedAt) updates.publishedAt = new Date();
+      if (updates.published === true && !existing.publishedAt) {
+        updates.publishedAt = new Date();
       }
 
       const post = await BlogPost.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true })
         .populate('author', 'name')
         .lean();
-      if (!post) return res.status(404).json({ error: 'Post not found' });
       res.json({ post });
     } catch (err) {
       if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
@@ -191,14 +198,18 @@ router.patch(
   },
 );
 
-// DELETE /api/blog/admin/posts/:id — delete post
+// DELETE /api/blog/admin/posts/:id — delete post (own or admin)
 router.delete(
   '/admin/posts/:id',
-  requireAuth, requireApproved, requireAdmin,
+  requireAuth, requireApproved,
   async (req, res, next) => {
     try {
-      const post = await BlogPost.findByIdAndDelete(req.params.id);
+      const post = await BlogPost.findById(req.params.id).select('author');
       if (!post) return res.status(404).json({ error: 'Post not found' });
+      if (req.user.role !== 'admin' && String(post.author) !== req.user.sub) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      await post.deleteOne();
       res.json({ ok: true });
     } catch (err) {
       next(err);
