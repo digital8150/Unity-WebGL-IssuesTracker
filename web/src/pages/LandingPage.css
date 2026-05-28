@@ -26,6 +26,10 @@
   box-shadow: var(--shadow-3);
 }
 
+[data-theme="dark"] .l-nav {
+  background: rgba(10, 10, 10, 0.88);
+}
+
 .l-logo {
   font-size: 18px;
   font-weight: 600;
@@ -82,7 +86,16 @@
 
 .l-tile-white     { background: var(--color-canvas); }
 .l-tile-parchment { background: var(--color-canvas-soft); }
-.l-tile-dark      { background: var(--color-primary); }
+.l-tile-dark      { background: #171717; }
+
+[data-theme="dark"] .l-tile-dark { background: #0d0d0d; }
+
+/* .l-tile-dark is always a dark surface — its text must always be white */
+.l-tile-dark .l-title-on-dark,
+.l-tile-dark .l-step-title { color: #ffffff; }
+.l-tile-dark .l-section-label { color: rgba(255,255,255,0.45); }
+.l-tile-dark .l-step-number  { color: rgba(255,255,255,0.12); }
+.l-tile-dark .l-step-desc    { color: rgba(255,255,255,0.55); }
 
 .l-tile-inner {
   max-width: 1040px;
@@ -217,7 +230,7 @@
   max-width: 540px;
 }
 
-.l-title-on-dark { color: var(--color-on-primary); }
+.l-title-on-dark { color: #ffffff; }
 
 /* ── Features grid ── */
 .l-features-grid {
@@ -329,7 +342,7 @@
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.02em;
-  color: var(--color-on-primary);
+  color: #ffffff;
   margin-bottom: 8px;
 }
 

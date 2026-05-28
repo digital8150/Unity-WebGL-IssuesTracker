@@ -7,6 +7,7 @@ import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updat
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import hljs from 'highlight.js/lib/core';
 import hljsCsharp from 'highlight.js/lib/languages/csharp';
 import hljsJs from 'highlight.js/lib/languages/javascript';
@@ -964,9 +965,12 @@ export default function GameDetailPage() {
         </nav>
         <div className="dash-sidebar-footer">
           <StorageBar label={td.totalStorage} />
-          <button className="dash-footer-btn" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
+          <div className="dash-footer-row">
+            <button className="dash-footer-btn" onClick={toggleLang}>
+              {lang === 'en' ? '한국어' : 'English'}
+            </button>
+            <DarkModeToggle />
+          </div>
         </div>
       </aside>
 

@@ -49,6 +49,16 @@
   z-index: 100;
 }
 
+[data-theme="dark"] .auth-topbar {
+  background: rgba(10,10,10,0.85);
+}
+
+.auth-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
 /* Pending approval card */
 .pending-card { max-width: 460px; text-align: center; }
 .pending-icon {

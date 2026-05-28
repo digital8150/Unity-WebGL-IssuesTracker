@@ -127,6 +127,23 @@
   border-color: var(--color-hairline-strong);
 }
 
+.dash-footer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+}
+
+.dash-footer-row .dash-footer-btn {
+  flex: 1;
+}
+
+.dash-footer-row .dark-mode-toggle {
+  flex-shrink: 0;
+  height: 32px;
+  width: 32px;
+}
+
 /* ── Storage quota bar ── */
 .storage-bar-wrap {
   padding: var(--space-xs);

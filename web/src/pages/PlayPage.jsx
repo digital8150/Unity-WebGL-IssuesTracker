@@ -5,6 +5,7 @@ import { getPlayInfo } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './LandingPage.css';
 
 export default function PlayPage() {
@@ -136,6 +137,7 @@ export default function PlayPage() {
           <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
             {lang === 'en' ? '한국어' : 'English'}
           </button>
+          <DarkModeToggle />
           {user ? (
             <Link
               to={user.status === 'approved' ? '/dashboard' : '/pending'}
