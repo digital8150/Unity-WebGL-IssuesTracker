@@ -1,13 +1,15 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
-import { getBlogPost } from '../api.js';
+import { getBlogPost, addBlogComment, deleteBlogComment } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import TurnstileWidget from '../components/TurnstileWidget.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
 
@@ -50,6 +52,57 @@ export default function BlogPostPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const contentRef = useRef(null);
+
+  // Comment form state
+  const [commentBody, setCommentBody]     = useState('');
+  const [guestName, setGuestName]         = useState('');
+  const [cfToken, setCfToken]             = useState('');
+  const [postingComment, setPostingComment] = useState(false);
+  const [commentError, setCommentError]   = useState('');
+  const turnstileResetRef                 = useRef(null);
+
+  const handleCfToken  = useCallback((t) => setCfToken(t),  []);
+  const handleCfExpire = useCallback(() => setCfToken(''), []);
+
+  async function handleAddComment(e) {
+    e.preventDefault();
+    if (!commentBody.trim()) return;
+    setPostingComment(true);
+    setCommentError('');
+    try {
+      const authorName = user ? undefined : (guestName.trim() || undefined);
+      const { comment } = await addBlogComment(slug, commentBody.trim(), authorName, !user ? cfToken : undefined);
+      setPost((prev) => prev ? { ...prev, comments: [...(prev.comments ?? []), comment] } : prev);
+      setCommentBody('');
+      setCfToken('');
+      turnstileResetRef.current?.();
+    } catch (err) {
+      setCommentError(err.message || t.blog.commentError);
+      setCfToken('');
+      turnstileResetRef.current?.();
+    } finally {
+      setPostingComment(false);
+    }
+  }
+
+  async function handleDeleteComment(commentId) {
+    try {
+      await deleteBlogComment(slug, commentId);
+      setPost((prev) => prev
+        ? { ...prev, comments: (prev.comments ?? []).filter((c) => c._id !== commentId) }
+        : prev,
+      );
+    } catch {}
+  }
+
+  const SITE = 'BCSDLab. Arcade';
+  useDocumentMeta(post ? {
+    title: `${post.title} — ${SITE}`,
+    description: post.summary || undefined,
+    image: post.coverImageUrl || undefined,
+    url: window.location.href,
+    type: 'article',
+  } : {});
 
   useEffect(() => {
     setLoading(true);
@@ -150,6 +203,83 @@ export default function BlogPostPage() {
               className="bpost-content markdown-body"
               dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
             />
+
+            {/* ── Comments ── */}
+            <section className="bpost-comments">
+              <h2 className="bpost-comments-title">
+                {t.blog.comments((post.comments ?? []).length)}
+              </h2>
+
+              {(post.comments ?? []).length === 0 && (
+                <p className="bpost-comments-empty">{t.blog.noComments}</p>
+              )}
+
+              <div className="bpost-comment-list">
+                {(post.comments ?? []).map((c) => (
+                  <div key={c._id} className="bpost-comment-item">
+                    <div className="bpost-comment-header">
+                      <span className="bpost-comment-author">{c.authorName}</span>
+                      <span className="bpost-comment-date">
+                        {formatDate(c.createdAt, lang)}
+                      </span>
+                      {user && (user.role === 'admin') && (
+                        <button
+                          className="bpost-comment-delete"
+                          onClick={() => handleDeleteComment(c._id)}
+                        >
+                          {t.blog.deleteComment}
+                        </button>
+                      )}
+                    </div>
+                    <p className="bpost-comment-body">{c.body}</p>
+                  </div>
+                ))}
+              </div>
+
+              <form className="bpost-comment-form" onSubmit={handleAddComment}>
+                <h3 className="bpost-comment-form-title">{t.blog.leaveComment}</h3>
+
+                {!user && (
+                  <input
+                    className="bpost-comment-name"
+                    placeholder={t.blog.guestNamePlaceholder}
+                    value={guestName}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    maxLength={100}
+                  />
+                )}
+
+                <textarea
+                  className="bpost-comment-textarea"
+                  rows={4}
+                  placeholder={t.blog.commentPlaceholder}
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  required
+                />
+
+                {/* Turnstile only for guests */}
+                {!user && (
+                  <TurnstileWidget
+                    onToken={handleCfToken}
+                    onExpire={handleCfExpire}
+                    resetRef={turnstileResetRef}
+                  />
+                )}
+
+                {commentError && (
+                  <p className="bpost-comment-error">{commentError}</p>
+                )}
+
+                <button
+                  type="submit"
+                  className="bpost-comment-submit btn btn-primary"
+                  disabled={postingComment || !commentBody.trim()}
+                >
+                  {postingComment ? t.blog.posting : t.blog.submitComment}
+                </button>
+              </form>
+            </section>
           </article>
         )}
       </main>

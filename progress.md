@@ -277,7 +277,34 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
-## Open / TODO (as of 2026-05-28)
+## Session 2026-05-29 — Cloudflare Turnstile bot challenge + Blog comments
+
+### Backend
+- `server/src/middleware/turnstile.js` (new): `requireTurnstile` (all callers) and `requireTurnstileIfGuest` (guests only, after optionalAuth). Both skip when `TURNSTILE_SECRET_KEY` is unset (dev mode).
+- `BlogPost` model: added `comments` subdocument array (`body`, `authorName`, `createdAt`).
+- `server/src/routes/blog.js`:
+  - `POST /api/blog/:slug/comments` — optionalAuth + requireTurnstileIfGuest. Authenticated users can comment freely; guests must pass Turnstile.
+  - `DELETE /api/blog/:slug/comments/:commentId` — requireAuth.
+- `server/src/routes/issues.js`: `POST /` now uses `requireTurnstile` (always verify for public report submission).
+- `server/.env.example` + `web/.env.example`: documented `TURNSTILE_SECRET_KEY` and `VITE_TURNSTILE_SITE_KEY`. Default dev sitekey `1x00000000000000000000AA` (always-passes test key).
+
+### Frontend
+- `web/src/components/TurnstileWidget.jsx` (new): mounts Cloudflare Turnstile widget from CDN (`render=explicit`). Single script load shared across all instances. Exposes `onToken`, `onExpire`, `resetRef`, `theme` props.
+- `LoginPage.jsx`: renders TurnstileWidget; GitHub/Discord OAuth buttons are dimmed and click-blocked until challenge passes. Uses `SKIP_CHALLENGE` flag so dev sitekey (always-passes) auto-unlocks.
+- `ReportPage.jsx`: TurnstileWidget inserted above submit button. Token included as `turnstileToken` in `postIssue` payload. Widget resets after submit (success or error).
+- `BlogPostPage.jsx`: full comment section below article body — comment list, delete button (admin only), comment form with name field for guests, TurnstileWidget for guests only. `addBlogComment` / `deleteBlogComment` wired.
+- `web/src/api.js`: added `addBlogComment(slug, body, authorName, turnstileToken)`, `deleteBlogComment(slug, commentId)`.
+- `web/src/i18n.jsx`: added `auth.turnstileHint`, `blog.comments/noComments/leaveComment/commentPlaceholder/guestNamePlaceholder/submitComment/posting/deleteComment/commentError` in both en/ko.
+- `BlogPostPage.css`: comment list, comment item, comment form, Turnstile hint styles.
+
+### Decisions
+- Guest blog commenters must pass Turnstile; authenticated users are trusted (no widget shown).
+- Login page: challenge is client-side only (OAuth redirect provides its own security); `SKIP_CHALLENGE=true` when test sitekey detected so local dev is unaffected.
+- Report submission (`POST /api/issues`): always requires Turnstile server-side (public tester endpoint).
+
+---
+
+## Open / TODO (as of 2026-05-29)
 
 - No tests or linter configured (prefer Vitest for web, `node --test` for server).
 - Production: rate-limit `POST /api/issues`; validate upload file types server-side.
