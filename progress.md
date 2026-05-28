@@ -244,6 +244,23 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-05-28 — Blog write permission for all approved users
+
+### Completed
+- **Backend**: All `requireAdmin` guards on blog write routes replaced with `requireApproved`.
+  - `GET /api/blog/admin/posts` — admin sees all posts; others see only their own.
+  - `GET /api/blog/admin/posts/:id` — 403 if not own post and not admin.
+  - `POST /api/blog/admin/posts` — any approved user can create.
+  - `PATCH /api/blog/admin/posts/:id` — 403 if not own post and not admin (ownership check moved before update).
+  - `DELETE /api/blog/admin/posts/:id` — 403 if not own post and not admin.
+  - `POST /api/blog/admin/upload-image` — any approved user.
+- **Frontend**:
+  - `App.jsx`: blog CMS routes (`/admin/blog*`) changed from `requireAdmin` to standard `ProtectedRoute` (approved only).
+  - `DashboardPage.jsx`: Blog CMS nav link shown to all approved users; Admin Users link stays admin-only.
+  - `AdminBlogPage.jsx`: Edit/Delete buttons visible only to post author or admin.
+
+---
+
 ## Session 2026-05-28 — Dark Mode
 
 ### Completed
