@@ -19,3 +19,4 @@ unity/UserSettings/
 # Web public Unity build artifacts
 web/public/unity/
 .DS_Store
+server/storage/
