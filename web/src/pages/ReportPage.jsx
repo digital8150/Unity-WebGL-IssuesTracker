@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { collectBrowserMetadata } from '../browserMetadata.js';
 import { postIssue, getPlayInfo, getPublicIssues, voteIssue, addComment, getIssue } from '../api.js';
@@ -6,6 +6,7 @@ import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import TurnstileWidget from '../components/TurnstileWidget.jsx';
 import './LandingPage.css';
 
 // ── UA helpers ────────────────────────────────────────────────────────────────
@@ -53,6 +54,8 @@ export default function ReportPage() {
   const [description, setDescription] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [submitState, setSubmitState] = useState({ status: 'idle', message: '' });
+  const [cfToken, setCfToken]         = useState('');
+  const turnstileResetRef             = useRef(null);
 
   const [boardIssues, setBoardIssues] = useState([]);
   const [boardLoading, setBoardLoading] = useState(false);
@@ -68,6 +71,9 @@ export default function ReportPage() {
   const browserMeta = useRef(collectBrowserMetadata());
   const unityData = useRef(null);
   const navRef = useRef(null);
+
+  const handleCfToken  = useCallback((t) => setCfToken(t),  []);
+  const handleCfExpire = useCallback(() => setCfToken(''), []);
 
   useEffect(() => {
     if (gameSlug) {
@@ -129,9 +135,12 @@ export default function ReportPage() {
         browser: browserMeta.current,
         gameId: buildInfo?.gameId,
         buildId: buildInfo?.buildId,
+        turnstileToken: cfToken || undefined,
       };
       await postIssue(payload);
       setSubmitState({ status: 'success', message: t.report.success });
+      setCfToken('');
+      turnstileResetRef.current?.();
       sessionStorage.removeItem('pendingReport');
       setTimeout(() => {
         if (window.opener) window.close();
@@ -139,6 +148,8 @@ export default function ReportPage() {
       }, 3000);
     } catch (err) {
       setSubmitState({ status: 'error', message: err.message || t.report.error });
+      setCfToken('');
+      turnstileResetRef.current?.();
     }
   };
 
@@ -260,11 +271,21 @@ export default function ReportPage() {
                 </div>
               </div>
 
+              <TurnstileWidget
+                onToken={handleCfToken}
+                onExpire={handleCfExpire}
+                resetRef={turnstileResetRef}
+              />
+
               <div style={formBottom}>
                 {submitState.status !== 'idle' && (
                   <span style={statusMsg(submitState.status)}>{submitState.message}</span>
                 )}
-                <button type="submit" disabled={submitState.status === 'sending'} style={submitBtn}>
+                <button
+                  type="submit"
+                  disabled={submitState.status === 'sending'}
+                  style={submitBtn}
+                >
                   {t.report.submit}
                 </button>
               </div>

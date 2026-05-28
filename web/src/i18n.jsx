@@ -115,6 +115,7 @@ const translations = {
       discordFailed: 'Discord sign-in failed. Please try again.',
       oauthNote: 'BCSDLab. Arcade is exclusive to track members. An admin will activate your account after you sign in for the first time.',
       accountPending: 'Your account is awaiting admin approval.',
+      turnstileHint: 'Complete the security check above to continue.',
     },
     pending: {
       title: 'Awaiting approval',
@@ -365,6 +366,16 @@ const translations = {
       unsplashSearchPlaceholder: 'Search high-resolution photos...',
       noUnsplashResults: 'No photos found.',
       presetTitle: 'Curation Presets',
+      // Comments
+      comments: (n) => `${n} comment${n === 1 ? '' : 's'}`,
+      noComments: 'No comments yet. Be the first to leave one.',
+      leaveComment: 'Leave a comment',
+      commentPlaceholder: 'Write a comment…',
+      guestNamePlaceholder: 'Your name (optional)',
+      submitComment: 'Post comment',
+      posting: 'Posting…',
+      deleteComment: 'Delete',
+      commentError: 'Failed to post comment. Please try again.',
     },
     play: {
       localBuild: 'Local Build',
@@ -521,6 +532,7 @@ const translations = {
       discordFailed: 'Discord 로그인에 실패했습니다. 다시 시도해 주세요.',
       oauthNote: 'BCSDLab. Arcade는 트랙 구성원 전용입니다. 처음 로그인하면 관리자가 계정을 활성화합니다.',
       accountPending: '계정이 관리자 승인 대기 중입니다.',
+      turnstileHint: '위의 보안 확인을 완료하면 계속할 수 있습니다.',
     },
     pending: {
       title: '승인 대기 중',
@@ -770,6 +782,16 @@ const translations = {
       unsplashSearchPlaceholder: '고화질 사진 검색...',
       noUnsplashResults: '검색된 이미지가 없습니다.',
       presetTitle: '추천 프리셋',
+      // Comments
+      comments: (n) => `댓글 ${n}개`,
+      noComments: '아직 댓글이 없습니다. 첫 번째 댓글을 남겨보세요.',
+      leaveComment: '댓글 작성',
+      commentPlaceholder: '댓글을 입력하세요…',
+      guestNamePlaceholder: '이름 (선택)',
+      submitComment: '댓글 등록',
+      posting: '등록 중…',
+      deleteComment: '삭제',
+      commentError: '댓글 등록에 실패했습니다. 다시 시도해 주세요.',
     },
     play: {
       localBuild: '로컬 빌드',

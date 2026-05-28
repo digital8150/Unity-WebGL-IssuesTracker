@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Issue } from '../models/Issue.js';
 import Game from '../models/Game.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
+import { requireTurnstile } from '../middleware/turnstile.js';
 import { sendDiscordNotification } from '../services/discord.js';
 
 const router = Router();
@@ -11,7 +12,7 @@ const ALLOWED_PRIORITIES = ['none', 'low', 'medium', 'high'];
 
 // ── Create issue (public — testers don't need auth) ───────────────────────────
 
-router.post('/', async (req, res, next) => {
+router.post('/', requireTurnstile, async (req, res, next) => {
   try {
     const body = req.body ?? {};
     if (!body.title || typeof body.title !== 'string') {
