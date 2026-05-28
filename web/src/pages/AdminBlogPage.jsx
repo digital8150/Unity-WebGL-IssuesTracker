@@ -139,12 +139,14 @@ export default function AdminBlogPage() {
                         {formatDate(post.publishedAt || post.createdAt)}
                       </td>
                       <td className="ablog-actions">
-                        <Link
-                          className="btn-ghost ablog-btn"
-                          to={`/admin/blog/${post._id}/edit`}
-                        >
-                          {t.blog.editPost}
-                        </Link>
+                        {(me?.role === 'admin' || String(post.author?._id ?? post.author) === me?.id) && (
+                          <Link
+                            className="btn-ghost ablog-btn"
+                            to={`/admin/blog/${post._id}/edit`}
+                          >
+                            {t.blog.editPost}
+                          </Link>
+                        )}
                         {post.published && (
                           <a
                             className="btn-ghost ablog-btn view"
@@ -155,13 +157,15 @@ export default function AdminBlogPage() {
                             View ↗
                           </a>
                         )}
-                        <button
-                          className="btn-ghost ablog-btn danger"
-                          disabled={busy}
-                          onClick={() => handleDelete(post._id)}
-                        >
-                          {t.blog.deletePost}
-                        </button>
+                        {(me?.role === 'admin' || String(post.author?._id ?? post.author) === me?.id) && (
+                          <button
+                            className="btn-ghost ablog-btn danger"
+                            disabled={busy}
+                            onClick={() => handleDelete(post._id)}
+                          >
+                            {t.blog.deletePost}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

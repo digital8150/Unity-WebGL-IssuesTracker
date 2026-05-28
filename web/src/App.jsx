@@ -40,9 +40,9 @@ export default function App() {
 
         {/* Admin */}
         <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsersPage /></ProtectedRoute>} />
-        <Route path="/admin/blog" element={<ProtectedRoute requireAdmin><AdminBlogPage /></ProtectedRoute>} />
-        <Route path="/admin/blog/new" element={<ProtectedRoute requireAdmin><AdminBlogEditorPage /></ProtectedRoute>} />
-        <Route path="/admin/blog/:id/edit" element={<ProtectedRoute requireAdmin><AdminBlogEditorPage /></ProtectedRoute>} />
+        <Route path="/admin/blog" element={<ProtectedRoute><AdminBlogPage /></ProtectedRoute>} />
+        <Route path="/admin/blog/new" element={<ProtectedRoute><AdminBlogEditorPage /></ProtectedRoute>} />
+        <Route path="/admin/blog/:id/edit" element={<ProtectedRoute><AdminBlogEditorPage /></ProtectedRoute>} />
 
         <Route path="/play/:gameSlug" element={<PlayPage />} />
         <Route path="/play/:gameSlug/:buildId" element={<PlayPage />} />

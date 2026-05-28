@@ -56,11 +56,9 @@ export default function DashboardPage() {
         <nav className="dash-nav">
           <span className="dash-nav-item active">{t.dash.title}</span>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
+          <Link className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
           {user?.role === 'admin' && (
-            <>
-              <Link className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
-              <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
-            </>
+            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
           )}
         </nav>
         <div className="dash-sidebar-footer">
