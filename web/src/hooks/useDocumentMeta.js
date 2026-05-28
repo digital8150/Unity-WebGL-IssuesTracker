@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 const DEFAULTS = {
   title: 'BCSDLab. Arcade',
   description: '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.',
-  image: '/bcsd_main_page_image.webp',
-  url: 'https://arcade.bcsdlab.com',
+  image: 'https://arcade.codingbot.kr/bcsd_main_page_image.webp',
+  url: 'https://arcade.codingbot.kr',
   type: 'website',
 };
 
