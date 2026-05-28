@@ -9,12 +9,14 @@ import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
 import blogRouter from './routes/blog.js';
+import BlogPost from './models/BlogPost.js';
 
 const {
   PORT = 4000,
   MONGO_URI = 'mongodb://localhost:27017/issue_tracker',
   CORS_ORIGIN = 'http://localhost:5173',
   JWT_SECRET = 'dev-secret-change-in-production',
+  SITE_ORIGIN = 'https://arcade.codingbot.kr',
 } = process.env;
 
 if (JWT_SECRET === 'dev-secret-change-in-production' && process.env.NODE_ENV === 'production') {
@@ -22,6 +24,7 @@ if (JWT_SECRET === 'dev-secret-change-in-production' && process.env.NODE_ENV ===
 }
 
 const STORAGE_ROOT = path.resolve('storage', 'builds');
+const DIST_ROOT = path.resolve('../web/dist');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
 await fs.mkdir(STORAGE_ROOT, { recursive: true });
@@ -96,6 +99,62 @@ app.get('/blog-images/:filename', async (req, res, next) => {
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     createReadStream(filePath).pipe(res);
   } catch (err) { next(err); }
+});
+
+// ── Blog post OG injection for crawlers (must come before static/SPA fallback) ─
+// Crawlers don't execute JS, so useDocumentMeta never runs for them.
+// This route reads the built index.html and injects per-post meta tags server-side.
+
+function escapeAttr(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function injectOgTag(html, attrType, key, newContent) {
+  return html.replace(
+    new RegExp(`(<meta\\s+${attrType}="${key}"[^>]+content=")[^"]*(")`),
+    `$1${newContent}$2`,
+  );
+}
+
+app.get('/blog/:slug', async (req, res, next) => {
+  try {
+    let html;
+    try {
+      html = await fs.readFile(`${DIST_ROOT}/index.html`, 'utf8');
+    } catch {
+      return next(); // dist not built yet (dev mode) — fall through
+    }
+
+    const post = await BlogPost.findOne({ slug: req.params.slug, published: true }).lean();
+    if (post) {
+      const title     = escapeAttr(`${post.title} — BCSDLab. Arcade`);
+      const desc      = escapeAttr(post.summary || '');
+      const image     = post.coverImageUrl
+        ? (post.coverImageUrl.startsWith('http') ? post.coverImageUrl : `${SITE_ORIGIN}${post.coverImageUrl}`)
+        : `${SITE_ORIGIN}/bcsd_main_page_image.webp`;
+      const canonical = `${SITE_ORIGIN}/blog/${post.slug}`;
+
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      html = injectOgTag(html, 'name',     'description',       desc);
+      html = injectOgTag(html, 'property', 'og:title',          title);
+      html = injectOgTag(html, 'property', 'og:description',    desc);
+      html = injectOgTag(html, 'property', 'og:image',          image);
+      html = injectOgTag(html, 'property', 'og:url',            canonical);
+      html = injectOgTag(html, 'property', 'og:type',           'article');
+      html = injectOgTag(html, 'name',     'twitter:title',     title);
+      html = injectOgTag(html, 'name',     'twitter:description', desc);
+      html = injectOgTag(html, 'name',     'twitter:image',     image);
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use((err, _req, res, _next) => {
