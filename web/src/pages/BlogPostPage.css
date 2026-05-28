@@ -370,15 +370,6 @@
   align-self: flex-start;
 }
 
-/* Login hint inside the Turnstile widget area */
-.auth-turnstile { margin: var(--space-md) 0; }
-.auth-turnstile-hint {
-  font-size: 13px;
-  color: var(--color-mute);
-  text-align: center;
-  margin-top: 4px;
-}
-
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .bpost-main { padding: var(--space-xl) var(--space-md); }

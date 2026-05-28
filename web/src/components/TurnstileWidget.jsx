@@ -84,5 +84,5 @@ export default function TurnstileWidget({ onToken, onExpire, theme = 'auto', res
     };
   });
 
-  return <div ref={containerRef} style={{ margin: '8px 0' }} />;
+  return <div ref={containerRef} />;
 }

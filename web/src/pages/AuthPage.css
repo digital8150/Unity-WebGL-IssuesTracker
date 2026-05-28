@@ -246,6 +246,29 @@
   font-family: var(--font-mono);
 }
 
+/* Turnstile widget wrapper — full card width, centered inside */
+.auth-turnstile {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  padding: 6px 0;
+  box-sizing: border-box;
+  margin-bottom: var(--space-xs);
+  min-height: 68px;
+}
+
+.auth-turnstile-hint {
+  font-size: 12px;
+  color: var(--color-mute);
+  text-align: center;
+  margin-top: 2px;
+  margin-bottom: var(--space-xs);
+}
+
 /* Footer link */
 .auth-footer-link {
   margin-top: var(--space-lg);
