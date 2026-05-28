@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { getArcadeGames } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './ArcadePage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -46,6 +47,7 @@ export default function ArcadePage() {
           <button className="l-lang-toggle" onClick={toggleLang}>
             {lang === 'en' ? '한국어' : 'English'}
           </button>
+          <DarkModeToggle />
           {user ? (
             <Link
               to={user.status === 'approved' ? '/dashboard' : '/pending'}

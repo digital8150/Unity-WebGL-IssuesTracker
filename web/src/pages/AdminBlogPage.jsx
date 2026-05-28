@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { listAdminBlogPosts, deleteBlogPost } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './AdminBlogPage.css';
 
@@ -75,9 +76,12 @@ export default function AdminBlogPage() {
               <div className="dash-user-email">{me?.email}</div>
             </div>
           </div>
-          <button className="dash-footer-btn" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
+          <div className="dash-footer-row">
+            <button className="dash-footer-btn" onClick={toggleLang}>
+              {lang === 'en' ? '한국어' : 'English'}
+            </button>
+            <DarkModeToggle />
+          </div>
           <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
       </aside>

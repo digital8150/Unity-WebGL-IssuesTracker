@@ -5,6 +5,7 @@ import { getPlayInfo } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './LandingPage.css';
 
 export default function PlayPage() {
@@ -132,9 +133,11 @@ export default function PlayPage() {
         <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
         <div className="l-nav-links">
           <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
+          <Link to="/blog" className="l-nav-link">{t.nav.blog}</Link>
           <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
             {lang === 'en' ? '한국어' : 'English'}
           </button>
+          <DarkModeToggle />
           {user ? (
             <Link
               to={user.status === 'approved' ? '/dashboard' : '/pending'}

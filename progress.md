@@ -261,7 +261,23 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
-## Open / TODO (as of 2026-05-26)
+## Session 2026-05-28 — Dark Mode
+
+### Completed
+- **`ThemeContext.jsx`**: reads `localStorage` + `prefers-color-scheme` on init, writes `data-theme` attribute to `<html>`, exposes `theme`/`toggleTheme`.
+- **`DarkModeToggle.jsx`**: sun/moon SVG button with `.dark-mode-toggle` global style in `index.css`.
+- **`index.css`**: added `[data-theme="dark"]` override block (canvas, ink, hairline, shadow, primary, link tokens).
+- **`main.jsx`**: wrapped app with `<ThemeProvider>`.
+- Added `DarkModeToggle` to every page nav/sidebar footer:
+  - Landing, Arcade, BlogList, BlogPost, Play, Report (public nav bar)
+  - Login (auth topbar — wrapped in `auth-topbar-right` flex container)
+  - Dashboard, GameDetail, IssueDetail, AdminUsers, AdminBlog, AdminBlogEditor (sidebar footer, `dash-footer-row` layout)
+- **`DashboardPage.css`**: added `.dash-footer-row` (flex row for lang toggle + dark mode button).
+- **`AuthPage.css`**: added `[data-theme="dark"] .auth-topbar` + `.auth-topbar-right`.
+
+---
+
+## Open / TODO (as of 2026-05-28)
 
 - No tests or linter configured (prefer Vitest for web, `node --test` for server).
 - Production: rate-limit `POST /api/issues`; validate upload file types server-side.
