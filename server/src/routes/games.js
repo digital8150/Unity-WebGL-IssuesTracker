@@ -474,7 +474,10 @@ function buildUrls(buildId, files) {
 function playResponse(game, build) {
   return {
     gameId:        game._id,
+    gameSlug:      game.slug,
     gameName:      game.name,
+    description:   game.description || '',
+    thumbnailUrl:  game.thumbnailUrl || '',
     developerName: game.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,

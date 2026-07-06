@@ -6,7 +6,10 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './LandingPage.css';
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
 export default function PlayPage() {
   const { gameSlug, buildId } = useParams();
@@ -56,6 +59,17 @@ export default function PlayPage() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  // ── OpenGraph / document meta ────────────────────────────────────────────
+  const SITE = 'BCSDLab. Arcade';
+  const isRealBuild = buildInfo && buildInfo !== 'legacy';
+  useDocumentMeta(isRealBuild ? {
+    title: `${buildInfo.gameName} — ${SITE}`,
+    description: buildInfo.description || undefined,
+    image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
+    url: window.location.href,
+    type: 'website',
+  } : {});
 
   // ── Trigger Report ───────────────────────────────────────────────────────
   const handleReportClick = () => {

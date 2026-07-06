@@ -10,6 +10,8 @@ import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
 import blogRouter from './routes/blog.js';
 import BlogPost from './models/BlogPost.js';
+import Game from './models/Game.js';
+import Build from './models/Build.js';
 
 const {
   PORT = 4000,
@@ -156,6 +158,52 @@ app.get('/blog/:slug', async (req, res, next) => {
     next(err);
   }
 });
+
+// ── Play page OG injection for crawlers (must come before static/SPA fallback) ─
+
+async function renderPlayMeta(req, res, next) {
+  try {
+    let html;
+    try {
+      html = await fs.readFile(`${DIST_ROOT}/index.html`, 'utf8');
+    } catch {
+      return next(); // dist not built yet (dev mode) — fall through
+    }
+
+    const game = await Game.findOne({ slug: req.params.gameSlug }).lean();
+    if (game) {
+      const build = req.params.buildId
+        ? await Build.findOne({ _id: req.params.buildId, gameId: game._id }).lean()
+        : await Build.findOne({ gameId: game._id, isActive: true }).lean();
+
+      const title     = escapeAttr(`${game.name} — BCSDLab. Arcade`);
+      const desc      = escapeAttr(game.description || '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.');
+      const image     = game.thumbnailUrl
+        ? (game.thumbnailUrl.startsWith('http') ? game.thumbnailUrl : `${SITE_ORIGIN}${game.thumbnailUrl}`)
+        : `${SITE_ORIGIN}/bcsd_main_page_image.webp`;
+      const canonical = `${SITE_ORIGIN}/play/${game.slug}${build && req.params.buildId ? `/${build._id}` : ''}`;
+
+      html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+      html = injectOgTag(html, 'name',     'description',       desc);
+      html = injectOgTag(html, 'property', 'og:title',          title);
+      html = injectOgTag(html, 'property', 'og:description',    desc);
+      html = injectOgTag(html, 'property', 'og:image',          image);
+      html = injectOgTag(html, 'property', 'og:url',            canonical);
+      html = injectOgTag(html, 'property', 'og:type',           'website');
+      html = injectOgTag(html, 'name',     'twitter:title',     title);
+      html = injectOgTag(html, 'name',     'twitter:description', desc);
+      html = injectOgTag(html, 'name',     'twitter:image',     image);
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    next(err);
+  }
+}
+
+app.get('/play/:gameSlug', renderPlayMeta);
+app.get('/play/:gameSlug/:buildId', renderPlayMeta);
 
 app.use((err, _req, res, _next) => {
   console.error(err);
