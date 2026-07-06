@@ -14,7 +14,8 @@
       "Bash(Get-Content \"e:\\\\repos\\\\unity-webgl-issuetracker\\\\web\\\\src\\\\pages\\\\AuthPage.css\")",
       "Bash(Select-Object -Last 20)",
       "Bash(node --input-type=module --eval \"import './src/routes/auth.js'\")",
-      "Bash(apache2ctl -M)"
+      "Bash(apache2ctl -M)",
+      "Bash(npm audit *)"
     ]
   }
 }

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import multer from 'multer';
 import mongoose from 'mongoose';
+import AdmZip from 'adm-zip';
 import Game from '../models/Game.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
@@ -44,6 +45,44 @@ async function ensureBuildDir(buildId) {
   const dir = path.join(STORAGE_ROOT, String(buildId));
   await fs.mkdir(dir, { recursive: true });
   return dir;
+}
+
+// Extracts a StreamingAssets zip into `<buildDir>/StreamingAssets/`, preserving
+// nested folder structure. Returns { relPaths, totalBytes } where relPaths are
+// paths relative to buildDir (e.g. "StreamingAssets/sub/data.json").
+async function extractStreamingAssetsZip(zipPath, buildDir) {
+  const zip = new AdmZip(zipPath);
+  const entries = zip.getEntries().filter((e) => !e.isDirectory);
+
+  // If every entry shares one common top-level folder named "streamingassets",
+  // the developer zipped the folder itself — strip that one wrapper so we don't
+  // end up with StreamingAssets/StreamingAssets/....
+  const firstSegments = entries.map((e) => e.entryName.split('/')[0]);
+  const stripWrapper =
+    entries.length > 0 &&
+    firstSegments.every((seg) => seg.toLowerCase() === 'streamingassets');
+
+  const destRoot = path.join(buildDir, 'StreamingAssets');
+  const relPaths = [];
+  let totalBytes = 0;
+
+  for (const entry of entries) {
+    const rawParts = entry.entryName.split('/').filter(Boolean);
+    const parts = stripWrapper ? rawParts.slice(1) : rawParts;
+    if (!parts.length || parts.some((p) => p === '..' || p === '.')) continue;
+
+    const relPath = path.posix.join(...parts);
+    const dest = path.join(destRoot, ...parts);
+    if (!dest.startsWith(destRoot + path.sep) && dest !== destRoot) continue; // zip-slip guard
+
+    await fs.mkdir(path.dirname(dest), { recursive: true });
+    await fs.writeFile(dest, entry.getData());
+    const stat = await fs.stat(dest);
+    totalBytes += stat.size;
+    relPaths.push(path.posix.join('StreamingAssets', relPath));
+  }
+
+  return { relPaths, totalBytes };
 }
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -289,17 +328,23 @@ router.post(
   '/:gameId/builds',
   requireAuth,
   requireApproved,
-  upload.array('files'),
+  upload.fields([{ name: 'files' }, { name: 'streamingAssetsZip', maxCount: 1 }]),
   async (req, res, next) => {
     try {
+      const files = req.files?.files || [];
+      const streamingAssetsZip = req.files?.streamingAssetsZip?.[0] || null;
+      const allUploaded = [...files, ...(streamingAssetsZip ? [streamingAssetsZip] : [])];
+
       const game = await Game.findById(req.params.gameId);
       if (!game || !isAuthorized(game, req.user.sub)) {
-        for (const f of req.files ?? []) await fs.rm(f.path, { force: true });
+        for (const f of allUploaded) await fs.rm(f.path, { force: true });
         return res.status(404).json({ error: 'Game not found' });
       }
 
-      const files = req.files || [];
-      if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
+      if (!files.length) {
+        for (const f of allUploaded) await fs.rm(f.path, { force: true });
+        return res.status(400).json({ error: 'No files uploaded' });
+      }
 
       const canvasWidth  = parseInt(req.body.canvasWidth,  10) || 1920;
       const canvasHeight = parseInt(req.body.canvasHeight, 10) || 1080;
@@ -326,6 +371,14 @@ router.post(
           filesMeta[role] = safe;
         }
       }
+
+      if (streamingAssetsZip) {
+        const { relPaths, totalBytes: zipBytes } = await extractStreamingAssetsZip(streamingAssetsZip.path, dir);
+        filesMeta.other.push(...relPaths);
+        totalBytes += zipBytes;
+        await fs.rm(streamingAssetsZip.path, { force: true });
+      }
+
       build.files = filesMeta;
       build.storageBytes = totalBytes;
       await build.save();
@@ -468,13 +521,19 @@ function buildUrls(buildId, files) {
     data:      files.data      ? `${base}/${files.data}`      : null,
     framework: files.framework ? `${base}/${files.framework}` : null,
     wasm:      files.wasm      ? `${base}/${files.wasm}`      : null,
+    streamingAssets: files.other?.some((f) => f.startsWith('StreamingAssets/'))
+      ? `${base}/StreamingAssets`
+      : null,
   };
 }
 
 function playResponse(game, build) {
   return {
     gameId:        game._id,
+    gameSlug:      game.slug,
     gameName:      game.name,
+    description:   game.description || '',
+    thumbnailUrl:  game.thumbnailUrl || '',
     developerName: game.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,

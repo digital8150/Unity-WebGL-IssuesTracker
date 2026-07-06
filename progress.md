@@ -304,6 +304,25 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-07-06 — StreamingAssets upload/serving support
+
+### Completed
+- **Server**: `POST /:gameId/builds` now accepts an optional `streamingAssetsZip` field (`upload.fields([{name:'files'},{name:'streamingAssetsZip',maxCount:1}])`) alongside the existing flat `files` array. New `extractStreamingAssetsZip()` helper (`games.js`) uses `adm-zip` to extract the zip into `storage/builds/<buildId>/StreamingAssets/`, preserving nested folder structure, stripping a single enclosing `StreamingAssets/` wrapper if the developer zipped the folder itself, and defensively re-validating each entry path against zip-slip. Extracted relative paths (e.g. `StreamingAssets/sub/file.json`) are appended to the existing `Build.files.other[]` array — no schema change needed.
+- `buildUrls()` in `games.js` now derives `streamingAssets: "/builds/<id>/StreamingAssets"` (or `null`) by checking `files.other` for a `StreamingAssets/` prefix; flows through `playResponse()` unchanged otherwise.
+- Static file server (`index.js` `/builds/:buildId/*`) needed **no changes** — its wildcard route already served arbitrary nested paths correctly.
+- **Frontend**: `UnityGame.jsx` accepts/passes a new `streamingAssetsUrl` prop into `useUnityContext`. `PlayPage.jsx` passes `buildInfo.urls.streamingAssets` through. `GameDetailPage.jsx` upload form gained a second, optional "StreamingAssets (zip)" file field (single `.zip`); `api.js`'s `uploadBuild()` appends it as `streamingAssetsZip` when present. Build list rows show a `StreamingAssets` chip when present. i18n strings added (en/ko).
+- `unity/README.md`: documented the StreamingAssets zip-upload workflow under "WebGL build settings".
+- New dependency: `server/package.json` → `adm-zip`.
+
+### Verified
+- Registered a test admin user directly (email/password register route no longer exists — only GitHub/Discord OAuth remain; minted a JWT manually with the server's `JWT_SECRET` for API testing), created a game, uploaded 4 fake build files + a zip containing `root.json` and `sub/nested.json`.
+- Confirmed `Build.files.other` = `["StreamingAssets/root.json","StreamingAssets/sub/nested.json"]`, files landed correctly on disk under `storage/builds/<id>/StreamingAssets/...`, `GET /api/games/play/:slug` returned `urls.streamingAssets`, and `GET /builds/<id>/StreamingAssets/sub/nested.json` served the file. Confirmed `..` traversal attempts still 400. Cleaned up all test data (user/game/build) afterward.
+
+### Decisions
+- Kept the existing flat multi-file `Build/` upload picker unchanged; StreamingAssets is a separate optional zip upload rather than switching to a `webkitdirectory` folder picker — avoids touching the existing upload flow and matches how a developer would naturally hand off a folder (zip it). User confirmed this choice over the folder-picker alternative.
+
+---
+
 ## Open / TODO (as of 2026-05-29)
 
 - No tests or linter configured (prefer Vitest for web, `node --test` for server).

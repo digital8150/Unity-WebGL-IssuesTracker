@@ -57,12 +57,13 @@ export async function updateGame(gameId, fields) {
 
 // ── Builds ────────────────────────────────────────────────────────────────────
 
-export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1920, canvasHeight = 1080 } = {}) {
+export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1920, canvasHeight = 1080, streamingAssetsZip = null } = {}) {
   const fd = new FormData();
   fd.append('version', version);
   fd.append('canvasWidth',  String(canvasWidth));
   fd.append('canvasHeight', String(canvasHeight));
   for (const file of files) fd.append('files', file);
+  if (streamingAssetsZip) fd.append('streamingAssetsZip', streamingAssetsZip);
   return requestRaw(`/api/games/${gameId}/builds`, { method: 'POST', body: fd }, true);
 }
 

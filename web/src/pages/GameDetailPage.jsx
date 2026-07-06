@@ -845,6 +845,7 @@ export default function GameDetailPage() {
   const [canvasWidth,   setCanvasWidth]   = useState('1920');
   const [canvasHeight,  setCanvasHeight]  = useState('1080');
   const fileInputRef = useRef(null);
+  const streamingAssetsRef = useRef(null);
 
   const [deletingBuildId, setDeletingBuildId] = useState(null);
 
@@ -886,12 +887,14 @@ export default function GameDetailPage() {
         version:      uploadVersion,
         canvasWidth:  parseInt(canvasWidth,  10) || 1920,
         canvasHeight: parseInt(canvasHeight, 10) || 1080,
+        streamingAssetsZip: streamingAssetsRef.current?.files?.[0] || null,
       });
       setBuilds((prev) => [build, ...prev]);
       setUploadVersion('');
       setCanvasWidth('1920');
       setCanvasHeight('1080');
       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (streamingAssetsRef.current) streamingAssetsRef.current.value = '';
     } catch (err) {
       setUploadError(err.message);
     } finally {
@@ -1031,6 +1034,18 @@ export default function GameDetailPage() {
                 </button>
               </div>
               <div className="gd-upload-row" style={{ marginTop: 8 }}>
+                <label className="btn btn-ghost gd-file-label">
+                  {td.streamingAssetsLabel}
+                  <input
+                    ref={streamingAssetsRef}
+                    type="file"
+                    accept=".zip"
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                <span style={{ fontSize: 12, color: '#86868b', alignSelf: 'center' }}>{td.streamingAssetsHint}</span>
+              </div>
+              <div className="gd-upload-row" style={{ marginTop: 8 }}>
                 <span style={{ fontSize: 13, color: '#6e6e73', alignSelf: 'center' }}>Canvas</span>
                 <input
                   type="number"
@@ -1092,6 +1107,9 @@ export default function GameDetailPage() {
                           ) : (
                             <span key={role} className="gd-file-chip missing">{role}</span>
                           )
+                        )}
+                        {b.files?.other?.some((f) => f.startsWith('StreamingAssets/')) && (
+                          <span className="gd-file-chip">StreamingAssets</span>
                         )}
                       </div>
                       <div className="gd-build-actions">
