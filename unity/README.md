@@ -31,3 +31,4 @@ The C# side appends buffered logs + custom state, serializes to JSON, and hands 
 
 - Compression: Gzip or Brotli (both work; configure server `Content-Encoding` accordingly).
 - Set `Player Settings → Resolution and Presentation → WebGL Template` to a minimal template if you do not need Unity's default UI.
+- StreamingAssets: upload the four `Build/` artifacts (`*.loader.js`, `*.data`, `*.framework.js`, `*.wasm`) as usual. If your project has a `StreamingAssets/` folder, zip that folder (either the folder itself or just its contents) and upload it via the separate "StreamingAssets (zip)" field on the build upload form — the server extracts it preserving the folder structure and serves it at `/builds/<buildId>/StreamingAssets/...`.

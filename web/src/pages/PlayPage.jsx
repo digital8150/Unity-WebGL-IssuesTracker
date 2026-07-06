@@ -127,7 +127,8 @@ export default function PlayPage() {
     ? { loaderUrl: '/unity/Build/game.loader.js', dataUrl: '/unity/Build/game.data',
         frameworkUrl: '/unity/Build/game.framework.js', codeUrl: '/unity/Build/game.wasm' }
     : { loaderUrl: buildInfo.urls.loader, dataUrl: buildInfo.urls.data,
-        frameworkUrl: buildInfo.urls.framework, codeUrl: buildInfo.urls.wasm };
+        frameworkUrl: buildInfo.urls.framework, codeUrl: buildInfo.urls.wasm,
+        streamingAssetsUrl: buildInfo.urls.streamingAssets ?? undefined };
 
   const gameContainerStyle = {
     maxWidth: `min(100%, calc(72vh * ${canvasW / canvasH}))`,

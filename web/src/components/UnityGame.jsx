@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
 
 export default function UnityGame({
-  loaderUrl, dataUrl, frameworkUrl, codeUrl, onReady,
+  loaderUrl, dataUrl, frameworkUrl, codeUrl, streamingAssetsUrl, onReady,
   gameOverTitle, gameOverReload, clickToActivate,
 }) {
   const { unityProvider, sendMessage, unload, addEventListener, removeEventListener, isLoaded, loadingProgression } = useUnityContext({
@@ -10,6 +10,7 @@ export default function UnityGame({
     dataUrl,
     frameworkUrl,
     codeUrl,
+    streamingAssetsUrl,
   });
   const [focused, setFocused] = useState(false);
   const [isGameQuit, setIsGameQuit] = useState(false);
