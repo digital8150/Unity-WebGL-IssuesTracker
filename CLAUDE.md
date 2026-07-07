@@ -8,7 +8,7 @@ This repo is becoming **`web-gl-game-issue-tracking-platform`** — a hosted, mu
 
 1. **Upload a WebGL build** through the web dashboard (no manual file copying into `web/public/`).
 2. Receive a **shareable play URL** (e.g. `/play/<gameSlug>` or `/play/<buildId>`) to send to testers.
-3. **Testers** open the URL, play the game in the browser, and file bug reports / suggestions via the in-game F2 overlay.
+3. **Testers** open the URL, play the game in the browser, and file bug reports / suggestions
 4. **Developers** review incoming reports in a dashboard view, scoped to their game/build, with optional Discord webhook forwarding.
 
 Key implications for any change:
@@ -45,18 +45,6 @@ npm run preview
 ```
 
 No test suite or linter is configured yet. If you add one, prefer Vitest for `web/` and `node --test` for `server/`.
-
-## End-to-end data flow (the architecture that spans files)
-
-The bug-report path crosses four runtimes — Unity C# → emscripten jslib → browser JS → Node API. Each hop has a contract the others rely on:
-
-1. **React overlay** (`web/src/App.jsx`, `components/IssueReportOverlay.jsx`) gathers `{title, description}` and stashes browser+WebGL metadata in a ref. It then calls `sendMessage("IssueTracker", "SubmitReport", json)` — `react-unity-webgl`'s `sendMessage` invokes Unity's `GameObject.SendMessage`.
-2. **Unity** (`unity/Assets/Scripts/IssueTrackerIntegration.cs`) — the GameObject **must be named `IssueTracker`** for `SendMessage` to find it. `SubmitReport(string)` parses input, snapshots the log buffer (filled by `Application.logMessageReceivedThreaded`), invokes `OnCollectCustomState`, and serializes the whole payload using a hand-rolled `StringBuilder` JSON writer (Unity's `JsonUtility` cannot serialize `Dictionary<string, object>`).
-3. **jslib bridge** (`unity/Assets/Plugins/WebGL/IssueTracker.jslib`) — `IssueTracker_SubmitReport` calls `window.__issueTrackerReceive(json)`. The jslib **must live under `Assets/Plugins/WebGL/`** for Unity to compile it into the WebGL build.
-4. **React receiver** (`window.__issueTrackerReceive` defined in `App.jsx` `useEffect`) merges the stashed browser metadata into the payload and POSTs to `/api/issues`.
-5. **Express route** (`server/src/routes/issues.js`) validates `title`, attaches the `gameId` + `buildId` from the play URL context, writes via the Mongoose `Issue` model, and fires `sendDiscordNotification` (using the **game's** configured webhook, falling back to the env var) **without awaiting** — Discord failures must never block a successful save.
-
-If you change the payload shape, update **all five** locations: the C# `BuildAndSend` serializer, the Mongoose schema (`server/src/models/Issue.js`), the Discord embed builder, the API validation, and any consumer in the React app. The Mongoose schema uses `Schema.Types.Mixed` for `customState`, `browser.webgl`, `screen`, and `viewport` on purpose — game state shape is per-project and should stay schemaless.
 
 ## Conventions to preserve
 
