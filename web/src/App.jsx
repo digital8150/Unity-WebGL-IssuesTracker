@@ -6,6 +6,8 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import AuthCallbackPage from './pages/AuthCallbackPage.jsx';
 import PendingPage from './pages/PendingPage.jsx';
+import AgeConsentPage from './pages/AgeConsentPage.jsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import GameDetailPage from './pages/GameDetailPage.jsx';
 import IssueDetailPage from './pages/IssueDetailPage.jsx';
@@ -27,8 +29,10 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/consent" element={<ProtectedRoute requireApproved={false} requireAgeConsent={false}><AgeConsentPage /></ProtectedRoute>} />
         <Route path="/pending" element={<ProtectedRoute requireApproved={false}><PendingPage /></ProtectedRoute>} />
         <Route path="/arcade" element={<ArcadePage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
 
         {/* Blog (public) */}
         <Route path="/blog" element={<BlogListPage />} />

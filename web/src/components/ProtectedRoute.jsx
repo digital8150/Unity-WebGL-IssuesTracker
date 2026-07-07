@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
-export default function ProtectedRoute({ children, requireApproved = true, requireAdmin = false }) {
+export default function ProtectedRoute({ children, requireApproved = true, requireAdmin = false, requireAgeConsent = true }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -25,6 +25,10 @@ export default function ProtectedRoute({ children, requireApproved = true, requi
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requireAgeConsent && !user.ageConfirmedAt) {
+    return <Navigate to="/consent" replace />;
   }
 
   if (requireApproved && user.status !== 'approved') {

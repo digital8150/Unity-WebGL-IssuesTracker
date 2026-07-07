@@ -392,10 +392,29 @@
   padding: var(--space-xl) var(--space-lg);
 }
 
+.l-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .l-footer-logo {
   font-size: 16px;
   color: var(--color-ink);
 }
+
+.l-footer-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--color-hairline-strong, var(--color-hairline));
+}
+
+.l-footer-privacy {
+  font-size: 12px;
+  color: var(--color-mute);
+  text-decoration: none;
+}
+.l-footer-privacy:hover { color: var(--color-ink); }
 
 .l-footer-copy {
   font-size: 12px;

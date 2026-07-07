@@ -14,6 +14,7 @@ const userSchema = new mongoose.Schema(
     githubId: { type: String, sparse: true, unique: true },
     discordId: { type: String, sparse: true, unique: true },
     storageQuota: { type: Number, default: 500 * 1024 * 1024 },
+    ageConfirmedAt: { type: Date, default: null },
     role: { type: String, enum: ['user', 'admin'], default: 'user', index: true },
     status: {
       type: String,

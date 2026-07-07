@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { getArcadeGames } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './ArcadePage.css';
 
@@ -114,10 +115,7 @@ export default function ArcadePage() {
         )}
       </main>
 
-      <footer className="l-footer">
-        <span className="l-footer-logo"><BrandLogo size="sm" /></span>
-        <span className="l-footer-copy">{t.footer.tagline}</span>
-      </footer>
+      <Footer />
     </div>
   );
 }

@@ -37,6 +37,10 @@ export async function getUsage() {
   return request('/api/auth/usage');
 }
 
+export async function confirmAge() {
+  return request('/api/auth/confirm-age', { method: 'POST' });
+}
+
 // ── Games ─────────────────────────────────────────────────────────────────────
 
 export async function listGames() {

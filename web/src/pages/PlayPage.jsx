@@ -5,6 +5,7 @@ import { getPlayInfo } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './LandingPage.css';
@@ -211,10 +212,7 @@ export default function PlayPage() {
       </section>
 
       {/* ── Footer ─────────────────────────────────────────────────────── */}
-      <footer className="l-footer">
-        <span className="l-footer-logo"><BrandLogo size="sm" /></span>
-        <span className="l-footer-copy">{t.footer.tagline}</span>
-      </footer>
+      <Footer />
 
     </div>
   );

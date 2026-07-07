@@ -31,6 +31,7 @@ function publicUser(user) {
     role: user.role,
     status: user.status,
     storageQuota: user.storageQuota ?? 500 * 1024 * 1024,
+    ageConfirmedAt: user.ageConfirmedAt ?? null,
   };
 }
 
@@ -47,6 +48,23 @@ router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.sub).select('-passwordHash');
     if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Self-declared age-of-consent gate (PIPA §22-2 — under-14 users need guardian
+// consent, which this service does not collect). Idempotent: only sets the
+// timestamp on first confirmation.
+router.post('/confirm-age', requireAuth, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.sub);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user.ageConfirmedAt) {
+      user.ageConfirmedAt = new Date();
+      await user.save();
+    }
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);

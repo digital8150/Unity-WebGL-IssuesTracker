@@ -5,6 +5,7 @@ import { postIssue, getPlayInfo, getPublicIssues, voteIssue, addComment, getIssu
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
 import './LandingPage.css';
@@ -430,10 +431,7 @@ export default function ReportPage() {
       )}
 
       {/* ── Footer ── */}
-      <footer className="l-footer">
-        <span className="l-footer-logo"><BrandLogo size="sm" /></span>
-        <span className="l-footer-copy">{t.footer.tagline}</span>
-      </footer>
+      <Footer />
     </div>
   );
 }

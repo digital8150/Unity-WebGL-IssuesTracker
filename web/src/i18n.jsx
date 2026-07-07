@@ -105,6 +105,13 @@ const translations = {
     },
     footer: {
       tagline: 'BCSDLab. Game Track · WebGL distribution & playtest platform',
+      privacyPolicy: 'Privacy Policy',
+    },
+    consent: {
+      title: 'One last thing',
+      checkboxLabel: 'I am 14 years of age or older.',
+      confirm: 'Continue',
+      confirming: 'Saving…',
     },
     auth: {
       loginTitle: 'Welcome back',
@@ -563,6 +570,13 @@ const translations = {
     },
     footer: {
       tagline: 'BCSDLab. Game Track · WebGL 배포 및 플레이테스트 플랫폼',
+      privacyPolicy: '개인정보처리방침',
+    },
+    consent: {
+      title: '마지막으로 확인할게요',
+      checkboxLabel: '만 14세 이상입니다.',
+      confirm: '계속하기',
+      confirming: '저장 중…',
     },
     auth: {
       loginTitle: '다시 오신 것을 환영합니다',
