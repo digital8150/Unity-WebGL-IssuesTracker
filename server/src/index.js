@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
+import backendRouter from './routes/backend.js';
 import blogRouter from './routes/blog.js';
 import BlogPost from './models/BlogPost.js';
 import Game from './models/Game.js';
@@ -35,12 +36,19 @@ await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
 const app = express();
 app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json({ limit: '2mb' }));
+// `verify` captures the exact raw bytes of the request body so the game-backend
+// HMAC middleware can hash precisely what the client signed (JSON.stringify of
+// the parsed body could re-serialize differently than what was sent).
+app.use(express.json({
+  limit: '2mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/games', backendRouter);
 app.use('/api/blog', blogRouter);
 
 // ── Serve Unity build files ───────────────────────────────────────────────────

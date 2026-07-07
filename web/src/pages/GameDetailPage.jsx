@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
+import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
@@ -783,7 +784,7 @@ function PriorityDot({ priority }) {
   return <span className={`gd-priority-dot ${priority}`} title={priority} />;
 }
 
-function CodeBlock({ filename, code }) {
+export function CodeBlock({ filename, code }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
 
@@ -1004,6 +1005,9 @@ export default function GameDetailPage() {
           <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => setTab('integration')}>
             {td.integration}
           </button>
+          <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => setTab('serverIntegration')}>
+            {td.serverIntegration}
+          </button>
         </div>
 
         {/* ── Builds ── */}
@@ -1191,6 +1195,11 @@ export default function GameDetailPage() {
               <CodeBlock filename="GameOverExample.cs" code={GAME_OVER_CS} />
             </div>
           </div>
+        )}
+
+        {/* ── Server Integration ── */}
+        {tab === 'serverIntegration' && (
+          <ServerIntegrationTab gameId={gameId} />
         )}
 
         {/* ── Settings ── */}

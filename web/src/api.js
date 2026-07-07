@@ -136,6 +136,56 @@ export async function searchUsers(q) {
   return request(`/api/auth/search-users?q=${encodeURIComponent(q)}`);
 }
 
+// ── Server backend (leaderboards / dynamic config) ─────────────────────────────
+
+export async function getGameBackend(gameId) {
+  return request(`/api/games/${gameId}/backend`);
+}
+
+export async function updateGameBackend(gameId, fields) {
+  return request(`/api/games/${gameId}/backend`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function rotateGameSecret(gameId) {
+  return request(`/api/games/${gameId}/backend/secret/rotate`, { method: 'POST' });
+}
+
+export async function getGeneratedCode(gameId) {
+  return request(`/api/games/${gameId}/backend/generated-code`);
+}
+
+export async function createLeaderboard(gameId, fields) {
+  return request(`/api/games/${gameId}/backend/leaderboards`, { method: 'POST', body: JSON.stringify(fields) });
+}
+
+export async function updateLeaderboard(gameId, lbId, fields) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function deleteLeaderboard(gameId, lbId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}`, { method: 'DELETE' });
+}
+
+export async function getLeaderboardEntries(gameId, lbId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/entries`);
+}
+
+export async function deleteLeaderboardEntry(gameId, lbId, entryId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/entries/${entryId}`, { method: 'DELETE' });
+}
+
+export async function createConfigKey(gameId, fields) {
+  return request(`/api/games/${gameId}/backend/config`, { method: 'POST', body: JSON.stringify(fields) });
+}
+
+export async function updateConfigKey(gameId, cfgId, fields) {
+  return request(`/api/games/${gameId}/backend/config/${cfgId}`, { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
+export async function deleteConfigKey(gameId, cfgId) {
+  return request(`/api/games/${gameId}/backend/config/${cfgId}`, { method: 'DELETE' });
+}
+
 // ── Arcade (public gallery) ──────────────────────────────────────────────────
 
 export async function getArcadeGames() {

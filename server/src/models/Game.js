@@ -25,6 +25,14 @@ const gameSchema = new mongoose.Schema(
     },
     description: { type: String, default: '', maxlength: 500 },
     thumbnailUrl: { type: String, default: '' },
+
+    // ── Per-game server backend (leaderboards / dynamic config) ───────────────
+    serverBackend: {
+      leaderboardEnabled: { type: Boolean, default: false },
+      configEnabled: { type: Boolean, default: false },
+      secret: { type: String, default: '' },
+      secretRotatedAt: { type: Date, default: null },
+    },
   },
   { timestamps: true },
 );

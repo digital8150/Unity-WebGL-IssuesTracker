@@ -323,6 +323,40 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## 2026-07-07 — Per-game server backend: Top-N leaderboards + dynamic JSON config
+
+### Server
+- `Game.serverBackend` sub-object: `leaderboardEnabled`, `configEnabled`, `secret` (64-hex, rotatable), `secretRotatedAt`.
+- `Leaderboard` model: `gameId`, `key`, `label`, `sort` (`desc`/`asc`), `maxEntries` (≤100), `scoreMin`/`scoreMax` (optional anti-cheat bounds), embedded `entries[]`. Top-N enforced atomically via `$push` + `$each` + `$sort` + `$slice` — no unbounded growth.
+- `GameConfig` model: `gameId`, `key`, `value` (raw JSON string, validated with `JSON.parse` on write), `enabled`.
+- `services/gameSecret.js`: HMAC/session-token helpers (`issueSessionToken`, `verifySessionToken`, 120s TTL).
+- `services/rateLimiter.js`: in-memory single-use nonce store + fixed-window rate limiter (single-process only — no Redis/Mongo TTL backing yet).
+- `middleware/gameHmac.js`: `verifyGameHmac({ requireFeature, consumeNonce })` — verifies `X-Arcade-Session/-Timestamp/-Signature` headers against the per-game secret; nonce consumption only on score submit (single-use), not on reads.
+- `index.js`: `express.json()` now captures `req.rawBody` via a `verify` callback so HMAC verification hashes the exact bytes the client signed (not a re-`JSON.stringify`'d approximation).
+- `routes/backend.js`: dashboard CRUD (`/api/games/:gameId/backend/...`, JWT) for settings/secret-rotate/leaderboards/config/generated-code, plus public HMAC'd routes (`/api/games/play/:gameSlug/backend/...`) for handshake/submit/read. No public unsigned leaderboard-read endpoint exists.
+- `services/codegen.js`: generates a per-game `ServerBridge.cs` (coroutine-based `UnityWebRequest`, singleton, hand-rolled JSON escaping matching `IssueTrackerIntegration.cs`'s style) + an integration guide, with the secret embedded as an XOR-obfuscated byte array (explicitly documented as *not* real security — real protection is server-side session/nonce/rate-limit/score-bounds).
+
+### Web
+- `ServerIntegrationTab.jsx` (new): feature toggles, leaderboard manager (create/edit/delete + view/delete entries), config manager (create/edit/delete keys), generated-code viewer + guide. Mounted as a new "서버와 통합" tab in `GameDetailPage.jsx`, sibling to "게임에 통합".
+- `GameDetailPage.jsx`: exported `CodeBlock` so `ServerIntegrationTab.jsx` can reuse it (small circular import between the two files — resolves fine since both usages are inside function bodies, not module-eval time; confirmed via `vite build`).
+- `api.js`: client functions for all `/backend` dashboard endpoints.
+- `i18n.jsx`: full en/ko key set under `gameDetail.si*`, including the security-limitation notice shown in the dashboard.
+
+### Verified
+- Full flow tested end-to-end against a live server + MongoDB with a throwaway test user/game (cleaned up after): dashboard secret rotation, leaderboard/config CRUD, generated-code fetch; public handshake → signed submit → signed read; Top-N capping (verified 4 submits against `maxEntries=3` correctly dropped the lowest); score-range rejection (400 outside `[scoreMin,scoreMax]`); replay rejection (409 on reusing a session's `jti` for a second submit); missing/invalid signature rejection (401); unknown game slug (404).
+- `vite build` succeeds with the new tab wired in — no import or JSX errors.
+
+### Decisions made (with product owner)
+- Multiple named leaderboards per game (not single).
+- Single-process deployment assumed — in-memory nonce/rate-limit state is acceptable; would need Redis or a Mongo TTL collection to go multi-instance.
+- Leaderboard `scoreMin`/`scoreMax` anti-cheat bounds: included, optional per leaderboard.
+- No public unsigned leaderboard-read endpoint (e.g. for embeddable web widgets) — deliberately not built.
+- Secret embedding in generated code: XOR-obfuscated byte array (not plaintext, not a separate gitignored asset) — accepted that Inspector-serialized fields are equally exposed if committed (Unity scene/prefab YAML is text), so obfuscating in the generated `.cs` is the simplest option that still avoids tripping plaintext secret scanners.
+
+### Open / TODO
+- If deployment ever goes multi-instance, replace the in-memory nonce/rate-limiter with a Redis or Mongo-TTL-backed store.
+- No automated tests for the new routes/services (repo still has no test suite configured).
+
 ## Open / TODO (as of 2026-05-29)
 
 - No tests or linter configured (prefer Vitest for web, `node --test` for server).
