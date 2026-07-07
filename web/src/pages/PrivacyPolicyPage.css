@@ -61,3 +61,16 @@
 }
 
 .pp-article li { margin: 4px 0; }
+
+.pp-history-notice {
+  background: var(--color-surface, rgba(127, 127, 127, 0.08));
+  border: 1px solid var(--color-hairline);
+  border-radius: 6px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 13px;
+}
+
+.pp-history-list { list-style: none; padding-left: 0; }
+.pp-history-list li { margin: 6px 0; }
+.pp-history-list a { color: var(--color-mute); font-size: 13px; }
+.pp-history-list a:hover { color: var(--color-ink); }

@@ -33,6 +33,7 @@ export default function App() {
         <Route path="/pending" element={<ProtectedRoute requireApproved={false}><PendingPage /></ProtectedRoute>} />
         <Route path="/arcade" element={<ArcadePage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/privacy/:date" element={<PrivacyPolicyPage />} />
 
         {/* Blog (public) */}
         <Route path="/blog" element={<BlogListPage />} />
