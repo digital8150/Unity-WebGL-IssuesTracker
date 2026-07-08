@@ -772,6 +772,186 @@
 .gd-thumb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .gd-thumb-actions .btn-ghost { display: inline-flex; align-items: center; cursor: pointer; }
 
+/* ── Server integration: modal ── */
+.si-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: var(--space-lg);
+}
+
+.si-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-5);
+  overflow: hidden;
+}
+
+.si-modal-wide { max-width: 760px; }
+
+.si-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  flex-shrink: 0;
+}
+
+.si-modal-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.si-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--color-mute);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.si-modal-close:hover { color: var(--color-ink); }
+
+.si-modal-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.si-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-hairline);
+}
+
+/* Both footer buttons share one size/shape so cancel + save read as a pair. */
+.si-modal-btn {
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+}
+
+/* ── Leaderboard entries modal ── */
+.si-entries-toolbar {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+}
+
+.si-entries-filter { max-width: 130px; }
+
+.si-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+}
+
+.si-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.si-table th, .si-table td {
+  padding: var(--space-xs) var(--space-sm);
+  text-align: left;
+  border-bottom: 1px solid var(--color-hairline);
+  white-space: nowrap;
+}
+
+.si-table tbody tr:last-child td { border-bottom: none; }
+.si-table tbody tr:hover { background: var(--color-canvas-soft); }
+
+.si-table th {
+  font-weight: 600;
+  color: var(--color-mute);
+  background: var(--color-canvas-soft);
+  user-select: none;
+}
+
+.si-table th.si-sortable { cursor: pointer; }
+.si-table th.si-sortable:hover { color: var(--color-ink); }
+
+.si-table-meta {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-mute);
+}
+
+.si-entries-count {
+  margin-top: var(--space-sm);
+  font-size: 12px;
+  color: var(--color-mute);
+}
+
+/* ── Config value row + edit modal ── */
+.si-config-preview {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-mute);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.si-config-visual { margin-bottom: var(--space-lg); }
+
+.si-config-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-sm);
+}
+
+/* ── Visual editor (guifier GUI form) ── */
+.si-guifier {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* ── Text editor (vanilla-jsoneditor, text mode) ── */
+.si-json-editor {
+  --jse-theme-color: var(--color-ink);
+  --jse-theme-color-highlight: var(--color-link);
+  --jse-background-color: var(--color-canvas);
+  --jse-panel-background: var(--color-canvas-soft);
+  --jse-main-border: 1px solid var(--color-hairline);
+  --jse-font-family-mono: var(--font-mono);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
 .gd-arcade-save {
   margin-top: 24px;
   padding-top: 16px;

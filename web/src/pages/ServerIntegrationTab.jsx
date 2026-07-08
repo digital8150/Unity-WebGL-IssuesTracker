@@ -1,6 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { useI18n } from '../i18n.jsx';
 import { CodeBlock } from './GameDetailPage.jsx';
+import Modal from '../components/Modal.jsx';
+
+// Heavy editor libs (guifier + vanilla-jsoneditor) live in this lazily-loaded
+// chunk so they only download when the config editor is actually opened.
+const ConfigEditModal = lazy(() => import('./ConfigEditModal.jsx'));
 import {
   getGameBackend,
   updateGameBackend,
@@ -23,8 +28,9 @@ export default function ServerIntegrationTab({ gameId }) {
   const [backend, setBackend] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expandedEntries, setExpandedEntries] = useState({});
   const [entriesByLb, setEntriesByLb] = useState({});
+  const [entriesModalLb, setEntriesModalLb] = useState(null);
+  const [configModalCfg, setConfigModalCfg] = useState(null);
   const [generated, setGenerated] = useState(null);
   const [genError, setGenError] = useState('');
 
@@ -105,13 +111,12 @@ export default function ServerIntegrationTab({ gameId }) {
     }
   }
 
-  async function toggleEntries(lbId) {
-    const isOpen = expandedEntries[lbId];
-    setExpandedEntries((prev) => ({ ...prev, [lbId]: !isOpen }));
-    if (!isOpen && !entriesByLb[lbId]) {
+  async function handleOpenEntries(lb) {
+    setEntriesModalLb(lb);
+    if (!entriesByLb[lb._id]) {
       try {
-        const { entries } = await getLeaderboardEntries(gameId, lbId);
-        setEntriesByLb((prev) => ({ ...prev, [lbId]: entries }));
+        const { entries } = await getLeaderboardEntries(gameId, lb._id);
+        setEntriesByLb((prev) => ({ ...prev, [lb._id]: entries }));
       } catch (err) {
         setError(err.message);
       }
@@ -232,29 +237,13 @@ export default function ServerIntegrationTab({ gameId }) {
                       onChange={(e) => handleUpdateLeaderboard(lb._id, { enabled: e.target.checked })}
                     />
                   </label>
-                  <button className="btn btn-ghost" onClick={() => toggleEntries(lb._id)}>
-                    {expandedEntries[lb._id] ? td.siHideEntries : td.siViewEntries}
+                  <button className="btn btn-ghost" onClick={() => handleOpenEntries(lb)}>
+                    {td.siEdit}
                   </button>
                   <button className="btn btn-ghost gd-delete-btn" onClick={() => handleDeleteLeaderboard(lb._id)}>
                     {td.siDeleteLeaderboard}
                   </button>
                 </div>
-                {expandedEntries[lb._id] && (
-                  <div style={{ width: '100%', marginTop: 8 }}>
-                    {(entriesByLb[lb._id] ?? []).length === 0 ? (
-                      <p className="gd-empty-text">{td.siNoEntries}</p>
-                    ) : (
-                      (entriesByLb[lb._id] ?? []).map((entry, i) => (
-                        <div key={entry._id} className="gd-build-row">
-                          <span>{i + 1}. {entry.name} — {entry.score}</span>
-                          <button className="btn btn-ghost gd-delete-btn" onClick={() => handleDeleteEntry(lb._id, entry._id)}>
-                            {td.siDeleteEntry}
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -299,12 +288,7 @@ export default function ServerIntegrationTab({ gameId }) {
               <div key={cfg._id} className="gd-build-row">
                 <div className="gd-build-meta">
                   <span className="gd-build-version">{cfg.key}</span>
-                  <textarea
-                    className="form-input"
-                    defaultValue={cfg.value}
-                    style={{ fontFamily: 'monospace', minWidth: 240 }}
-                    onBlur={(e) => { if (e.target.value !== cfg.value) handleUpdateConfig(cfg._id, { value: e.target.value }); }}
-                  />
+                  <span className="si-config-preview" title={cfg.value}>{cfg.value}</span>
                 </div>
                 <div className="gd-build-actions">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -314,6 +298,9 @@ export default function ServerIntegrationTab({ gameId }) {
                       onChange={(e) => handleUpdateConfig(cfg._id, { enabled: e.target.checked })}
                     />
                   </label>
+                  <button className="btn btn-ghost" onClick={() => setConfigModalCfg(cfg)}>
+                    {td.siEdit}
+                  </button>
                   <button className="btn btn-ghost gd-delete-btn" onClick={() => handleDeleteConfig(cfg._id)}>
                     {td.siConfigDelete}
                   </button>
@@ -354,6 +341,131 @@ export default function ServerIntegrationTab({ gameId }) {
           </>
         )}
       </div>
+
+      {entriesModalLb && (
+        <LeaderboardEntriesModal
+          lb={entriesModalLb}
+          entries={entriesByLb[entriesModalLb._id]}
+          td={td}
+          onClose={() => setEntriesModalLb(null)}
+          onDeleteEntry={handleDeleteEntry}
+        />
+      )}
+
+      {configModalCfg && (
+        <Suspense
+          fallback={(
+            <Modal title={`${configModalCfg.key} · ${td.siEdit}`} onClose={() => setConfigModalCfg(null)} wide>
+              <p className="gd-empty-text">…</p>
+            </Modal>
+          )}
+        >
+          <ConfigEditModal
+            cfg={configModalCfg}
+            td={td}
+            onClose={() => setConfigModalCfg(null)}
+            onSave={handleUpdateConfig}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }
+
+// ── Leaderboard entries: search / sort / filter table modal ───────────────────
+
+function LeaderboardEntriesModal({ lb, entries, td, onClose, onDeleteEntry }) {
+  const [search, setSearch] = useState('');
+  const [scoreMin, setScoreMin] = useState('');
+  const [scoreMax, setScoreMax] = useState('');
+  const [sortField, setSortField] = useState('score');
+  const [sortDir, setSortDir] = useState(lb.sort === 'asc' ? 'asc' : 'desc');
+
+  const rows = useMemo(() => {
+    let list = entries ?? [];
+    const q = search.trim().toLowerCase();
+    if (q) list = list.filter((e) => e.name.toLowerCase().includes(q));
+    if (scoreMin !== '') list = list.filter((e) => e.score >= Number(scoreMin));
+    if (scoreMax !== '') list = list.filter((e) => e.score <= Number(scoreMax));
+    list = [...list].sort((a, b) => {
+      let av = a[sortField];
+      let bv = b[sortField];
+      if (sortField === 'createdAt') { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
+      if (typeof av === 'string') av = av.toLowerCase();
+      if (typeof bv === 'string') bv = bv.toLowerCase();
+      if (av < bv) return sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return list;
+  }, [entries, search, scoreMin, scoreMax, sortField, sortDir]);
+
+  function toggleSort(field) {
+    if (sortField === field) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortDir('desc'); }
+  }
+
+  function sortIndicator(field) {
+    if (sortField !== field) return '';
+    return sortDir === 'asc' ? ' ▲' : ' ▼';
+  }
+
+  const title = `${lb.key}${lb.label ? ` — ${lb.label}` : ''} · ${td.siEntries}`;
+
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      <div className="si-entries-toolbar">
+        <input
+          className="form-input"
+          placeholder={td.siEntriesSearchPlaceholder}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <input type="number" className="form-input si-entries-filter" placeholder={td.siEntriesFilterScoreMin} value={scoreMin} onChange={(e) => setScoreMin(e.target.value)} />
+        <input type="number" className="form-input si-entries-filter" placeholder={td.siEntriesFilterScoreMax} value={scoreMax} onChange={(e) => setScoreMax(e.target.value)} />
+      </div>
+
+      {entries === undefined ? (
+        <p className="gd-empty-text">…</p>
+      ) : rows.length === 0 ? (
+        <p className="gd-empty-text">{entries.length === 0 ? td.siNoEntries : td.siEntriesNoResults}</p>
+      ) : (
+        <>
+          <div className="si-table-wrap">
+            <table className="si-table">
+              <thead>
+                <tr>
+                  <th>{td.siEntriesColRank}</th>
+                  <th className="si-sortable" onClick={() => toggleSort('name')}>{td.siEntriesColName}{sortIndicator('name')}</th>
+                  <th className="si-sortable" onClick={() => toggleSort('score')}>{td.siEntriesColScore}{sortIndicator('score')}</th>
+                  <th>{td.siEntriesColMeta}</th>
+                  <th className="si-sortable" onClick={() => toggleSort('createdAt')}>{td.siEntriesColDate}{sortIndicator('createdAt')}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((entry, i) => (
+                  <tr key={entry._id}>
+                    <td>{i + 1}</td>
+                    <td>{entry.name}</td>
+                    <td>{entry.score}</td>
+                    <td className="si-table-meta" title={entry.meta ? JSON.stringify(entry.meta) : ''}>
+                      {entry.meta ? JSON.stringify(entry.meta) : '—'}
+                    </td>
+                    <td>{new Date(entry.createdAt).toLocaleString()}</td>
+                    <td>
+                      <button className="btn btn-ghost gd-delete-btn" onClick={() => onDeleteEntry(lb._id, entry._id)}>{td.siDeleteEntry}</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="si-entries-count">{rows.length} / {entries.length} {td.siEntriesCountLabel}</p>
+        </>
+      )}
+    </Modal>
+  );
+}
+

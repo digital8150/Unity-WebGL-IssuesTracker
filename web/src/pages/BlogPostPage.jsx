@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import hljs from 'highlight.js';
+import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { getBlogPost, addBlogComment, deleteBlogComment } from '../api.js';
