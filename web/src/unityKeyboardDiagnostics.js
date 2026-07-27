@@ -12,6 +12,7 @@ const EVENT_TYPES = [
 ];
 const MAX_EVENTS = 200;
 const MAX_REGISTRATIONS = 200;
+const UNITY_KEYBOARD_EVENT_TYPES = new Set(['keydown', 'keypress', 'keyup']);
 
 function describeTarget(target) {
   if (target === window) return 'window';
@@ -34,6 +35,68 @@ function debugEnabled() {
   if (typeof window === 'undefined') return false;
   const value = new URLSearchParams(window.location.search).get(DEBUG_QUERY_PARAM);
   return value === '1' || value === 'true';
+}
+
+function installUnityKeyboardCapture(canvas) {
+  const eventTargetPrototype = EventTarget.prototype;
+  const originalAddEventListener = eventTargetPrototype.addEventListener;
+  const originalRemoveEventListener = eventTargetPrototype.removeEventListener;
+  const capturedRegistrations = [];
+
+  function isUnityKeyboardHandler(target, type, listener) {
+    return UNITY_KEYBOARD_EVENT_TYPES.has(type)
+      && (target === window || target === canvas)
+      && listener?.name === 'jsEventHandler';
+  }
+
+  function forceCapture(options) {
+    if (options && typeof options === 'object') {
+      return { ...options, capture: true };
+    }
+    return true;
+  }
+
+  const patchedAddEventListener = function patchedUnityAddEventListener(type, listener, options) {
+    if (!isUnityKeyboardHandler(this, type, listener)) {
+      return originalAddEventListener.call(this, type, listener, options);
+    }
+
+    capturedRegistrations.push({ target: this, type, listener });
+    return originalAddEventListener.call(this, type, listener, forceCapture(options));
+  };
+
+  const patchedRemoveEventListener = function patchedUnityRemoveEventListener(type, listener, options) {
+    if (!isUnityKeyboardHandler(this, type, listener)) {
+      return originalRemoveEventListener.call(this, type, listener, options);
+    }
+
+    const index = capturedRegistrations.findIndex((registration) => (
+      registration.target === this
+      && registration.type === type
+      && registration.listener === listener
+    ));
+    if (index !== -1) capturedRegistrations.splice(index, 1);
+    return originalRemoveEventListener.call(this, type, listener, forceCapture(options));
+  };
+
+  eventTargetPrototype.addEventListener = patchedAddEventListener;
+  eventTargetPrototype.removeEventListener = patchedRemoveEventListener;
+
+  return {
+    dispose() {
+      for (const { target, type, listener } of capturedRegistrations) {
+        originalRemoveEventListener.call(target, type, listener, true);
+      }
+      capturedRegistrations.length = 0;
+
+      if (eventTargetPrototype.addEventListener === patchedAddEventListener) {
+        eventTargetPrototype.addEventListener = originalAddEventListener;
+      }
+      if (eventTargetPrototype.removeEventListener === patchedRemoveEventListener) {
+        eventTargetPrototype.removeEventListener = originalRemoveEventListener;
+      }
+    },
+  };
 }
 
 function installKeyboardDiagnostics(canvas) {
@@ -290,16 +353,23 @@ function installKeyboardDiagnostics(canvas) {
   };
 }
 
-export function useUnityKeyboardDiagnostics(canvasRef, isLoaded) {
+export function useUnityKeyboardCapture(canvasRef, isLoaded) {
   const diagnosticsRef = useRef(null);
 
-  // Layout effect runs before react-unity-webgl's passive effects initialize the
-  // Unity runtime, so debug mode can inventory the listeners Unity registers.
+  // Layout effects run before react-unity-webgl initializes Unity. Diagnostics
+  // are installed first so they record the effective capture:true option.
   useLayoutEffect(() => {
-    if (!debugEnabled() || !canvasRef.current) return undefined;
-    diagnosticsRef.current = installKeyboardDiagnostics(canvasRef.current);
+    if (!canvasRef.current) return undefined;
+
+    const diagnostics = debugEnabled()
+      ? installKeyboardDiagnostics(canvasRef.current)
+      : null;
+    const keyboardCapture = installUnityKeyboardCapture(canvasRef.current);
+    diagnosticsRef.current = diagnostics;
+
     return () => {
-      diagnosticsRef.current?.dispose();
+      keyboardCapture.dispose();
+      diagnostics?.dispose();
       diagnosticsRef.current = null;
     };
   }, [canvasRef]);

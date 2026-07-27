@@ -402,3 +402,77 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 ### Next
 - Collect failing normal-input and successful composition-input traces from the
   deployed game before changing focus or keyboard-capture behavior.
+
+---
+
+## Session 2026-07-27 - Production keyboard trace analysis
+
+### Findings
+- Analyzed `log.txt` from `/play/my-universe`: 172 trusted keyboard events,
+  Unity loaded, and the canvas focused for all recorded game-key events.
+- No composition events were captured; all recorded events had
+  `isComposing=false`, so the successful IME path still needs a separate trace.
+- All 43 `A/S/D` keydown/keyup events stopped after `document:bubble` and never
+  reached the window bubble checkpoint. `W` and Escape reached window normally.
+- Only Unity/Emscripten keyboard listeners were registered during the trace:
+  keydown/keyup/keypress on both window and canvas. No React hotkey listener was
+  found.
+- The production HTML is transformed by Cloudflare Rocket Loader, and Unity
+  keyboard callback stacks include `rocket-loader.min.js`. Rocket Loader is now
+  the strongest service-only interference candidate, but requires an A/B test.
+
+### Next
+- Disable Rocket Loader for `/play/*` with a Cloudflare Configuration Rule,
+  purge/cache-bypass, and retest before changing Unity canvas behavior.
+- If needed, add `data-cfasync="false"` to the app entry script as a secondary
+  exclusion and capture a separate successful IME/composition trace.
+
+---
+
+## Session 2026-07-27 - Rocket Loader A/B result
+
+### Findings
+- Confirmed Rocket Loader was actually disabled, not merely cached: production
+  HTML contains an unmodified `type="module"` entry script, and `output2.txt`
+  contains no Rocket Loader registration or callback stack.
+- The input problem persists without Rocket Loader, so it is not the root cause.
+- Before the address-bar trick, `D` produces only `key=d`, `code=KeyD`,
+  `keyCode=68`; it stops after `document:bubble`, while `W` reaches window and
+  is accepted by Unity.
+- After the trick, each `A/D` press produces a `key=Process`, `keyCode=229`
+  keydown followed by the ordinary 65/68 event. The Process event retains
+  `code=KeyA/KeyD`, reaches window, and makes the game respond.
+- The next service-vs-standalone A/B targets are the forced canvas
+  `inputmode="none"` attribute and positive `tabIndex={1}`.
+
+### Next
+- Remove only `inputmode="none"` and retest first.
+- If unchanged, use the standalone Unity template's canvas tabindex behavior
+  (typically `-1`) and retest separately.
+- Extend diagnostics to capture direct `cancelBubble`/`returnValue` writes and a
+  late document-bubble checkpoint if event propagation still diverges by key.
+
+---
+
+## Session 2026-07-27 - Extension-resistant Unity keyboard capture
+
+### Finding
+- Confirmed the remaining failure was caused by a browser extension. With
+  extensions disabled, ordinary Unity keyboard input works.
+- Blocked events still reach `window:capture`; Unity/Emscripten's six keyboard
+  `jsEventHandler` listeners were registered for the bubble phase.
+
+### Completed
+- Added a narrowly scoped EventTarget wrapper before Unity initialization.
+- Forces `capture: true` only for Unity's window/canvas
+  `keydown`/`keypress`/`keyup` `jsEventHandler` registrations.
+- Mirrors the forced capture option on removal and cleans up captured listeners
+  when the Unity view unmounts.
+- Keeps all non-Unity event listeners unchanged.
+
+### Verified
+- `npm run build` succeeds.
+- Headless Chrome confirmed a `jsEventHandler` requested with `capture:false`
+  runs at event phase 1, while an ordinary listener remains at event phase 3.
+- Confirmed the forced listener is removed correctly and diagnostics report
+  `capture:true` for both its add and remove operations.

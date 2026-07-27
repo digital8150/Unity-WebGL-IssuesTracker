@@ -21,6 +21,19 @@ These findings do not yet prove whether the failure is caused by canvas focus,
 the Unity project's `WebGLInput.captureAllKeyboardInput` value, or an event
 listener that only exists in the deployed environment.
 
+## Extension-resistant input capture
+
+Some browser extensions stop ordinary keyboard events during the bubble phase.
+Unity/Emscripten registers its `jsEventHandler` keyboard callbacks with
+`capture: false` by default, so those callbacks can be skipped even though the
+event reached the page.
+
+The play host promotes only Unity's `keydown`, `keypress`, and `keyup`
+`jsEventHandler` registrations on window and the Unity canvas to
+`capture: true`. Other application and browser event listeners keep their
+original options. Removal uses the same capture option, and all promoted
+listeners are cleaned up when the Unity view unmounts.
+
 ## Collecting a diagnostic trace
 
 1. Add `?unityKeyboardDebug=1` to the play URL. If the URL already has query

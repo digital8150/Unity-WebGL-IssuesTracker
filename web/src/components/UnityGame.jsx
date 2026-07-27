@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
-import { useUnityKeyboardDiagnostics } from '../unityKeyboardDiagnostics.js';
+import { useUnityKeyboardCapture } from '../unityKeyboardDiagnostics.js';
 
 export default function UnityGame({
   loaderUrl, dataUrl, frameworkUrl, codeUrl, streamingAssetsUrl, onReady,
@@ -19,7 +19,7 @@ export default function UnityGame({
   const canvasRef = useRef(null);
   const unloadRef = useRef(unload);
 
-  useUnityKeyboardDiagnostics(canvasRef, isLoaded);
+  useUnityKeyboardCapture(canvasRef, isLoaded);
 
   useEffect(() => { unloadRef.current = unload; }, [unload]);
 
