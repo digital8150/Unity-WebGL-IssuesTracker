@@ -368,3 +368,37 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 - Build storage: local filesystem (`server/storage/builds/<buildId>/`). S3 deferred.
 - URL shape: `/play/:gameSlug` (active build) + `/play/:gameSlug/:buildId` (specific build).
 - Compression: server detects `.br`/`.gz` suffix and sets `Content-Encoding` accordingly.
+
+---
+
+## Session 2026-07-27 - Unity WebGL keyboard input diagnostics
+
+### Investigation
+- No play-route React or third-party listener was found that cancels ordinary
+  `W/A/S/D` events. The dashboard modal Escape listener is not mounted on
+  `/play` and does not cancel keyboard events.
+- The uploaded Unity framework registers Emscripten keyboard callbacks and
+  calls `preventDefault()` only when its Unity callback reports the event as
+  handled.
+- Leading suspects are the service canvas's explicit `tabIndex={1}`, its focus
+  state, the build's `WebGLInput.captureAllKeyboardInput` value, and the older
+  `inputmode="none"` workaround. The IME-only explanation is contradicted by
+  reproduction with an English input source and on macOS.
+
+### Completed
+- Added opt-in diagnostics at `?unityKeyboardDebug=1`.
+- Diagnostics record keyboard/composition propagation checkpoints, active
+  element, composed path, cancellation method stacks, listener registrations,
+  pointer/focus transitions, and canvas input attributes.
+- Added `window.__unityKeyboardDebug.export()` for copying a complete JSON trace.
+- Added `docs/unity-keyboard-input-debugging.md` with findings and collection
+  instructions.
+
+### Verified
+- `npm run build` succeeds.
+- Headless Chrome delivered a trusted `KeyW` event to the focused Unity canvas;
+  all capture/bubble checkpoints and JSON export were recorded correctly.
+
+### Next
+- Collect failing normal-input and successful composition-input traces from the
+  deployed game before changing focus or keyboard-capture behavior.
