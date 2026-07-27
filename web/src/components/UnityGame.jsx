@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
+import { useUnityKeyboardDiagnostics } from '../unityKeyboardDiagnostics.js';
 
 export default function UnityGame({
   loaderUrl, dataUrl, frameworkUrl, codeUrl, streamingAssetsUrl, onReady,
@@ -15,7 +16,10 @@ export default function UnityGame({
   const [focused, setFocused] = useState(false);
   const [isGameQuit, setIsGameQuit] = useState(false);
   const containerRef = useRef(null);
+  const canvasRef = useRef(null);
   const unloadRef = useRef(unload);
+
+  useUnityKeyboardDiagnostics(canvasRef, isLoaded);
 
   useEffect(() => { unloadRef.current = unload; }, [unload]);
 
@@ -34,7 +38,7 @@ export default function UnityGame({
   // and fires keydown with isComposing:true — which Unity's input system ignores.
   useEffect(() => {
     if (!isLoaded || !containerRef.current) return;
-    const canvas = containerRef.current.querySelector('canvas');
+    const canvas = canvasRef.current;
     if (canvas) {
       canvas.setAttribute('inputmode', 'none');
     }
@@ -64,6 +68,7 @@ export default function UnityGame({
         focused. Clicking a form field blurs the canvas → game input stops.
       */}
       <Unity
+        ref={canvasRef}
         unityProvider={unityProvider}
         style={{ width: '100%', height: '100%', display: 'block' }}
         tabIndex={1}
