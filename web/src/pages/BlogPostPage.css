@@ -204,6 +204,49 @@
   color: #e2e8f0;
 }
 
+/* ── Syntax highlight (Atom One Dark palette) ── */
+.markdown-body pre code.hljs      { display: block; background: transparent; color: #e2e8f0; }
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote        { color: #5c6370; font-style: italic; }
+.markdown-body .hljs-doctag,
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-formula,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-section,
+.markdown-body .hljs-name,
+.markdown-body .hljs-link         { color: #c678dd; }
+.markdown-body .hljs-string,
+.markdown-body .hljs-addition,
+.markdown-body .hljs-meta .hljs-string,
+.markdown-body .hljs-regexp       { color: #98c379; }
+.markdown-body .hljs-number,
+.markdown-body .hljs-template-variable,
+.markdown-body .hljs-selector-attr,
+.markdown-body .hljs-selector-pseudo { color: #d19a66; }
+.markdown-body .hljs-title,
+.markdown-body .hljs-title.class_,
+.markdown-body .hljs-title.class_.inherited__,
+.markdown-body .hljs-title.function_,
+.markdown-body .hljs-selector-id,
+.markdown-body .hljs-selector-class { color: #61afef; }
+.markdown-body .hljs-type,
+.markdown-body .hljs-class .hljs-title,
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-attribute    { color: #e5c07b; }
+.markdown-body .hljs-attr,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-deletion,
+.markdown-body .hljs-template-tag,
+.markdown-body .hljs-subst        { color: #e06c75; }
+.markdown-body .hljs-params,
+.markdown-body .hljs-property     { color: #abb2bf; }
+.markdown-body .hljs-meta,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet       { color: #56b6c2; }
+.markdown-body .hljs-emphasis     { font-style: italic; }
+.markdown-body .hljs-strong       { font-weight: 600; }
+
 .markdown-body img {
   max-width: 100%;
   border-radius: var(--radius-md);

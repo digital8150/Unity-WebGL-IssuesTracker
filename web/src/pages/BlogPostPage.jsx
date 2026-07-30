@@ -14,17 +14,8 @@ import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
 
-// Configure marked with highlight.js
-marked.setOptions({
-  highlight(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      return hljs.highlight(code, { language: lang }).value;
-    }
-    return hljs.highlightAuto(code).value;
-  },
-  breaks: true,
-  gfm: true,
-});
+// Highlighting is applied post-render via hljs.highlightElement (see effect below).
+marked.setOptions({ breaks: true, gfm: true });
 
 function renderMarkdown(raw) {
   const html = marked.parse(raw || '');
