@@ -10,6 +10,36 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-08-01 — SEO implementation
+
+### Completed
+- Verified `web/index.html`, `web/src/hooks/useDocumentMeta.js`, and `server/src/index.js` with explicit UTF-8 decoding; all are valid UTF-8. Earlier mojibake was tool-output encoding, not file corruption.
+- Added server-rendered SEO pages for home, Arcade, blog list/detail, and public game play pages with indexable HTML content, canonical URLs, robots directives, OG/Twitter metadata, and JSON-LD.
+- Added sanitized server-side Markdown rendering so published blog content is included in crawler HTML without allowing raw unsafe HTML.
+- Added dynamic `/robots.txt` and `/sitemap.xml` endpoints for published posts and public games with active builds.
+- Added client-side metadata updates for SPA navigation and propagated game visibility to play-page metadata.
+
+### Deployment
+- Confirmed SSH access to `ubuntu@upload.codingbot.kr` using the configured key.
+- Added Apache rewrite rules for `/`, `/arcade`, `/blog`, `/robots.txt`, and `/sitemap.xml` to reach Express before the SPA fallback.
+- Backed up the Apache vhost, validated with `apache2ctl -t`, reloaded Apache, rebuilt the web app, and restarted PM2.
+- Published commit `47e7fd1` to `main`; remote git status is clean and `arcade-server` is online.
+
+### Verification
+- Production checks returned `200`: HTML for public pages, `text/plain` for robots, `application/xml` for sitemap, and JavaScript assets from the deployed build.
+- Verified server HTML includes headings/content and JSON-LD for home, Arcade, blog detail, and play pages.
+- Verified `/login` returns the default `noindex,follow` shell.
+
+### Follow-up
+- Submit `/sitemap.xml` to Google Search Console and monitor indexing, impressions, CTR, and crawl errors.
+
+## Session 2026-08-02 — Naver site verification
+
+### Completed
+- Verified the provided Naver HTML file and uploaded it to the production document root.
+- Persisted the verification file under `web/public/` so future Vite builds keep serving it.
+- Confirmed `https://arcade.codingbot.kr/naver9739b746627282c09f47d210a85ec964.html` returns HTTP 200 with the expected verification text.
+
 ## All completed work (through 2026-05-23)
 
 ### Server
