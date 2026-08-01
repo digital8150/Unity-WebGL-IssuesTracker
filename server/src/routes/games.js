@@ -534,6 +534,7 @@ function playResponse(game, build) {
     gameName:      game.name,
     description:   game.description || '',
     thumbnailUrl:  game.thumbnailUrl || '',
+    visibility:    game.visibility || 'private',
     developerName: game.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,

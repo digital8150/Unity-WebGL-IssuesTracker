@@ -6,6 +6,7 @@ import { listBlogPosts } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
 
 function formatDate(dateStr, lang) {
@@ -21,6 +22,13 @@ function formatDate(dateStr, lang) {
 export default function BlogListPage() {
   const { user } = useAuth();
   const { lang, toggleLang, t } = useI18n();
+
+  useDocumentMeta({
+    title: '블로그 — BCSDLab. Arcade',
+    description: 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.',
+    url: `${window.location.origin}/blog`,
+    type: 'website',
+  });
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);

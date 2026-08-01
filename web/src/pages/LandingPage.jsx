@@ -6,6 +6,7 @@ import ParticleCanvas from '../components/ParticleCanvas.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './LandingPage.css';
 
 // ── Mock product surfaces. These are pure CSS/markup mockups so the landing
@@ -159,6 +160,13 @@ export default function LandingPage() {
   const { user } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const navRef = useRef(null);
+
+  useDocumentMeta({
+    title: 'Unity WebGL 게임 배포와 버그 리포트 — BCSDLab. Arcade',
+    description: 'Unity WebGL 게임을 브라우저에 배포하고, F2 게임 내 오버레이로 테스터의 버그와 제안을 수집하세요.',
+    url: window.location.origin,
+    type: 'website',
+  });
 
   useEffect(() => {
     function onScroll() {

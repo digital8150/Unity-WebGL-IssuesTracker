@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useParams } from 'react-router-dom';
 import BrandLogo from '../components/BrandLogo.jsx';
 import { PRIVACY_POLICY_VERSIONS } from '../data/privacyPolicyVersions.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './PrivacyPolicyPage.css';
 
 export default function PrivacyPolicyPage() {
@@ -11,6 +12,13 @@ export default function PrivacyPolicyPage() {
     ? PRIVACY_POLICY_VERSIONS.find((v) => v.effectiveDate === date) || latest
     : latest;
   const isPast = current.effectiveDate !== latest.effectiveDate;
+
+  useDocumentMeta({
+    title: '개인정보처리방침 — BCSDLab. Arcade',
+    description: 'BCSDLab. Arcade 개인정보처리방침입니다.',
+    url: `${window.location.origin}${date ? `/privacy/${date}` : '/privacy'}`,
+    type: 'website',
+  });
 
   return (
     <div className="pp-page">

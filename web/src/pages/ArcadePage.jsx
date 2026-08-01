@@ -6,6 +6,7 @@ import { getArcadeGames } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './ArcadePage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -27,6 +28,13 @@ function gradientFor(seed) {
 export default function ArcadePage() {
   const { user } = useAuth();
   const { lang, toggleLang, t } = useI18n();
+
+  useDocumentMeta({
+    title: 'Arcade — BCSDLab. Arcade',
+    description: 'BCSDLab. Game Track이 공개한 Unity WebGL 게임을 다운로드 없이 브라우저에서 바로 플레이하세요.',
+    url: `${window.location.origin}/arcade`,
+    type: 'website',
+  });
 
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);

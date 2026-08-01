@@ -94,6 +94,17 @@ export default function BlogPostPage() {
     image: post.coverImageUrl || undefined,
     url: window.location.href,
     type: 'article',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.summary || undefined,
+      image: post.coverImageUrl || undefined,
+      datePublished: post.publishedAt || post.createdAt,
+      dateModified: post.updatedAt || post.publishedAt || post.createdAt,
+      author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': window.location.href },
+    },
   } : {});
 
   useEffect(() => {

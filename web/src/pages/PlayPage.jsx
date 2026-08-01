@@ -70,6 +70,19 @@ export default function PlayPage() {
     image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
     url: window.location.href,
     type: 'website',
+    robots: buildInfo.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+    jsonLd: buildInfo.visibility === 'public' ? {
+      '@context': 'https://schema.org',
+      '@type': 'VideoGame',
+      name: buildInfo.gameName,
+      description: buildInfo.description || undefined,
+      image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
+      url: window.location.href,
+      gamePlatform: 'Web browser',
+      applicationCategory: 'Game',
+      author: buildInfo.developerName ? { '@type': 'Person', name: buildInfo.developerName } : undefined,
+      version: buildInfo.buildVersion || undefined,
+    } : undefined,
   } : {});
 
   // ── Trigger Report ───────────────────────────────────────────────────────

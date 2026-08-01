@@ -6,6 +6,7 @@ const DEFAULTS = {
   image: 'https://arcade.codingbot.kr/bcsd_main_page_image.webp',
   url: 'https://arcade.codingbot.kr',
   type: 'website',
+  robots: 'noindex,follow',
 };
 
 function setMetaContent(selector, content) {
@@ -13,7 +14,32 @@ function setMetaContent(selector, content) {
   if (el) el.setAttribute('content', content);
 }
 
-function applyMeta({ title, description, image, url, type }) {
+function setCanonical(url) {
+  let el = document.querySelector('link[rel="canonical"]');
+  if (!el) {
+    el = document.createElement('link');
+    el.setAttribute('rel', 'canonical');
+    document.head.appendChild(el);
+  }
+  el.setAttribute('href', url);
+}
+
+function setJsonLd(data) {
+  document.getElementById('seo-jsonld')?.remove();
+  if (!data) return;
+  const script = document.createElement('script');
+  script.id = 'seo-jsonld';
+  script.type = 'application/ld+json';
+  script.textContent = JSON.stringify(data);
+  document.head.appendChild(script);
+}
+
+function toAbsoluteUrl(value) {
+  if (!value) return value;
+  try { return new URL(value, window.location.origin).href; } catch { return value; }
+}
+
+function applyMeta({ title, description, image, url, type, robots, jsonLd }) {
   if (title) {
     document.title = title;
     setMetaContent('meta[property="og:title"]', title);
@@ -25,37 +51,48 @@ function applyMeta({ title, description, image, url, type }) {
     setMetaContent('meta[name="twitter:description"]', description);
   }
   if (image) {
-    setMetaContent('meta[property="og:image"]', image);
-    setMetaContent('meta[name="twitter:image"]', image);
+    const absoluteImage = toAbsoluteUrl(image);
+    setMetaContent('meta[property="og:image"]', absoluteImage);
+    setMetaContent('meta[name="twitter:image"]', absoluteImage);
   }
   if (url) {
     setMetaContent('meta[property="og:url"]', url);
+    setCanonical(url);
   }
-  if (type) {
-    setMetaContent('meta[property="og:type"]', type);
-  }
+  if (type) setMetaContent('meta[property="og:type"]', type);
+  if (robots) setMetaContent('meta[name="robots"]', robots);
+  setJsonLd(jsonLd);
 }
 
 /**
- * Dynamically updates <head> meta/OG tags for the current page.
- * Resets to site defaults on unmount so navigation to other pages
- * doesn't carry stale values.
+ * Dynamically updates document metadata for the current page and resets it
+ * when the page unmounts during client-side navigation.
  *
  * @param {object} opts
- * @param {string} [opts.title]       Full page title (already formatted)
+ * @param {string} [opts.title]       Full page title
  * @param {string} [opts.description] Page description / og:description
- * @param {string} [opts.image]       Absolute URL for og:image
+ * @param {string} [opts.image]       Image URL for og:image
  * @param {string} [opts.url]         Canonical URL for og:url
  * @param {string} [opts.type]        og:type ('article' | 'website')
+ * @param {string} [opts.robots]      robots directive
+ * @param {object} [opts.jsonLd]      JSON-LD structured data
  */
-export function useDocumentMeta({ title, description, image, url, type } = {}) {
+export function useDocumentMeta({ title, description, image, url, type, robots = 'index,follow', jsonLd } = {}) {
   useEffect(() => {
-    if (!title) return; // wait until data is ready
-    applyMeta({ title, description, image, url: url || window.location.href, type: type || 'website' });
+    if (!title) return;
+    applyMeta({
+      title,
+      description,
+      image,
+      url: url || window.location.href,
+      type: type || 'website',
+      robots,
+      jsonLd,
+    });
 
     return () => {
       applyMeta(DEFAULTS);
       document.title = DEFAULTS.title;
     };
-  }, [title, description, image, url, type]);
+  }, [title, description, image, url, type, robots, jsonLd]);
 }
