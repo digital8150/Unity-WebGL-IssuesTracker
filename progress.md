@@ -558,6 +558,19 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 - UTF-8 source validation and `git diff --check` pass.
 - PR remains on hold for visual review.
 
+## Session 2026-08-02 - SEO completion for game pages and articles
+
+### Completed
+- Added published game-article URLs for public games to `sitemap.xml`.
+- Added game rating/content descriptor markup, official local marks, article links, and article `hasPart` data to play-page SSR.
+- Added `contentRating`, descriptor keywords, review `PropertyValue` data, and a stable game canonical URL to client-side play-page metadata.
+
+### Verified
+- `web/npm run build` succeeds.
+- Server SEO modules pass `node --check`.
+- SEO renderer assertions, UTF-8 validation, and `git diff --check` pass.
+- Follow-up will be added to PR #13.
+
 ## Session 2026-08-02 - Dashboard article view and rating mark layout
 
 ### Completed

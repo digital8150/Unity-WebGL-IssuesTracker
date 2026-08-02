@@ -11,6 +11,7 @@ import {
   absoluteUrl,
   escapeXml,
   formatDate,
+  getGameReviewSeoData,
   injectSeoHtml,
   publicImageUrl,
   renderArcadeContent,
@@ -85,6 +86,22 @@ function seoRouter({ distRoot, siteOrigin }) {
         return build ? { loc: `${siteOrigin}/play/${game.slug}`, lastmod: build.updatedAt || game.updatedAt } : null;
       }));
       urls.push(...activeGames.filter(Boolean));
+
+      const gameArticles = await GameArticle.find({
+        gameId: { $in: games.map((game) => game._id) },
+        published: true,
+      })
+        .select('gameId slug publishedAt updatedAt')
+        .lean();
+      const gameSlugs = new Map(games.map((game) => [String(game._id), game.slug]));
+      urls.push(...gameArticles
+        .map((article) => {
+          const gameSlug = gameSlugs.get(String(article.gameId));
+          return gameSlug
+            ? { loc: `${siteOrigin}/play/${gameSlug}/articles/${article.slug}`, lastmod: article.updatedAt || article.publishedAt }
+            : null;
+        })
+        .filter(Boolean));
 
       const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(({ loc, lastmod }) => `<url><loc>${escapeXml(loc)}</loc>${lastmod ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : ''}</url>`).join('')}</urlset>`;
       res.type('application/xml').set('Cache-Control', 'public, max-age=300').send(xml);
@@ -285,11 +302,18 @@ function seoRouter({ distRoot, siteOrigin }) {
         ? await Build.findOne({ _id: req.params.buildId, gameId: game._id }).lean()
         : await Build.findOne({ gameId: game._id, isActive: true }).lean();
       if (!build) return res.status(404).send('Build not found');
+      const isPublic = game.visibility === 'public';
+      const articles = isPublic
+        ? await GameArticle.find({ gameId: game._id, published: true })
+          .sort({ publishedAt: -1, createdAt: -1 })
+          .select('title slug summary coverImageUrl tags publishedAt createdAt updatedAt')
+          .lean()
+        : [];
       const shell = await readShell(next);
       if (!shell) return;
       const canonical = `${siteOrigin}/play/${game.slug}`;
       const image = publicImageUrl(game.thumbnailUrl, siteOrigin);
-      const isPublic = game.visibility === 'public';
+      const reviewSeo = getGameReviewSeoData(game.reviewInfo);
       sendHtml(res, injectSeoHtml(shell, {
         title: `${game.name} — ${SITE_NAME}`,
         description: game.description || DEFAULT_DESCRIPTION,
@@ -307,8 +331,19 @@ function seoRouter({ distRoot, siteOrigin }) {
           applicationCategory: 'Game',
           author: game.ownerId?.name ? { '@type': 'Person', name: game.ownerId.name } : undefined,
           version: build.version || undefined,
+          contentRating: reviewSeo.ratingLabel || undefined,
+          keywords: reviewSeo.descriptorLabels.length ? reviewSeo.descriptorLabels.join(', ') : undefined,
+          additionalProperty: reviewSeo.additionalProperty.length ? reviewSeo.additionalProperty : undefined,
+          hasPart: articles.length ? articles.map((article) => ({
+            '@type': 'Article',
+            headline: article.title,
+            description: article.summary || undefined,
+            url: `${siteOrigin}/play/${game.slug}/articles/${article.slug}`,
+            datePublished: article.publishedAt || article.createdAt,
+            dateModified: article.updatedAt || article.publishedAt || article.createdAt,
+          })) : undefined,
         } : null,
-        content: renderPlayContent(game, build, siteOrigin),
+        content: renderPlayContent(game, build, siteOrigin, articles),
       }), isPublic ? undefined : 'private, no-store');
     } catch (err) {
       next(err);

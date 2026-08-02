@@ -85,11 +85,39 @@ export default function PlayPage() {
 
   const SITE = 'BCSDLab. Arcade';
   const isRealBuild = buildInfo && buildInfo !== 'legacy';
+  const canonicalUrl = gameSlug ? `${window.location.origin}/play/${gameSlug}` : window.location.href;
+  const seoReviewInfo = isRealBuild && buildInfo.reviewInfo?.enabled ? buildInfo.reviewInfo : null;
+  const seoRatingLabel = seoReviewInfo?.rating
+    ? (t.gameDetail.reviewRatings[seoReviewInfo.rating] ?? seoReviewInfo.rating)
+    : '';
+  const seoDescriptorLabels = (seoReviewInfo?.contentDescriptors ?? [])
+    .map((key) => t.gameDetail.reviewDescriptorLabels[key])
+    .filter(Boolean);
+  const seoReviewProperties = seoReviewInfo ? [
+    [t.gameDetail.reviewTitleField, seoReviewInfo.title],
+    [t.gameDetail.reviewBusinessName, seoReviewInfo.businessName],
+    [t.gameDetail.reviewRating, seoRatingLabel],
+    [t.gameDetail.reviewClassificationNumber, seoReviewInfo.classificationNumber],
+    [t.gameDetail.reviewClassificationDate, formatReviewDate(seoReviewInfo.classificationDate, lang)],
+    [t.gameDetail.reviewDeveloperReportNumber, seoReviewInfo.developerReportNumber],
+  ].filter(([, value]) => value).map(([name, value]) => ({
+    '@type': 'PropertyValue',
+    name,
+    value: String(value),
+  })) : [];
+  const seoArticleParts = articles.map((article) => ({
+    '@type': 'Article',
+    headline: article.title,
+    description: article.summary || undefined,
+    url: `${window.location.origin}/play/${gameSlug}/articles/${article.slug}`,
+    datePublished: article.publishedAt || article.createdAt,
+    dateModified: article.updatedAt || article.publishedAt || article.createdAt,
+  }));
   useDocumentMeta(isRealBuild ? {
     title: `${buildInfo.gameName} — ${SITE}`,
     description: buildInfo.description || undefined,
     image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
-    url: window.location.href,
+    url: canonicalUrl,
     type: 'website',
     robots: buildInfo.visibility === 'public' ? 'index,follow' : 'noindex,follow',
     jsonLd: buildInfo.visibility === 'public' ? {
@@ -98,11 +126,15 @@ export default function PlayPage() {
       name: buildInfo.gameName,
       description: buildInfo.description || undefined,
       image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
-      url: window.location.href,
+      url: canonicalUrl,
       gamePlatform: 'Web browser',
       applicationCategory: 'Game',
       author: buildInfo.developerName ? { '@type': 'Person', name: buildInfo.developerName } : undefined,
       version: buildInfo.buildVersion || undefined,
+      contentRating: seoRatingLabel || undefined,
+      keywords: seoDescriptorLabels.length ? seoDescriptorLabels.join(', ') : undefined,
+      additionalProperty: seoReviewProperties.length ? seoReviewProperties : undefined,
+      hasPart: seoArticleParts.length ? seoArticleParts : undefined,
     } : undefined,
   } : {});
 

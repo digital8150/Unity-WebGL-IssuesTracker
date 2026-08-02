@@ -41,6 +41,114 @@ export function formatDate(value) {
   }).format(new Date(value));
 }
 
+const GAME_RATING_LABELS = {
+  all: '\uc804\uccb4 \uc774\uc6a9\uac00',
+  over12: '12\uc138 \uc774\uc6a9\uac00',
+  over15: '15\uc138 \uc774\uc6a9\uac00',
+  over18: '\uccad\uc18c\ub144\uc774\uc6a9\ubd88\uac00',
+};
+
+const GAME_DESCRIPTOR_LABELS = {
+  sexuality: '\uc120\uc815\uc131',
+  violence: '\ud3ed\ub825\uc131',
+  fear: '\uacf5\ud3ec',
+  language: '\uc5b8\uc5b4\uc758 \ubd80\uc801\uc808\uc131',
+  drugs: '\uc57d\ubb3c',
+  crime: '\ubc94\uc8c4',
+  gambling: '\uc0ac\ud589\uc131',
+};
+
+const GAME_RATING_MARK_PATHS = {
+  all: '/grac/rating/all.png',
+  over12: '/grac/rating/over12.png',
+  over15: '/grac/rating/over15.png',
+  over18: '/grac/rating/over18.png',
+};
+
+const GAME_DESCRIPTOR_MARK_PATHS = {
+  sexuality: '/grac/descriptors/sexuality.png',
+  violence: '/grac/descriptors/violence.png',
+  fear: '/grac/descriptors/fear.png',
+  language: '/grac/descriptors/language.png',
+  drugs: '/grac/descriptors/drugs.png',
+  crime: '/grac/descriptors/crime.png',
+  gambling: '/grac/descriptors/gambling.png',
+};
+
+const GAME_REVIEW_FIELD_LABELS = {
+  title: '\uc81c\uba85',
+  businessName: '\uc0c1\ud638',
+  rating: '\uc774\uc6a9\ub4f1\uae09',
+  classificationNumber: '\ub4f1\uae09\ubd84\ub958\ubc88\ud638',
+  classificationDate: '\ub4f1\uae09\ubd84\ub958\uc77c\uc790',
+  developerReportNumber: '\uc81c\uc791\uc5c5\uc790 \uc2e0\uace0 \ubc88\ud638',
+};
+
+export function getGameReviewSeoData(reviewInfo) {
+  if (!reviewInfo?.enabled) {
+    return { ratingLabel: '', descriptorLabels: [], additionalProperty: [] };
+  }
+
+  const ratingLabel = GAME_RATING_LABELS[reviewInfo.rating] || '';
+  const descriptorLabels = (reviewInfo.contentDescriptors || [])
+    .map((key) => GAME_DESCRIPTOR_LABELS[key])
+    .filter(Boolean);
+  const details = [
+    [GAME_REVIEW_FIELD_LABELS.title, reviewInfo.title],
+    [GAME_REVIEW_FIELD_LABELS.businessName, reviewInfo.businessName],
+    [GAME_REVIEW_FIELD_LABELS.rating, ratingLabel],
+    [GAME_REVIEW_FIELD_LABELS.classificationNumber, reviewInfo.classificationNumber],
+    [GAME_REVIEW_FIELD_LABELS.classificationDate, formatDate(reviewInfo.classificationDate)],
+    [GAME_REVIEW_FIELD_LABELS.developerReportNumber, reviewInfo.developerReportNumber],
+  ];
+
+  return {
+    ratingLabel,
+    descriptorLabels,
+    additionalProperty: details
+      .filter(([, value]) => value)
+      .map(([name, value]) => ({ '@type': 'PropertyValue', name, value: String(value) })),
+  };
+}
+
+export function renderGameReviewContent(reviewInfo, siteOrigin) {
+  if (!reviewInfo?.enabled) return '';
+
+  const review = getGameReviewSeoData(reviewInfo);
+  const ratingMark = GAME_RATING_MARK_PATHS[reviewInfo.rating]
+    ? `<img src="${escapeHtml(absoluteUrl(GAME_RATING_MARK_PATHS[reviewInfo.rating], siteOrigin))}" alt="${escapeHtml(review.ratingLabel)}" width="113" height="131" />`
+    : '';
+  const descriptorMarks = (reviewInfo.contentDescriptors || [])
+    .filter((key) => GAME_DESCRIPTOR_MARK_PATHS[key])
+    .map((key) => `<img src="${escapeHtml(absoluteUrl(GAME_DESCRIPTOR_MARK_PATHS[key], siteOrigin))}" alt="${escapeHtml(GAME_DESCRIPTOR_LABELS[key])}" width="99" height="116" />`)
+    .join('');
+  const details = [
+    [GAME_REVIEW_FIELD_LABELS.title, reviewInfo.title],
+    [GAME_REVIEW_FIELD_LABELS.businessName, reviewInfo.businessName],
+    [GAME_REVIEW_FIELD_LABELS.rating, review.ratingLabel],
+    [GAME_REVIEW_FIELD_LABELS.classificationNumber, reviewInfo.classificationNumber],
+    [GAME_REVIEW_FIELD_LABELS.classificationDate, formatDate(reviewInfo.classificationDate)],
+    [GAME_REVIEW_FIELD_LABELS.developerReportNumber, reviewInfo.developerReportNumber],
+  ].filter(([, value]) => value);
+
+  return `<section aria-labelledby="game-rating-title"><h2 id="game-rating-title">\uac8c\uc784 \uc774\uc6a9 \ub4f1\uae09</h2><div aria-label="\ub4f1\uae09\ubd84\ub958 \ub9c8\ud06c">${ratingMark}</div>${descriptorMarks ? `<div aria-label="\ub0b4\uc6a9\uc815\ubcf4\ud45c\uc2dc\uc0ac\ud56d">${descriptorMarks}</div>` : ''}<dl>${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')}</dl></section>`;
+}
+
+export function renderGameArticlesContent(game, articles, siteOrigin) {
+  if (!articles?.length) return '';
+
+  const cards = articles.map((article) => {
+    const href = `/play/${game.slug}/articles/${article.slug}`;
+    const image = article.coverImageUrl
+      ? `<img src="${escapeHtml(publicImageUrl(article.coverImageUrl, siteOrigin))}" alt="${escapeHtml(article.title)}" width="640" height="360" />`
+      : '';
+    const date = formatDate(article.publishedAt || article.createdAt);
+    return `<article><a href="${escapeHtml(href)}">${image}<h3>${escapeHtml(article.title)}</h3></a>${article.summary ? `<p>${escapeHtml(article.summary)}</p>` : ''}${date ? `<time datetime="${escapeHtml(new Date(article.publishedAt || article.createdAt).toISOString())}">${escapeHtml(date)}</time>` : ''}</article>`;
+  }).join('');
+
+  return `<section aria-labelledby="game-articles-title"><h2 id="game-articles-title">\uac8c\uc784 \uc5c5\ub370\uc774\ud2b8 \ubc0f \uc544\ud2f0\ud074</h2>${cards}</section>`;
+}
+
 export function renderMarkdown(markdown) {
   const rendered = marked.parse(markdown || '');
   return sanitizeHtml(rendered, {
@@ -133,11 +241,13 @@ export function renderBlogPostContent(post, siteOrigin) {
   return `${navHtml()}<main><article><nav aria-label="이동 경로"><a href="/blog">블로그</a> / ${escapeHtml(post.title)}</nav>${image}<header>${tags}<h1>${escapeHtml(post.title)}</h1><p>${escapeHtml(date)}${post.author?.name ? ` · ${escapeHtml(post.author.name)}` : ''}</p>${post.summary ? `<p>${escapeHtml(post.summary)}</p>` : ''}</header><div class="markdown-body">${renderMarkdown(post.content)}</div></article></main>${footerHtml()}`;
 }
 
-export function renderPlayContent(game, build, siteOrigin) {
+export function renderPlayContent(game, build, siteOrigin, articles = []) {
   const image = game.thumbnailUrl
     ? `<img src="${escapeHtml(publicImageUrl(game.thumbnailUrl, siteOrigin))}" alt="${escapeHtml(game.name)} 게임 썸네일" />`
     : '';
-  return `${navHtml()}<main><article>${image}<header><p>UNITY WEBGL GAME</p><h1>${escapeHtml(game.name)}</h1>${game.description ? `<p>${escapeHtml(game.description)}</p>` : ''}<p>${game.ownerId?.name ? `개발자: ${escapeHtml(game.ownerId.name)} · ` : ''}${build.version ? `버전 ${escapeHtml(build.version)}` : ''}</p></header><section aria-label="게임 플레이"><h2>브라우저에서 게임 플레이</h2><p>게임을 로드하는 동안 이 페이지의 플레이 영역을 이용할 수 있습니다.</p><p><a href="/report/${escapeHtml(game.slug)}">버그 또는 제안 제출</a></p></section></article></main>${footerHtml()}`;
+  const reviewContent = renderGameReviewContent(game.reviewInfo, siteOrigin);
+  const articlesContent = renderGameArticlesContent(game, articles, siteOrigin);
+  return `${navHtml()}<main><article>${image}<header><p>UNITY WEBGL GAME</p><h1>${escapeHtml(game.name)}</h1>${game.description ? `<p>${escapeHtml(game.description)}</p>` : ''}<p>${game.ownerId?.name ? `개발자: ${escapeHtml(game.ownerId.name)} · ` : ''}${build.version ? `버전 ${escapeHtml(build.version)}` : ''}</p></header>${reviewContent}<section aria-label="게임 플레이"><h2>브라우저에서 게임 플레이</h2><p>게임을 로드하는 동안 이 페이지의 플레이 영역을 이용할 수 있습니다.</p><p><a href="/report/${escapeHtml(game.slug)}">버그 또는 제안 제출</a></p></section>${articlesContent}</article></main>${footerHtml()}`;
 }
 
 function replaceMeta(html, attribute, key, content) {
