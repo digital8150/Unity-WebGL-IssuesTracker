@@ -14,25 +14,30 @@ import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './AdminBlogPage.css';
 
-export default function AdminBlogPage() {
+export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId, game: embeddedGame }) {
   const { user: me, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const navigate = useNavigate();
-  const { gameId } = useParams();
+  const { gameId: routeGameId } = useParams();
+  const gameId = embeddedGameId ?? routeGameId;
   const isGameScope = Boolean(gameId);
   const labels = isGameScope ? { ...t.blog, ...t.gameArticles } : t.blog;
 
   const [posts, setPosts] = useState([]);
-  const [game, setGame] = useState(null);
+  const [game, setGame] = useState(embeddedGame ?? null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
   useEffect(() => {
     refresh();
-    if (isGameScope) {
+    if (isGameScope && !embeddedGame) {
       getGame(gameId).then(({ game: loadedGame }) => setGame(loadedGame)).catch((err) => alert(err.message));
     }
-  }, [gameId, isGameScope]);
+  }, [gameId, isGameScope, embeddedGame]);
+
+  useEffect(() => {
+    if (embeddedGame) setGame(embeddedGame);
+  }, [embeddedGame]);
 
   async function refresh() {
     setLoading(true);
@@ -75,9 +80,12 @@ export default function AdminBlogPage() {
     });
   }
 
+  const Main = embedded ? 'div' : 'main';
+
   return (
-    <div className="dash-layout">
-      <aside className="dash-sidebar">
+    <div className={embedded ? 'gd-articles-view' : 'dash-layout'}>
+      {!embedded && (
+        <aside className="dash-sidebar">
         <Link to="/" className="dash-logo"><BrandLogo /></Link>
         <nav className="dash-nav">
           <Link className="dash-nav-item" to={isGameScope ? `/dashboard/games/${gameId}` : '/dashboard'}>
@@ -106,10 +114,11 @@ export default function AdminBlogPage() {
           </div>
           <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
-      </aside>
+        </aside>
+      )}
 
-      <main className="dash-main">
-        <header className="dash-header">
+      <Main className={embedded ? 'gd-articles-main' : 'dash-main'}>
+        <header className={`dash-header${embedded ? ' gd-articles-header' : ''}`}>
           <div>
             <h1 className="dash-page-title">{isGameScope && game ? `${game.name} · ` : ''}{labels.adminTitle}</h1>
             <p className="dash-page-sub">{labels.adminSub}</p>
@@ -203,7 +212,7 @@ export default function AdminBlogPage() {
             </table>
           </div>
         )}
-      </main>
+      </Main>
     </div>
   );
 }

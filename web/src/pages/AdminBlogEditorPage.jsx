@@ -213,8 +213,10 @@ function applyToolbarAction(textarea, action) {
 // ── Editor view modes ─────────────────────────────────────────────────────────
 const VIEW_MODES = ['write', 'split', 'preview'];
 
-export default function AdminBlogEditorPage() {
-  const { id, gameId } = useParams(); // undefined if new post
+export default function AdminBlogEditorPage({ embedded = false, gameId: embeddedGameId, articleId: embeddedArticleId, game: embeddedGame }) {
+  const { id: routeId, gameId: routeGameId } = useParams(); // undefined if new post
+  const id = embeddedArticleId ?? routeId;
+  const gameId = embeddedGameId ?? routeGameId;
   const isGameScope = Boolean(gameId);
   const isEdit = Boolean(id);
   const navigate = useNavigate();
@@ -240,7 +242,7 @@ export default function AdminBlogEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [loadingPost, setLoadingPost] = useState(isEdit);
-  const [game, setGame] = useState(null);
+  const [game, setGame] = useState(embeddedGame ?? null);
 
   // Image Upload UI states
   const [coverUploading, setCoverUploading] = useState(false);
@@ -266,7 +268,7 @@ export default function AdminBlogEditorPage() {
 
   // Load existing post
   useEffect(() => {
-    if (isGameScope) {
+    if (isGameScope && !embeddedGame) {
       getGame(gameId).then(({ game: loadedGame }) => setGame(loadedGame)).catch(err => setError(err.message));
     }
     if (!isEdit) return;
@@ -285,7 +287,11 @@ export default function AdminBlogEditorPage() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoadingPost(false));
-  }, [id, isEdit, gameId, isGameScope]);
+  }, [id, isEdit, gameId, isGameScope, embeddedGame]);
+
+  useEffect(() => {
+    if (embeddedGame) setGame(embeddedGame);
+  }, [embeddedGame]);
 
   // Auto-slug from title
   useEffect(() => {
@@ -563,9 +569,10 @@ export default function AdminBlogEditorPage() {
   const previewHtml = renderMarkdown(content);
 
   return (
-    <div className="dash-layout abe-layout">
+    <div className={embedded ? 'abe-embedded' : 'dash-layout abe-layout'}>
       {/* Sidebar */}
-      <aside className="dash-sidebar">
+      {!embedded && (
+        <aside className="dash-sidebar">
         <Link to="/" className="dash-logo"><BrandLogo /></Link>
         <nav className="dash-nav">
           <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
@@ -592,10 +599,11 @@ export default function AdminBlogEditorPage() {
           </div>
           <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
-      </aside>
+        </aside>
+      )}
 
       {/* Editor main */}
-      <div className="abe-main">
+      <div className={`abe-main${embedded ? ' abe-main-embedded' : ''}`}>
         {/* Top bar */}
         <div className="abe-topbar">
           <div className="abe-topbar-left">

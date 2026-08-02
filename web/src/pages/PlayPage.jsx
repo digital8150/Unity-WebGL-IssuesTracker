@@ -261,20 +261,26 @@ export default function PlayPage() {
                 <div className="play-review-visual" aria-label={t.gameDetail.reviewDescriptors}>
                   <div className="play-review-marks">
                     {ratingMark && (
-                      <img
-                        className="play-rating-mark"
-                        src={ratingMark}
-                        alt={ratingLabel}
-                      />
+                      <div className="play-review-rating-row">
+                        <img
+                          className="play-rating-mark"
+                          src={ratingMark}
+                          alt={ratingLabel}
+                        />
+                      </div>
                     )}
-                    {descriptorKeys.map((key) => (
-                      <img
-                        key={key}
-                        className="play-descriptor-mark"
-                        src={GRAC_CONTENT_MARKS[key]}
-                        alt={t.gameDetail.reviewDescriptorLabels[key]}
-                      />
-                    ))}
+                    {descriptorKeys.length > 0 && (
+                      <div className="play-review-descriptor-row">
+                        {descriptorKeys.map((key) => (
+                          <img
+                            key={key}
+                            className="play-descriptor-mark"
+                            src={GRAC_CONTENT_MARKS[key]}
+                            alt={t.gameDetail.reviewDescriptorLabels[key]}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="play-review-details">

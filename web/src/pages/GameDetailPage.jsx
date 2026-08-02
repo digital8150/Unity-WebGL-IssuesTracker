@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
+import AdminBlogPage from './AdminBlogPage.jsx';
+import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
@@ -939,8 +941,9 @@ export function CodeBlock({ filename, code }) {
 }
 
 export default function GameDetailPage() {
-  const { gameId } = useParams();
+  const { gameId, id: articleId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
 
@@ -948,7 +951,9 @@ export default function GameDetailPage() {
   const [builds, setBuilds] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('builds');
+  const isArticleRoute = location.pathname.includes(`/dashboard/games/${gameId}/articles`);
+  const isArticleEditorRoute = isArticleRoute && (location.pathname.endsWith('/new') || location.pathname.endsWith('/edit'));
+  const [tab, setTab] = useState(isArticleRoute ? 'articles' : 'builds');
   const [isOwner, setIsOwner] = useState(false);
 
   const [uploading,     setUploading]     = useState(false);
@@ -971,6 +976,12 @@ export default function GameDetailPage() {
   const [reportPriorityFilter, setReportPriorityFilter] = useState('');
   const [reportSort, setReportSort] = useState('newest');
   const [deletingReportId, setDeletingReportId] = useState(null);
+
+  useEffect(() => {
+    setTab((current) => isArticleRoute
+      ? 'articles'
+      : current === 'articles' ? 'builds' : current);
+  }, [isArticleRoute]);
 
   useEffect(() => {
     Promise.all([getGame(gameId), getGameReports(gameId)])
@@ -1050,6 +1061,15 @@ export default function GameDetailPage() {
     }
   }
 
+  function selectTab(nextTab) {
+    setTab(nextTab);
+    if (nextTab === 'articles') {
+      navigate(`/dashboard/games/${gameId}/articles`);
+    } else if (isArticleRoute) {
+      navigate(`/dashboard/games/${gameId}`);
+    }
+  }
+
   const td = t.gameDetail;
 
   if (loading) {
@@ -1074,7 +1094,6 @@ export default function GameDetailPage() {
         <nav className="dash-nav">
           <Link className="dash-nav-item" to="/dashboard">{td.back}</Link>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className="dash-nav-item" to={`/dashboard/games/${gameId}/articles`}>{td.articles}</Link>
           {user?.role === 'admin' && (
             <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
           )}
@@ -1105,22 +1124,22 @@ export default function GameDetailPage() {
 
         {/* Tabs */}
         <div className="gd-tabs">
-          <button className={`gd-tab${tab === 'builds' ? ' active' : ''}`} onClick={() => setTab('builds')}>
+          <button className={`gd-tab${tab === 'builds' ? ' active' : ''}`} onClick={() => selectTab('builds')}>
             {td.builds} ({builds.length})
           </button>
-          <button className={`gd-tab${tab === 'reports' ? ' active' : ''}`} onClick={() => setTab('reports')}>
+          <button className={`gd-tab${tab === 'reports' ? ' active' : ''}`} onClick={() => selectTab('reports')}>
             {td.reports} ({reports.length})
           </button>
-          <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
+          <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => selectTab('settings')}>
             {td.settings}
           </button>
-          <button className="gd-tab" onClick={() => navigate(`/dashboard/games/${gameId}/articles`)}>
+          <button className={`gd-tab${tab === 'articles' ? ' active' : ''}`} onClick={() => selectTab('articles')}>
             {td.articles}
           </button>
-          <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => setTab('integration')}>
+          <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => selectTab('integration')}>
             {td.integration}
           </button>
-          <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => setTab('serverIntegration')}>
+          <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => selectTab('serverIntegration')}>
             {td.serverIntegration}
           </button>
         </div>
@@ -1275,6 +1294,20 @@ export default function GameDetailPage() {
               setDeletingReportId={setDeletingReportId}
             />
           </div>
+        )}
+
+        {/* ── Game articles ── */}
+        {tab === 'articles' && (
+          isArticleEditorRoute ? (
+            <AdminBlogEditorPage
+              embedded
+              gameId={gameId}
+              articleId={articleId}
+              game={game}
+            />
+          ) : (
+            <AdminBlogPage embedded gameId={gameId} game={game} />
+          )
         )}
 
         {/* ── Integration ── */}

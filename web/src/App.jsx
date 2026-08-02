@@ -45,10 +45,10 @@ export default function App() {
           <Route path="/blog" element={<BlogListPage />} />
           <Route path="/blog/:slug" element={<BlogPostPage />} />
 
-          {/* Per-game article CMS and public article detail */}
-          <Route path="/dashboard/games/:gameId/articles" element={<ProtectedRoute><AdminBlogPage /></ProtectedRoute>} />
-          <Route path="/dashboard/games/:gameId/articles/new" element={<ProtectedRoute><AdminBlogEditorPage /></ProtectedRoute>} />
-          <Route path="/dashboard/games/:gameId/articles/:id/edit" element={<ProtectedRoute><AdminBlogEditorPage /></ProtectedRoute>} />
+          {/* Per-game article CMS stays inside the game dashboard view */}
+          <Route path="/dashboard/games/:gameId/articles" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
+          <Route path="/dashboard/games/:gameId/articles/new" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
+          <Route path="/dashboard/games/:gameId/articles/:id/edit" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
           <Route path="/play/:gameSlug/articles/:articleSlug" element={<BlogPostPage />} />
 
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

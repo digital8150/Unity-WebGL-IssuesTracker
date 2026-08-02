@@ -183,9 +183,21 @@
 
 .play-review-marks {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.play-review-rating-row,
+.play-review-descriptor-row {
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.play-review-descriptor-row {
+  width: 100%;
 }
 
 .play-rating-mark,
@@ -291,7 +303,8 @@
   .play-review-card { padding: 22px 20px; }
   .play-rating-mark { width: 88px; height: 88px; }
   .play-descriptor-mark { width: 54px; height: 54px; }
-  .play-review-marks { gap: 7px; }
+  .play-review-rating-row,
+  .play-review-descriptor-row { gap: 7px; }
   .play-review-layout { gap: 20px; }
   .play-review-detail-cell { min-height: 64px; padding: 10px; }
   .play-articles-section { padding-bottom: 62px; }

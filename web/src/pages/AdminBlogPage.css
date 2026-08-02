@@ -1,4 +1,20 @@
 /* ── Admin Blog Table ── */
+.gd-articles-view {
+  width: 100%;
+}
+
+.gd-articles-main {
+  width: 100%;
+}
+
+.gd-articles-main .gd-articles-header {
+  margin-bottom: var(--space-xl);
+}
+
+.gd-articles-main .dash-page-title {
+  font-size: 24px;
+}
+
 .ablog-table-wrap {
   overflow-x: auto;
   border-radius: var(--radius-md);

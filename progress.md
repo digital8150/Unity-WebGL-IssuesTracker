@@ -557,3 +557,15 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 - `web/npm run build` succeeds.
 - UTF-8 source validation and `git diff --check` pass.
 - PR remains on hold for visual review.
+
+## Session 2026-08-02 - Dashboard article view and rating mark layout
+
+### Completed
+- Split the play-page rating mark row from the content-descriptor row so descriptors render below the rating.
+- Kept game article list/create/edit flows inside `GameDetailPage` while reusing the existing blog list/editor implementations in embedded mode.
+- Removed the game-article sidebar entry and routed the article URLs back through the game dashboard shell.
+
+### Verified
+- `web/npm run build` succeeds.
+- `git diff --check` passes.
+- PR remains on hold for visual review.
