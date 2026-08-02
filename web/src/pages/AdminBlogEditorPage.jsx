@@ -16,6 +16,8 @@ import {
   updateGameArticle,
 } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import { BlogMedia } from '../components/BlogMedia.jsx';
+import { createBlogMarkdownRenderer, isVideoMediaUrl } from '../utils/blogMedia.js';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './BlogPostPage.css';
@@ -25,8 +27,11 @@ import './AdminBlogEditorPage.css';
 marked.setOptions({ breaks: true, gfm: true });
 
 function renderMarkdown(raw) {
-  const html = marked.parse(raw || '');
-  return DOMPurify.sanitize(html);
+  const html = marked.parse(raw || '', { renderer: createBlogMarkdownRenderer(marked.Renderer) });
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ['source', 'video'],
+    ADD_ATTR: ['aria-label', 'autoplay', 'height', 'loop', 'muted', 'playsinline', 'preload', 'src', 'type', 'width'],
+  });
 }
 
 // ── Unsplash Presets ──────────────────────────────────────────────────────────
@@ -734,9 +739,9 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                       <div className="abe-cover-preview-container">
                         <div 
                           className="abe-cover-blur-bg" 
-                          style={{ backgroundImage: `url(${coverImageUrl})` }} 
+                          style={!isVideoMediaUrl(coverImageUrl) ? { backgroundImage: `url(${coverImageUrl})` } : undefined}
                         />
-                        <img 
+                        <BlogMedia
                           src={coverImageUrl} 
                           alt="Cover Preview" 
                           className="abe-cover-preview-img" 

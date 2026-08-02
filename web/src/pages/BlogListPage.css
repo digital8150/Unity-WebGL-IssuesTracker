@@ -155,14 +155,16 @@
   background: var(--color-canvas-soft-2);
 }
 
-.blog-card-cover img {
+.blog-card-cover img,
+.blog-card-cover video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transition: transform 0.4s ease;
 }
 
-.blog-card:hover .blog-card-cover img {
+.blog-card:hover .blog-card-cover img,
+.blog-card:hover .blog-card-cover video {
   transform: scale(1.04);
 }
 

@@ -14,6 +14,8 @@ import {
   deleteGameArticleComment,
 } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import { BlogMedia } from '../components/BlogMedia.jsx';
+import { createBlogMarkdownRenderer } from '../utils/blogMedia.js';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
@@ -25,10 +27,14 @@ import './BlogPostPage.css';
 marked.setOptions({ breaks: true, gfm: true });
 
 function renderMarkdown(raw) {
-  const html = marked.parse(raw || '');
+  const html = marked.parse(raw || '', { renderer: createBlogMarkdownRenderer(marked.Renderer) });
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['iframe'],
-    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling'],
+    ADD_TAGS: ['iframe', 'source', 'video'],
+    ADD_ATTR: [
+      'allow', 'allowfullscreen', 'aria-hidden', 'aria-label', 'autoplay',
+      'frameborder', 'height', 'loop', 'muted', 'playsinline', 'preload',
+      'scrolling', 'src', 'type', 'width',
+    ],
   });
 }
 
@@ -202,7 +208,7 @@ export default function BlogPostPage() {
             {/* Cover image */}
             {post.coverImageUrl && (
               <div className="bpost-cover">
-                <img src={post.coverImageUrl} alt="" />
+                <BlogMedia src={post.coverImageUrl} alt="" loading="eager" />
               </div>
             )}
 

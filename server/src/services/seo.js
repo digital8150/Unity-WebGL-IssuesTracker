@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import { isVideoMediaUrl } from './blogMedia.js';
 
 export const SITE_NAME = 'BCSDLab. Arcade';
 export const DEFAULT_DESCRIPTION = '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.';
@@ -29,6 +30,18 @@ export function absoluteUrl(value, siteOrigin, fallback = DEFAULT_IMAGE_PATH) {
 
 export function publicImageUrl(value, siteOrigin) {
   return absoluteUrl(value, siteOrigin, DEFAULT_IMAGE_PATH);
+}
+
+function renderPublicBlogMedia(value, alt, siteOrigin, dimensions = '') {
+  const src = publicImageUrl(value, siteOrigin);
+  const escapedSrc = escapeHtml(src);
+  const escapedAlt = escapeHtml(alt);
+
+  if (isVideoMediaUrl(src)) {
+    return `<video autoplay loop muted playsinline preload="metadata" aria-label="${escapedAlt}"${dimensions}><source src="${escapedSrc}" type="video/mp4" /></video>`;
+  }
+
+  return `<img src="${escapedSrc}" alt="${escapedAlt}"${dimensions} />`;
 }
 
 export function formatDate(value) {
@@ -140,7 +153,7 @@ export function renderGameArticlesContent(game, articles, siteOrigin) {
   const cards = articles.map((article) => {
     const href = `/play/${game.slug}/articles/${article.slug}`;
     const image = article.coverImageUrl
-      ? `<img src="${escapeHtml(publicImageUrl(article.coverImageUrl, siteOrigin))}" alt="${escapeHtml(article.title)}" width="640" height="360" />`
+      ? renderPublicBlogMedia(article.coverImageUrl, article.title, siteOrigin, ' width="640" height="360"')
       : '';
     const date = formatDate(article.publishedAt || article.createdAt);
     return `<article><a href="${escapeHtml(href)}">${image}<h3>${escapeHtml(article.title)}</h3></a>${article.summary ? `<p>${escapeHtml(article.summary)}</p>` : ''}${date ? `<time datetime="${escapeHtml(new Date(article.publishedAt || article.createdAt).toISOString())}">${escapeHtml(date)}</time>` : ''}</article>`;
@@ -150,20 +163,34 @@ export function renderGameArticlesContent(game, articles, siteOrigin) {
 }
 
 export function renderMarkdown(markdown) {
-  const rendered = marked.parse(markdown || '');
+  const renderer = new marked.Renderer();
+  const defaultRenderer = new marked.Renderer();
+  renderer.image = function image(token) {
+    if (!isVideoMediaUrl(token.href)) return defaultRenderer.image.call(this, token);
+
+    return `<video autoplay loop muted playsinline preload="metadata" aria-label="${escapeHtml(token.text || 'Animated image')}"><source src="${escapeHtml(token.href)}" type="video/mp4" /></video>`;
+  };
+
+  const rendered = marked.parse(markdown || '', { renderer });
   return sanitizeHtml(rendered, {
     allowedTags: [
       'a', 'blockquote', 'br', 'code', 'del', 'em', 'h1', 'h2', 'h3', 'h4',
-      'hr', 'img', 'li', 'ol', 'p', 'pre', 'strong', 'table', 'tbody', 'td',
-      'th', 'thead', 'tr', 'ul',
+      'hr', 'img', 'li', 'ol', 'p', 'pre', 'source', 'strong', 'table', 'tbody',
+      'td', 'th', 'thead', 'tr', 'ul', 'video',
     ],
     allowedAttributes: {
       a: ['href', 'name', 'target', 'rel'],
       code: ['class'],
       img: ['src', 'alt', 'title', 'width', 'height'],
+      source: ['src', 'type'],
+      video: ['aria-label', 'autoplay', 'height', 'loop', 'muted', 'playsinline', 'preload', 'role', 'width'],
     },
     allowedSchemes: ['http', 'https', 'mailto'],
-    allowedSchemesByTag: { img: ['http', 'https'] },
+    allowedSchemesByTag: {
+      img: ['http', 'https'],
+      source: ['http', 'https'],
+      video: ['http', 'https'],
+    },
     transformTags: {
       a: (_tagName, attribs) => ({
         tagName: 'a',
@@ -219,7 +246,7 @@ export function renderBlogListContent(posts, page, pages, siteOrigin) {
   const cards = posts.length
     ? posts.map((post) => {
       const image = post.coverImageUrl
-        ? `<img src="${escapeHtml(publicImageUrl(post.coverImageUrl, siteOrigin))}" alt="${escapeHtml(post.title)} 커버 이미지" />`
+        ? renderPublicBlogMedia(post.coverImageUrl, `${post.title} 커버 이미지`, siteOrigin)
         : '';
       const date = formatDate(post.publishedAt || post.createdAt);
       return `<article>${image}<p>${post.tags?.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(' ') || ''}</p><h2><a href="/blog/${escapeHtml(post.slug)}">${escapeHtml(post.title)}</a></h2>${post.summary ? `<p>${escapeHtml(post.summary)}</p>` : ''}<p>${escapeHtml(date)}${post.author?.name ? ` · ${escapeHtml(post.author.name)}` : ''}</p><a href="/blog/${escapeHtml(post.slug)}">글 읽기</a></article>`;
@@ -234,7 +261,7 @@ export function renderBlogListContent(posts, page, pages, siteOrigin) {
 
 export function renderBlogPostContent(post, siteOrigin) {
   const image = post.coverImageUrl
-    ? `<img src="${escapeHtml(publicImageUrl(post.coverImageUrl, siteOrigin))}" alt="${escapeHtml(post.title)} 커버 이미지" />`
+    ? renderPublicBlogMedia(post.coverImageUrl, `${post.title} 커버 이미지`, siteOrigin)
     : '';
   const date = formatDate(post.publishedAt || post.createdAt);
   const tags = post.tags?.length ? `<p>${post.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(' ')}</p>` : '';
@@ -243,7 +270,7 @@ export function renderBlogPostContent(post, siteOrigin) {
 
 export function renderGameArticleContent(post, game, siteOrigin) {
   const image = post.coverImageUrl
-    ? `<img src="${escapeHtml(publicImageUrl(post.coverImageUrl, siteOrigin))}" alt="${escapeHtml(post.title)} 커버 이미지" />`
+    ? renderPublicBlogMedia(post.coverImageUrl, `${post.title} 커버 이미지`, siteOrigin)
     : '';
   const date = formatDate(post.publishedAt || post.createdAt);
   const tags = post.tags?.length ? `<p>${post.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(' ')}</p>` : '';

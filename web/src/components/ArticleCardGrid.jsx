@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import '../pages/BlogListPage.css';
+import { BlogMedia } from './BlogMedia.jsx';
 
 export function formatArticleDate(dateStr, lang) {
   if (!dateStr) return '';
@@ -29,7 +30,7 @@ export default function ArticleCardGrid({
         >
           {post.coverImageUrl && (
             <div className="blog-card-cover">
-              <img src={post.coverImageUrl} alt="" loading="lazy" />
+              <BlogMedia src={post.coverImageUrl} alt="" loading="lazy" />
             </div>
           )}
           <div className="blog-card-body">

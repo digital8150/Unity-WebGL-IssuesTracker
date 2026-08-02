@@ -5,13 +5,24 @@ import multer from 'multer';
 import BlogPost from '../models/BlogPost.js';
 import { requireAuth, requireApproved, requireAdmin, optionalAuth } from '../middleware/auth.js';
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
+import { BLOG_IMAGE_MAX_BYTES, convertGifToMp4 } from '../services/blogMedia.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
 const blogUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: BLOG_IMAGE_MAX_BYTES },
 });
+
+function parseBlogImageUpload(req, res, next) {
+  blogUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Maximum image size is 10MB.' });
+    }
+    return next(err);
+  });
+}
 
 // ── Public routes ─────────────────────────────────────────────────────────────
 
@@ -114,7 +125,7 @@ router.delete(
 router.post(
   '/admin/upload-image',
   requireAuth, requireApproved,
-  blogUpload.single('file'),
+  parseBlogImageUpload,
   async (req, res, next) => {
     try {
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -131,10 +142,24 @@ router.post(
 
       await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
-      const fname = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      await fs.writeFile(path.join(BLOG_IMAGE_ROOT, fname), req.file.buffer);
+      const baseName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const fname = `${baseName}.${ext === 'gif' ? 'mp4' : ext}`;
+      const filePath = path.join(BLOG_IMAGE_ROOT, fname);
 
-      res.json({ imageUrl: `/blog-images/${fname}` });
+      try {
+        if (ext === 'gif') await convertGifToMp4(req.file.buffer, filePath);
+        else await fs.writeFile(filePath, req.file.buffer);
+      } catch (err) {
+        if (err.code === 'FFMPEG_NOT_FOUND') {
+          return res.status(503).json({ error: 'GIF conversion is temporarily unavailable.' });
+        }
+        throw err;
+      }
+
+      res.json({
+        imageUrl: `/blog-images/${fname}`,
+        mediaType: ext === 'gif' ? 'video/mp4' : req.file.mimetype,
+      });
     } catch (err) {
       next(err);
     }

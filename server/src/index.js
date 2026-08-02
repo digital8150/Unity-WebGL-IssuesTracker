@@ -86,7 +86,14 @@ app.get('/thumbnails/:filename', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-const BLOG_IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+const BLOG_IMAGE_MIME = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+};
 
 app.get('/blog-images/:filename', async (req, res, next) => {
   try {
