@@ -8,7 +8,7 @@ This repo is becoming **`web-gl-game-issue-tracking-platform`** — a hosted, mu
 
 1. **Upload a WebGL build** through the web dashboard (no manual file copying into `web/public/`).
 2. Receive a **shareable play URL** (e.g. `/play/<gameSlug>` or `/play/<buildId>`) to send to testers.
-3. **Testers** open the URL, play the game in the browser, and file bug reports / suggestions
+3. **Testers** open the URL, play the game in the browser, then use the play page's **Report a Bug** button. It captures a Unity snapshot and opens a dedicated `/report/<gameSlug>` page for filing bug reports / suggestions.
 4. **Developers** review incoming reports in a dashboard view, scoped to their game/build, with optional Discord webhook forwarding.
 
 Key implications for any change:
@@ -26,7 +26,7 @@ Key implications for any change:
 Monorepo with three independent workspaces. There is no root `package.json` — install and run each side separately.
 
 - `unity/` — drop-in C# integration (`IssueTrackerIntegration.cs`) and WebGL bridge (`IssueTracker.jslib`). Intended to be copied into a downstream Unity project so the developer's game can emit issue payloads; this folder is **not** itself a Unity project (no `ProjectSettings/` etc.).
-- `web/` — Vite + React host. Contains both the **developer dashboard** (upload builds, view reports, manage games) and the **tester play view** (`/play/<...>` that embeds the uploaded WebGL build via `react-unity-webgl` and shows the bug-report overlay).
+- `web/` — Vite + React host. Contains the **developer dashboard** (upload builds, view reports, manage games), the **tester play view** (`/play/<...>` embeds the uploaded WebGL build via `react-unity-webgl`), and the dedicated **report page** (`/report/<gameSlug>[/:buildId]`).
 - `server/` — Express + Mongoose API. Handles auth, build upload + storage, signed/public build serving, issue ingestion, and per-game Discord webhook fan-out.
 
 ## Common commands

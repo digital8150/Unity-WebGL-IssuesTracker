@@ -45,7 +45,7 @@ npm run dev            # http://localhost:5173  (/api → :4000 프록시)
 
 ### 테스터 흐름
 
-플레이 URL을 열고 **F2**를 눌러 리포트 오버레이를 띄웁니다. 제목과 설명 입력 후 제출하면 다음 정보가 자동으로 캡처됩니다:
+플레이 화면의 **버그 신고** 버튼을 누릅니다. 버튼은 Unity에 현재 상태 스냅샷 생성을 요청하고, 제목·설명을 작성할 별도 리포트 페이지를 새 탭으로 엽니다. 제출하면 다음 정보가 자동으로 첨부됩니다:
 
 - Unity 콘솔 로그 (오류, 경고, 최근 N개)
 - 커스텀 게임 상태 (위치, 레벨, HP 등 게임에서 노출한 값)
@@ -57,11 +57,11 @@ npm run dev            # http://localhost:5173  (/api → :4000 프록시)
 ### 데이터 흐름 (엔드-투-엔드)
 
 ```
-React 오버레이 → Unity C# (SendMessage) → .jslib 브릿지 → window.__issueTrackerReceive
-                                                                        ↓
-                                              브라우저 메타데이터 병합 → POST /api/issues
-                                                                        ↓
-                                                              MongoDB 저장 + Discord 웹훅 (async)
+플레이 화면의 버그 신고 버튼 → Unity C# (SendMessage) → .jslib 브릿지 → window.__issueTrackerReceive
+                                                                                         ↓
+                                              sessionStorage에 스냅샷 저장 → 별도 /report/<gameSlug> 페이지 열기
+                                                                                         ↓
+                                              브라우저 메타데이터 병합 → POST /api/issues → MongoDB + Discord 웹훅 (async)
 ```
 
 ---
@@ -206,7 +206,7 @@ void Start() {
 ### 이슈
 | Method | Path | Auth | 설명 |
 |--------|------|------|------|
-| `POST` | `/api/issues` | — | 이슈 제출 (인게임 오버레이) |
+| `POST` | `/api/issues` | — | 이슈 제출 (별도 리포트 페이지) |
 | `GET` | `/api/issues/:id` | — | 이슈 상세 |
 | `PATCH` | `/api/issues/:id` | Bearer | status/priority/tags 업데이트 |
 | `POST` | `/api/issues/:id/vote` | Bearer | 투표 토글 |
