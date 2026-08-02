@@ -10,6 +10,24 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-08-02 — GRAC rating display revision
+
+### Completed
+- Replaced the initial review-info fields with game title, business name, selected rating, classification number/date, developer report number, and multi-select content descriptors.
+- Added official GCRB/GRAC rating and content-descriptor image assets to the play-page display.
+- Redesigned the play-page rating card as a left visual mark rail plus a right 2-column × 3-row details table.
+- Removed redundant blue kicker labels from the game profile, rating, and article sections.
+
+### Verification
+- Official rating and descriptor asset URLs returned HTTP 200.
+- Review-info API flow passed with Korean UTF-8 values, rating selection, descriptor selection, and disabled-state redaction.
+- `web`: `npm run build` passed; server syntax checks passed.
+
+### Decision
+- PR creation remains on hold for the user's visual review.
+
+---
+
 ## Session 2026-08-02 — Game articles, review information, and themed play/report pages
 
 ### Completed

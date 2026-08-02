@@ -5,13 +5,29 @@ import os from 'node:os';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import AdmZip from 'adm-zip';
-import Game from '../models/Game.js';
+import Game, { GAME_CONTENT_DESCRIPTOR_KEYS, GAME_RATING_KEYS } from '../models/Game.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import User from '../models/User.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
 
 const router = Router();
+
+const LEGACY_RATING_ALIASES = {
+  '전체이용가': 'all',
+  '전체 이용가': 'all',
+  '12세이용가': 'over12',
+  '12세 이용가': 'over12',
+  '15세이용가': 'over15',
+  '15세 이용가': 'over15',
+  '청소년이용불가': 'over18',
+  '청소년 이용불가': 'over18',
+};
+
+function normalizeGameRating(value) {
+  const raw = String(value ?? '').trim();
+  return GAME_RATING_KEYS.includes(raw) ? raw : (LEGACY_RATING_ALIASES[raw] ?? '');
+}
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -199,14 +215,19 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
     if (description !== undefined) game.description = String(description).slice(0, 500);
     if (reviewInfo !== undefined) {
       const nextReview = reviewInfo && typeof reviewInfo === 'object' ? reviewInfo : {};
-      const parsedDate = nextReview.reviewedAt ? new Date(nextReview.reviewedAt) : null;
+      const parsedDate = nextReview.classificationDate ? new Date(nextReview.classificationDate) : null;
+      const contentDescriptors = Array.isArray(nextReview.contentDescriptors)
+        ? nextReview.contentDescriptors.filter((key) => GAME_CONTENT_DESCRIPTOR_KEYS.includes(key))
+        : [];
       game.reviewInfo = {
         enabled: Boolean(nextReview.enabled),
-        rating: String(nextReview.rating ?? '').trim().slice(0, 50),
-        certificateNumber: String(nextReview.certificateNumber ?? '').trim().slice(0, 100),
-        authority: String(nextReview.authority ?? '').trim().slice(0, 100),
-        reviewedAt: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
-        note: String(nextReview.note ?? '').trim().slice(0, 300),
+        title: String(nextReview.title ?? '').trim().slice(0, 200),
+        businessName: String(nextReview.businessName ?? '').trim().slice(0, 200),
+        rating: normalizeGameRating(nextReview.rating),
+        classificationNumber: String(nextReview.classificationNumber ?? '').trim().slice(0, 100),
+        classificationDate: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
+        developerReportNumber: String(nextReview.developerReportNumber ?? '').trim().slice(0, 100),
+        contentDescriptors,
       };
     }
     await game.save();
@@ -542,11 +563,13 @@ function buildUrls(buildId, files) {
 function playResponse(game, build) {
   const reviewInfo = game.reviewInfo?.enabled
     ? {
+        title: game.reviewInfo.title || '',
+        businessName: game.reviewInfo.businessName || '',
         rating: game.reviewInfo.rating || '',
-        certificateNumber: game.reviewInfo.certificateNumber || '',
-        authority: game.reviewInfo.authority || '',
-        reviewedAt: game.reviewInfo.reviewedAt || null,
-        note: game.reviewInfo.note || '',
+        classificationNumber: game.reviewInfo.classificationNumber || '',
+        classificationDate: game.reviewInfo.classificationDate || null,
+        developerReportNumber: game.reviewInfo.developerReportNumber || '',
+        contentDescriptors: game.reviewInfo.contentDescriptors || [],
       }
     : null;
 

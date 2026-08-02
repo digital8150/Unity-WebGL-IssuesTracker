@@ -1,5 +1,16 @@
 import mongoose from 'mongoose';
 
+export const GAME_RATING_KEYS = ['all', 'over12', 'over15', 'over18'];
+export const GAME_CONTENT_DESCRIPTOR_KEYS = [
+  'sexuality',
+  'violence',
+  'fear',
+  'language',
+  'drugs',
+  'crime',
+  'gambling',
+];
+
 function toSlug(str) {
   return str
     .toLowerCase()
@@ -29,11 +40,16 @@ const gameSchema = new mongoose.Schema(
     // ── Game review / rating information ────────────────────────────────────
     reviewInfo: {
       enabled: { type: Boolean, default: false },
-      rating: { type: String, trim: true, maxlength: 50, default: '' },
-      certificateNumber: { type: String, trim: true, maxlength: 100, default: '' },
-      authority: { type: String, trim: true, maxlength: 100, default: '' },
-      reviewedAt: { type: Date, default: null },
-      note: { type: String, trim: true, maxlength: 300, default: '' },
+      title: { type: String, trim: true, maxlength: 200, default: '' },
+      businessName: { type: String, trim: true, maxlength: 200, default: '' },
+      rating: { type: String, enum: ['', ...GAME_RATING_KEYS], default: '' },
+      classificationNumber: { type: String, trim: true, maxlength: 100, default: '' },
+      classificationDate: { type: Date, default: null },
+      developerReportNumber: { type: String, trim: true, maxlength: 100, default: '' },
+      contentDescriptors: {
+        type: [{ type: String, enum: GAME_CONTENT_DESCRIPTOR_KEYS }],
+        default: [],
+      },
     },
 
     // ── Per-game server backend (leaderboards / dynamic config) ───────────────

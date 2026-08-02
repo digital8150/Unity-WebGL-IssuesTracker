@@ -8,6 +8,7 @@ import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { GRAC_CONTENT_MARKS, GRAC_RATING_MARKS } from '../constants/gracAssets.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './LandingPage.css';
 import './PlayPage.css';
@@ -152,6 +153,19 @@ export default function PlayPage() {
   const reviewInfo = isLegacy ? null : buildInfo.reviewInfo;
   const canvasW = isLegacy ? 1920 : (buildInfo.canvasWidth ?? 1920);
   const canvasH = isLegacy ? 1080 : (buildInfo.canvasHeight ?? 1080);
+  const ratingMark = reviewInfo?.rating ? GRAC_RATING_MARKS[reviewInfo.rating] : null;
+  const descriptorKeys = (reviewInfo?.contentDescriptors ?? []).filter((key) => GRAC_CONTENT_MARKS[key]);
+  const ratingLabel = reviewInfo?.rating
+    ? (t.gameDetail.reviewRatings[reviewInfo.rating] ?? reviewInfo.rating)
+    : '';
+  const reviewDetails = reviewInfo ? [
+    [t.gameDetail.reviewTitleField, reviewInfo.title],
+    [t.gameDetail.reviewBusinessName, reviewInfo.businessName],
+    [t.gameDetail.reviewRating, ratingLabel],
+    [t.gameDetail.reviewClassificationNumber, reviewInfo.classificationNumber],
+    [t.gameDetail.reviewClassificationDate, formatReviewDate(reviewInfo.classificationDate, lang)],
+    [t.gameDetail.reviewDeveloperReportNumber, reviewInfo.developerReportNumber],
+  ] : [];
 
   const urls = isLegacy
     ? {
@@ -219,7 +233,6 @@ export default function PlayPage() {
 
       <main className="play-content">
         <section className="play-info-section play-shell">
-          <div className="play-section-kicker">{t.play.gameProfile}</div>
           <div className="play-title-row">
             <div>
               <h1 className="play-title">{gameName}</h1>
@@ -243,15 +256,38 @@ export default function PlayPage() {
         {reviewInfo && (
           <section className="play-review-section play-shell">
             <div className="play-review-card">
-              <div className="play-section-kicker">{t.play.officialInfo}</div>
               <h2>{t.play.reviewLabel}</h2>
-              <div className="play-review-grid">
-                {reviewInfo.rating && <ReviewValue label={t.gameDetail.reviewRating} value={reviewInfo.rating} emphasis />}
-                {reviewInfo.certificateNumber && <ReviewValue label={t.play.reviewCertificate} value={reviewInfo.certificateNumber} />}
-                {reviewInfo.authority && <ReviewValue label={t.play.reviewAuthority} value={reviewInfo.authority} />}
-                {reviewInfo.reviewedAt && <ReviewValue label={t.play.reviewDate} value={formatReviewDate(reviewInfo.reviewedAt, lang)} />}
+              <div className="play-review-layout">
+                <div className="play-review-visual" aria-label={t.gameDetail.reviewDescriptors}>
+                  <div className="play-review-marks">
+                    {ratingMark && (
+                      <img
+                        className="play-rating-mark"
+                        src={ratingMark}
+                        alt={ratingLabel}
+                      />
+                    )}
+                    {descriptorKeys.map((key) => (
+                      <img
+                        key={key}
+                        className="play-descriptor-mark"
+                        src={GRAC_CONTENT_MARKS[key]}
+                        alt={t.gameDetail.reviewDescriptorLabels[key]}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="play-review-details">
+                  <div className="play-review-detail-grid" role="table" aria-label={t.play.reviewLabel}>
+                    {reviewDetails.map(([label, value]) => (
+                      <div key={label} className="play-review-detail-cell" role="row">
+                        <span>{label}</span>
+                        <strong>{value || '—'}</strong>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-              {reviewInfo.note && <p className="play-review-note">{reviewInfo.note}</p>}
             </div>
           </section>
         )}
@@ -259,7 +295,6 @@ export default function PlayPage() {
         <section className="play-articles-section play-shell">
           <div className="play-articles-heading">
             <div>
-              <div className="play-section-kicker">{t.play.articlesKicker}</div>
               <h2>{t.gameArticles.publicTitle}</h2>
               <p>{t.gameArticles.publicSub}</p>
             </div>
@@ -281,15 +316,6 @@ export default function PlayPage() {
       </main>
 
       <Footer />
-    </div>
-  );
-}
-
-function ReviewValue({ label, value, emphasis = false }) {
-  return (
-    <div className={`play-review-value${emphasis ? ' emphasis' : ''}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
     </div>
   );
 }

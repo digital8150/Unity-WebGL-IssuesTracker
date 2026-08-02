@@ -9,6 +9,7 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { GRAC_CONTENT_DESCRIPTOR_KEYS, GRAC_RATING_KEYS } from '../constants/gracAssets.js';
 import hljs from 'highlight.js/lib/core';
 import hljsCsharp from 'highlight.js/lib/languages/csharp';
 import hljsJs from 'highlight.js/lib/languages/javascript';
@@ -520,13 +521,15 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
   const td = t.gameDetail;
   const current = game.reviewInfo ?? {};
   const [enabled, setEnabled] = useState(Boolean(current.enabled));
+  const [title, setTitle] = useState(current.title || '');
+  const [businessName, setBusinessName] = useState(current.businessName || '');
   const [rating, setRating] = useState(current.rating || '');
-  const [certificateNumber, setCertificateNumber] = useState(current.certificateNumber || '');
-  const [authority, setAuthority] = useState(current.authority || '');
-  const [reviewedAt, setReviewedAt] = useState(
-    current.reviewedAt ? new Date(current.reviewedAt).toISOString().slice(0, 10) : '',
+  const [classificationNumber, setClassificationNumber] = useState(current.classificationNumber || '');
+  const [classificationDate, setClassificationDate] = useState(
+    current.classificationDate ? new Date(current.classificationDate).toISOString().slice(0, 10) : '',
   );
-  const [note, setNote] = useState(current.note || '');
+  const [developerReportNumber, setDeveloperReportNumber] = useState(current.developerReportNumber || '');
+  const [contentDescriptors, setContentDescriptors] = useState(current.contentDescriptors || []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -536,7 +539,16 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
     setError('');
     try {
       const { game: updated } = await updateGame(gameId, {
-        reviewInfo: { enabled, rating, certificateNumber, authority, reviewedAt, note },
+        reviewInfo: {
+          enabled,
+          title,
+          businessName,
+          rating,
+          classificationNumber,
+          classificationDate,
+          developerReportNumber,
+          contentDescriptors,
+        },
       });
       setGame(updated);
     } catch (err) {
@@ -557,26 +569,53 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
         </label>
         <div className="gd-review-fields">
           <label className="gd-review-field">
+            <span className="form-label">{td.reviewTitleField}</span>
+            <input className="form-input" value={title} maxLength={200} placeholder={td.reviewTitlePlaceholder} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewBusinessName}</span>
+            <input className="form-input" value={businessName} maxLength={200} placeholder={td.reviewBusinessNamePlaceholder} onChange={(e) => setBusinessName(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
             <span className="form-label">{td.reviewRating}</span>
-            <input className="form-input" value={rating} maxLength={50} placeholder={td.reviewRatingPlaceholder} onChange={(e) => setRating(e.target.value)} />
+            <select className="form-input" value={rating} required={enabled} onChange={(e) => setRating(e.target.value)}>
+              <option value="">{td.reviewRatingPlaceholder}</option>
+              {GRAC_RATING_KEYS.map((key) => (
+                <option key={key} value={key}>{td.reviewRatings[key]}</option>
+              ))}
+            </select>
           </label>
           <label className="gd-review-field">
-            <span className="form-label">{td.reviewCertificateNumber}</span>
-            <input className="form-input" value={certificateNumber} maxLength={100} placeholder={td.reviewCertificatePlaceholder} onChange={(e) => setCertificateNumber(e.target.value)} />
+            <span className="form-label">{td.reviewClassificationNumber}</span>
+            <input className="form-input" value={classificationNumber} maxLength={100} placeholder={td.reviewClassificationNumberPlaceholder} onChange={(e) => setClassificationNumber(e.target.value)} />
           </label>
           <label className="gd-review-field">
-            <span className="form-label">{td.reviewAuthority}</span>
-            <input className="form-input" value={authority} maxLength={100} placeholder={td.reviewAuthorityPlaceholder} onChange={(e) => setAuthority(e.target.value)} />
+            <span className="form-label">{td.reviewClassificationDate}</span>
+            <input className="form-input" type="date" value={classificationDate} onChange={(e) => setClassificationDate(e.target.value)} />
           </label>
           <label className="gd-review-field">
-            <span className="form-label">{td.reviewDate}</span>
-            <input className="form-input" type="date" value={reviewedAt} onChange={(e) => setReviewedAt(e.target.value)} />
-          </label>
-          <label className="gd-review-field gd-review-note-field">
-            <span className="form-label">{td.reviewNote}</span>
-            <textarea className="form-input gd-arcade-desc-input" rows={2} maxLength={300} value={note} placeholder={td.reviewNotePlaceholder} onChange={(e) => setNote(e.target.value)} />
+            <span className="form-label">{td.reviewDeveloperReportNumber}</span>
+            <input className="form-input" value={developerReportNumber} maxLength={100} placeholder={td.reviewDeveloperReportNumberPlaceholder} onChange={(e) => setDeveloperReportNumber(e.target.value)} />
           </label>
         </div>
+        <fieldset className="gd-review-descriptors">
+          <legend className="form-label">{td.reviewDescriptors}</legend>
+          <p className="gd-review-descriptors-desc">{td.reviewDescriptorsDesc}</p>
+          <div className="gd-review-descriptor-grid">
+            {GRAC_CONTENT_DESCRIPTOR_KEYS.map((key) => (
+              <label key={key} className="gd-review-descriptor-option">
+                <input
+                  type="checkbox"
+                  checked={contentDescriptors.includes(key)}
+                  onChange={() => setContentDescriptors((prev) => (
+                    prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+                  ))}
+                />
+                <span>{td.reviewDescriptorLabels[key]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         {error && <div className="gd-error">{error}</div>}
         <div className="gd-arcade-save">
           <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
