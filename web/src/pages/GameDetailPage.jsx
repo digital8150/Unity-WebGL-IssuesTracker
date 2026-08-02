@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import React, { forwardRef, useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
+import { useParams, useNavigate, useLocation, useBlocker, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
+import Modal from '../components/Modal.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
@@ -32,6 +33,16 @@ function fmtDate(iso, lang) {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+}
+
+function formatDateForInput(value) {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 const INTEGRATION_CS = `using System;
@@ -367,64 +378,135 @@ void EndGame()
     Application.Quit(); // no-op in WebGL; keeps desktop builds clean
 }`;
 
-function ArcadeSection({ gameId, game, setGame, builds, t }) {
+const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame, builds, t, onDirtyChange }, ref) {
   const td = t.gameDetail;
   const hasActiveBuild = builds.some((b) => b.isActive);
+  const initialSettings = useMemo(() => ({
+    visibility: game.visibility || 'private',
+    description: game.description || '',
+    thumbnailUrl: game.thumbnailUrl || '',
+  }), [game]);
 
-  const [visibility, setVisibility] = useState(game.visibility || 'private');
-  const [description, setDescription] = useState(game.description || '');
+  const [savedSettings, setSavedSettings] = useState(initialSettings);
+  const [visibility, setVisibility] = useState(initialSettings.visibility);
+  const [description, setDescription] = useState(initialSettings.description);
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailRemoved, setThumbnailRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const thumbInputRef = useRef(null);
 
+  const thumbnailPreviewUrl = useMemo(
+    () => thumbnailFile ? URL.createObjectURL(thumbnailFile) : '',
+    [thumbnailFile],
+  );
+
+  useEffect(() => () => {
+    if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
+  }, [thumbnailPreviewUrl]);
+
+  const draftThumbnailKey = thumbnailFile
+    ? `file:${thumbnailFile.name}:${thumbnailFile.size}:${thumbnailFile.lastModified}`
+    : thumbnailRemoved ? '' : savedSettings.thumbnailUrl;
+  const hasUnsavedChanges = (
+    visibility !== savedSettings.visibility
+    || description !== savedSettings.description
+    || draftThumbnailKey !== savedSettings.thumbnailUrl
+  );
+  const thumbnailImageSrc = thumbnailFile
+    ? thumbnailPreviewUrl
+    : savedSettings.thumbnailUrl && !thumbnailRemoved
+      ? `${API_BASE}${savedSettings.thumbnailUrl}`
+      : '';
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+    return () => onDirtyChange?.(false);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
   async function handleSave(e) {
     e?.preventDefault?.();
+    if (!hasUnsavedChanges) return true;
     setError('');
     setSaving(true);
     try {
-      const { game: updated } = await updateGame(gameId, { visibility, description });
-      setGame((prev) => ({ ...prev, ...updated }));
+      const settingsChanged = (
+        visibility !== savedSettings.visibility
+        || description !== savedSettings.description
+      );
+      let updated = null;
+      if (settingsChanged) {
+        const result = await updateGame(gameId, { visibility, description });
+        updated = result.game;
+      }
+
+      let nextThumbnailUrl = savedSettings.thumbnailUrl;
+      if (thumbnailFile) {
+        const result = await uploadThumbnail(gameId, thumbnailFile);
+        nextThumbnailUrl = result.thumbnailUrl || '';
+      } else if (thumbnailRemoved && savedSettings.thumbnailUrl) {
+        await deleteThumbnail(gameId);
+        nextThumbnailUrl = '';
+      }
+
+      setGame((prev) => ({
+        ...prev,
+        ...(updated || {}),
+        thumbnailUrl: nextThumbnailUrl,
+      }));
+      setSavedSettings({ visibility, description, thumbnailUrl: nextThumbnailUrl });
+      setThumbnailFile(null);
+      setThumbnailRemoved(false);
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleThumbnailPick(e) {
+  function handleThumbnailPick(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
-    setUploading(true);
-    try {
-      const { thumbnailUrl } = await uploadThumbnail(gameId, file);
-      setGame((prev) => ({ ...prev, thumbnailUrl }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
-      if (thumbInputRef.current) thumbInputRef.current.value = '';
-    }
+    setThumbnailFile(file);
+    setThumbnailRemoved(false);
+    if (thumbInputRef.current) thumbInputRef.current.value = '';
   }
 
-  async function handleRemoveThumbnail() {
+  function handleRemoveThumbnail() {
+    if (!thumbnailFile && !savedSettings.thumbnailUrl) return;
     setError('');
-    setUploading(true);
-    try {
-      await deleteThumbnail(gameId);
-      setGame((prev) => ({ ...prev, thumbnailUrl: '' }));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUploading(false);
-    }
+    setThumbnailFile(null);
+    setThumbnailRemoved(true);
   }
+
+  function handleRevert() {
+    setError('');
+    setVisibility(savedSettings.visibility);
+    setDescription(savedSettings.description);
+    setThumbnailFile(null);
+    setThumbnailRemoved(false);
+  }
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+    revert: handleRevert,
+  }), [handleSave, handleRevert]);
 
   return (
-    <div>
-      <h2 className="gd-section-title">{td.arcadeTitle}</h2>
-      <p className="gd-section-desc">{td.arcadeDesc}</p>
+    <div className="gd-arcade-settings">
+      <div className="gd-settings-section-heading">
+        <div>
+          <h2 className="gd-section-title">{td.arcadeTitle}</h2>
+          <p className="gd-section-desc">{td.arcadeDesc}</p>
+        </div>
+        <div className={`gd-arcade-status${hasUnsavedChanges ? ' dirty' : ''}`} role="status" aria-live="polite">
+          <span className="gd-arcade-status-dot" aria-hidden="true" />
+          {hasUnsavedChanges ? td.settingsUnsavedStatus : td.settingsSaved}
+        </div>
+      </div>
 
       {!hasActiveBuild && (
         <div className="gd-arcade-warn">{td.requiresActiveBuild}</div>
@@ -439,7 +521,7 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
             checked={visibility === 'private'}
             onChange={() => setVisibility('private')}
           />
-          <span className="gd-vis-card-h">🔒 Private</span>
+          <span className="gd-vis-card-h"><span aria-hidden="true">🔒</span> Private</span>
           <span className="gd-vis-card-d">{td.visibilityPrivate}</span>
         </label>
         <label className={`gd-vis-card${visibility === 'public' ? ' active' : ''} ${!hasActiveBuild ? 'disabled' : ''}`}>
@@ -451,7 +533,7 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
             disabled={!hasActiveBuild}
             onChange={() => setVisibility('public')}
           />
-          <span className="gd-vis-card-h">🎮 Public</span>
+          <span className="gd-vis-card-h"><span aria-hidden="true">🌐</span> Public</span>
           <span className="gd-vis-card-d">{td.visibilityPublic}</span>
         </label>
       </div>
@@ -473,10 +555,10 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
         <label className="form-label">{td.arcadeThumbnail}</label>
         <p className="gd-section-desc gd-arcade-hint">{td.arcadeThumbnailHint}</p>
         <div className="gd-thumb-row">
-          {game.thumbnailUrl ? (
+          {thumbnailImageSrc ? (
             <img
-              src={`${API_BASE}${game.thumbnailUrl}`}
-              alt="thumbnail"
+              src={thumbnailImageSrc}
+              alt={td.arcadeThumbnail}
               className="gd-thumb-preview"
             />
           ) : (
@@ -484,92 +566,156 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
           )}
           <div className="gd-thumb-actions">
             <label className="btn btn-ghost">
-              {game.thumbnailUrl ? td.replaceThumbnail : td.uploadThumbnail}
+              {savedSettings.thumbnailUrl && !thumbnailRemoved ? td.replaceThumbnail : td.uploadThumbnail}
               <input
                 ref={thumbInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
                 style={{ display: 'none' }}
                 onChange={handleThumbnailPick}
-                disabled={uploading}
+                disabled={saving}
               />
             </label>
-            {game.thumbnailUrl && (
+            {(savedSettings.thumbnailUrl || thumbnailFile) && (
               <button
                 type="button"
                 className="btn btn-ghost"
                 onClick={handleRemoveThumbnail}
-                disabled={uploading}
+                disabled={saving}
               >
                 {td.removeThumbnail}
               </button>
             )}
+            {thumbnailFile && (
+              <span className="gd-thumb-selected" title={thumbnailFile.name}>
+                {td.thumbnailSelected} {thumbnailFile.name}
+              </span>
+            )}
           </div>
         </div>
+        <p className="gd-thumb-save-hint">{td.thumbnailSaveHint}</p>
       </div>
 
       {error && <div className="gd-error">{error}</div>}
 
-      <div className="gd-arcade-save">
-        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
-          {saving ? td.saving : td.save}
-        </button>
-      </div>
     </div>
   );
-}
+});
 
-function ReviewInfoSection({ gameId, game, setGame, t }) {
+const ReviewInfoSection = forwardRef(function ReviewInfoSection({ gameId, game, setGame, t, onDirtyChange }, ref) {
   const td = t.gameDetail;
   const current = game.reviewInfo ?? {};
-  const [enabled, setEnabled] = useState(Boolean(current.enabled));
-  const [title, setTitle] = useState(current.title || '');
-  const [businessName, setBusinessName] = useState(current.businessName || '');
-  const [rating, setRating] = useState(current.rating || '');
-  const [classificationNumber, setClassificationNumber] = useState(current.classificationNumber || '');
-  const [classificationDate, setClassificationDate] = useState(
-    current.classificationDate ? new Date(current.classificationDate).toISOString().slice(0, 10) : '',
-  );
-  const [developerReportNumber, setDeveloperReportNumber] = useState(current.developerReportNumber || '');
-  const [contentDescriptors, setContentDescriptors] = useState(current.contentDescriptors || []);
+  const initialValues = useMemo(() => ({
+    enabled: Boolean(current.enabled),
+    title: current.title || '',
+    businessName: current.businessName || '',
+    rating: current.rating || '',
+    classificationNumber: current.classificationNumber || '',
+    classificationDate: formatDateForInput(current.classificationDate),
+    developerReportNumber: current.developerReportNumber || '',
+    contentDescriptors: [...(current.contentDescriptors || [])],
+  }), [current]);
+  const [savedValues, setSavedValues] = useState(initialValues);
+  const [enabled, setEnabled] = useState(initialValues.enabled);
+  const [title, setTitle] = useState(initialValues.title);
+  const [businessName, setBusinessName] = useState(initialValues.businessName);
+  const [rating, setRating] = useState(initialValues.rating);
+  const [classificationNumber, setClassificationNumber] = useState(initialValues.classificationNumber);
+  const [classificationDate, setClassificationDate] = useState(initialValues.classificationDate);
+  const [developerReportNumber, setDeveloperReportNumber] = useState(initialValues.developerReportNumber);
+  const [contentDescriptors, setContentDescriptors] = useState(initialValues.contentDescriptors);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const descriptorsMatch = (
+    contentDescriptors.length === savedValues.contentDescriptors.length
+    && contentDescriptors.every((item) => savedValues.contentDescriptors.includes(item))
+  );
+  const hasUnsavedChanges = (
+    enabled !== savedValues.enabled
+    || title !== savedValues.title
+    || businessName !== savedValues.businessName
+    || rating !== savedValues.rating
+    || classificationNumber !== savedValues.classificationNumber
+    || classificationDate !== savedValues.classificationDate
+    || developerReportNumber !== savedValues.developerReportNumber
+    || !descriptorsMatch
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+    return () => onDirtyChange?.(false);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
   async function handleSave(e) {
-    e.preventDefault();
+    e?.preventDefault?.();
+    if (!hasUnsavedChanges) return true;
+    if (enabled && !rating) {
+      setError(td.reviewRatingRequired);
+      return false;
+    }
     setSaving(true);
     setError('');
     try {
-      const { game: updated } = await updateGame(gameId, {
-        reviewInfo: {
-          enabled,
-          title,
-          businessName,
-          rating,
-          classificationNumber,
-          classificationDate,
-          developerReportNumber,
-          contentDescriptors,
-        },
-      });
+      const reviewInfo = {
+        enabled,
+        title,
+        businessName,
+        rating,
+        classificationNumber,
+        classificationDate,
+        developerReportNumber,
+        contentDescriptors,
+      };
+      const { game: updated } = await updateGame(gameId, { reviewInfo });
       setGame((prev) => ({ ...prev, ...updated }));
+      setSavedValues({
+        ...reviewInfo,
+        contentDescriptors: [...contentDescriptors],
+      });
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
+  function handleRevert() {
+    setError('');
+    setEnabled(savedValues.enabled);
+    setTitle(savedValues.title);
+    setBusinessName(savedValues.businessName);
+    setRating(savedValues.rating);
+    setClassificationNumber(savedValues.classificationNumber);
+    setClassificationDate(savedValues.classificationDate);
+    setDeveloperReportNumber(savedValues.developerReportNumber);
+    setContentDescriptors([...savedValues.contentDescriptors]);
+  }
+
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+    revert: handleRevert,
+  }), [handleSave, handleRevert]);
+
   return (
     <div className="gd-review-settings">
-      <h2 className="gd-section-title">{td.reviewTitle}</h2>
-      <p className="gd-section-desc">{td.reviewDesc}</p>
-      <form onSubmit={handleSave}>
-        <label className="gd-review-toggle">
-          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-          <span>{td.reviewEnabled}</span>
-        </label>
-        <div className="gd-review-fields">
+      <div className="gd-settings-section-heading">
+        <div>
+          <h2 className="gd-section-title">{td.reviewTitle}</h2>
+          <p className="gd-section-desc">{td.reviewDesc}</p>
+        </div>
+        <div className={`gd-arcade-status${hasUnsavedChanges ? ' dirty' : ''}`} role="status" aria-live="polite">
+          <span className="gd-arcade-status-dot" aria-hidden="true" />
+          {hasUnsavedChanges ? td.settingsUnsavedStatus : td.settingsSaved}
+        </div>
+      </div>
+      <label className="gd-review-toggle">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <span>{td.reviewEnabled}</span>
+      </label>
+      <div className="gd-review-fields">
           <label className="gd-review-field">
             <span className="form-label">{td.reviewTitleField}</span>
             <input className="form-input" value={title} maxLength={200} placeholder={td.reviewTitlePlaceholder} onChange={(e) => setTitle(e.target.value)} />
@@ -580,7 +726,7 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
           </label>
           <label className="gd-review-field">
             <span className="form-label">{td.reviewRating}</span>
-            <select className="form-input" value={rating} required={enabled} onChange={(e) => setRating(e.target.value)}>
+            <select className="form-input" value={rating} aria-required={enabled} onChange={(e) => setRating(e.target.value)}>
               <option value="">{td.reviewRatingPlaceholder}</option>
               {GRAC_RATING_KEYS.map((key) => (
                 <option key={key} value={key}>{td.reviewRatings[key]}</option>
@@ -599,8 +745,8 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
             <span className="form-label">{td.reviewDeveloperReportNumber}</span>
             <input className="form-input" value={developerReportNumber} maxLength={100} placeholder={td.reviewDeveloperReportNumberPlaceholder} onChange={(e) => setDeveloperReportNumber(e.target.value)} />
           </label>
-        </div>
-        <fieldset className="gd-review-descriptors">
+      </div>
+      <fieldset className="gd-review-descriptors">
           <legend className="form-label">{td.reviewDescriptors}</legend>
           <p className="gd-review-descriptors-desc">{td.reviewDescriptorsDesc}</p>
           <div className="gd-review-descriptor-grid">
@@ -617,17 +763,12 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
               </label>
             ))}
           </div>
-        </fieldset>
-        {error && <div className="gd-error">{error}</div>}
-        <div className="gd-arcade-save">
-          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
-            {saving ? td.saving : td.reviewSave}
-          </button>
-        </div>
-      </form>
+      </fieldset>
+      {error && <div className="gd-error">{error}</div>}
+      <div className="gd-review-legal-hint">{td.reviewLegalHint}</div>
     </div>
   );
-}
+});
 
 function CollaboratorSection({ gameId, game, setGame, isOwner, t }) {
   const tc = t.collab;
@@ -955,6 +1096,14 @@ export default function GameDetailPage() {
   const isArticleEditorRoute = isArticleRoute && (location.pathname.endsWith('/new') || location.pathname.endsWith('/edit'));
   const [tab, setTab] = useState(isArticleRoute ? 'articles' : 'builds');
   const [isOwner, setIsOwner] = useState(false);
+  const [arcadeDirty, setArcadeDirty] = useState(false);
+  const [reviewDirty, setReviewDirty] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [pendingSettingsNavigation, setPendingSettingsNavigation] = useState(null);
+  const handleArcadeDirtyChange = useCallback((dirty) => setArcadeDirty(dirty), []);
+  const handleReviewDirtyChange = useCallback((dirty) => setReviewDirty(dirty), []);
+  const arcadeSettingsRef = useRef(null);
+  const reviewSettingsRef = useRef(null);
 
   const [uploading,     setUploading]     = useState(false);
   const [uploadError,   setUploadError]   = useState('');
@@ -969,6 +1118,9 @@ export default function GameDetailPage() {
   const [editingWebhook, setEditingWebhook] = useState(false);
   const [webhookVal, setWebhookVal] = useState('');
   const [savingWebhook, setSavingWebhook] = useState(false);
+  const webhookDirty = editingWebhook && webhookVal !== (game?.discordWebhookUrl || '');
+  const settingsDirty = tab === 'settings' && (arcadeDirty || reviewDirty || webhookDirty);
+  const settingsBlocker = useBlocker(settingsDirty);
 
   // Reports filter/sort state (client-side)
   const [reportSearch, setReportSearch] = useState('');
@@ -982,6 +1134,21 @@ export default function GameDetailPage() {
       ? 'articles'
       : current === 'articles' ? 'builds' : current);
   }, [isArticleRoute]);
+
+  useEffect(() => {
+    if (settingsBlocker.state !== 'blocked') return;
+    setPendingSettingsNavigation(() => () => settingsBlocker.proceed());
+  }, [settingsBlocker.state, settingsBlocker.location]);
+
+  useEffect(() => {
+    if (!settingsDirty) return undefined;
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [settingsDirty]);
 
   useEffect(() => {
     Promise.all([getGame(gameId), getGameReports(gameId)])
@@ -1047,27 +1214,88 @@ export default function GameDetailPage() {
     }
   }
 
-  async function handleSaveWebhook(e) {
-    e.preventDefault();
+  async function saveWebhook() {
+    if (!webhookDirty) return true;
     setSavingWebhook(true);
     try {
       const { game: updated } = await updateGame(gameId, { discordWebhookUrl: webhookVal });
-      setGame(updated);
+      setGame((prev) => ({ ...prev, ...updated }));
       setEditingWebhook(false);
+      return true;
     } catch (err) {
       alert(err.message);
+      return false;
     } finally {
       setSavingWebhook(false);
     }
   }
 
-  function selectTab(nextTab) {
-    setTab(nextTab);
+  async function handleSaveSettings() {
+    if (!settingsDirty || savingSettings) return;
+    const shouldSaveWebhook = webhookDirty;
+    setSavingSettings(true);
+    try {
+      if (await arcadeSettingsRef.current?.save() === false) return;
+      if (await reviewSettingsRef.current?.save() === false) return;
+      if (shouldSaveWebhook && await saveWebhook() === false) return;
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  function handleRevertSettings() {
+    arcadeSettingsRef.current?.revert();
+    reviewSettingsRef.current?.revert();
+    setWebhookVal(game?.discordWebhookUrl || '');
+    setEditingWebhook(false);
+  }
+
+  function handleEditWebhook() {
+    setWebhookVal(game?.discordWebhookUrl || '');
+    setEditingWebhook(true);
+  }
+
+  function handleCancelWebhook() {
+    setWebhookVal(game?.discordWebhookUrl || '');
+    setEditingWebhook(false);
+  }
+
+  function performTabChange(nextTab) {
     if (nextTab === 'articles') {
       navigate(`/dashboard/games/${gameId}/articles`);
-    } else if (isArticleRoute) {
+      return;
+    }
+    setTab(nextTab);
+    if (isArticleRoute) {
       navigate(`/dashboard/games/${gameId}`);
     }
+  }
+
+  function confirmSettingsNavigation() {
+    const action = pendingSettingsNavigation;
+    setPendingSettingsNavigation(null);
+    action?.();
+  }
+
+  function cancelSettingsNavigation() {
+    if (settingsBlocker.state === 'blocked') settingsBlocker.reset();
+    setPendingSettingsNavigation(null);
+  }
+
+  function handleDashboardNavigate(event) {
+    if (tab !== 'settings' || !settingsDirty) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    const href = event.currentTarget.getAttribute('href');
+    navigate(href);
+  }
+
+  function selectTab(nextTab) {
+    if (nextTab !== 'settings' && nextTab !== 'articles' && tab === 'settings' && settingsDirty) {
+      setPendingSettingsNavigation(() => () => performTabChange(nextTab));
+      return;
+    }
+    performTabChange(nextTab);
   }
 
   const td = t.gameDetail;
@@ -1088,14 +1316,15 @@ export default function GameDetailPage() {
   const playUrl = `/play/${game.slug}`;
 
   return (
+    <>
     <div className="dash-layout">
       <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <Link to="/" className="dash-logo" onClick={handleDashboardNavigate}><BrandLogo /></Link>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard">{td.back}</Link>
-          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
+          <Link className="dash-nav-item" to="/dashboard" onClick={handleDashboardNavigate}>{td.back}</Link>
+          <Link className="dash-nav-item" to="/arcade" onClick={handleDashboardNavigate}>{t.nav.arcade}</Link>
           {user?.role === 'admin' && (
-            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
+            <Link className="dash-nav-item" to="/admin/users" onClick={handleDashboardNavigate}>{t.nav.admin}</Link>
           )}
         </nav>
         <div className="dash-sidebar-footer">
@@ -1109,7 +1338,7 @@ export default function GameDetailPage() {
         </div>
       </aside>
 
-      <main className="dash-main">
+      <main className={`dash-main${settingsDirty ? ' has-settings-bar' : ''}`}>
         <header className="dash-header">
           <div>
             <h1 className="dash-page-title">{game.name}</h1>
@@ -1357,18 +1586,22 @@ export default function GameDetailPage() {
             {isOwner && (
               <>
                 <ArcadeSection
+                  ref={arcadeSettingsRef}
                   gameId={gameId}
                   game={game}
                   setGame={setGame}
                   builds={builds}
                   t={t}
+                  onDirtyChange={handleArcadeDirtyChange}
                 />
                 <div style={{ marginTop: 40 }} />
                 <ReviewInfoSection
+                  ref={reviewSettingsRef}
                   gameId={gameId}
                   game={game}
                   setGame={setGame}
                   t={t}
+                  onDirtyChange={handleReviewDirtyChange}
                 />
                 <div style={{ marginTop: 40 }} />
               </>
@@ -1380,30 +1613,28 @@ export default function GameDetailPage() {
                 <h2 className="gd-section-title">{td.discordTitle}</h2>
                 <p className="gd-section-desc">{td.discordDesc}</p>
                 {editingWebhook ? (
-                  <form className="gd-webhook-form" onSubmit={handleSaveWebhook}>
+                  <div className="gd-webhook-form">
                     <input
                       type="url"
                       className="form-input"
                       placeholder="https://discord.com/api/webhooks/…"
                       value={webhookVal}
                       onChange={(e) => setWebhookVal(e.target.value)}
+                      disabled={savingSettings || savingWebhook}
                       autoFocus
                     />
                     <div className="gd-webhook-actions">
-                      <button type="submit" className="btn btn-primary btn-sm" disabled={savingWebhook}>
-                        {savingWebhook ? td.saving : td.save}
-                      </button>
-                      <button type="button" className="btn btn-ghost" onClick={() => setEditingWebhook(false)}>
+                      <button type="button" className="btn btn-ghost" onClick={handleCancelWebhook} disabled={savingSettings || savingWebhook}>
                         {td.cancel}
                       </button>
                     </div>
-                  </form>
+                  </div>
                 ) : (
                   <div className="gd-webhook-display">
                     <span className="gd-webhook-val">
                       {game.discordWebhookUrl || <em className="gd-not-set">{td.notSet}</em>}
                     </span>
-                    <button className="btn btn-ghost" onClick={() => setEditingWebhook(true)}>{td.edit}</button>
+                    <button className="btn btn-ghost" onClick={handleEditWebhook}>{td.edit}</button>
                   </div>
                 )}
                 <div style={{ marginTop: 32 }} />
@@ -1423,5 +1654,38 @@ export default function GameDetailPage() {
         )}
       </main>
     </div>
+    {settingsDirty && (
+      <div className="gd-unsaved-bar" role="status" aria-live="polite">
+        <div className="gd-unsaved-copy">
+          <span className="gd-unsaved-icon" aria-hidden="true">!</span>
+          <div>
+            <strong>{td.settingsUnsaved}</strong>
+            <span>{td.settingsUnsavedDesc}</span>
+          </div>
+        </div>
+        <div className="gd-unsaved-actions">
+          <button type="button" className="btn btn-ghost" onClick={handleRevertSettings} disabled={savingSettings}>
+            {td.settingsDiscard}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
+            {savingSettings ? td.settingsSaving : td.settingsSave}
+          </button>
+        </div>
+      </div>
+    )}
+    {pendingSettingsNavigation && (
+      <Modal title={td.settingsLeaveTitle} onClose={cancelSettingsNavigation}>
+        <p className="gd-settings-leave-message">{td.settingsLeaveMessage}</p>
+        <div className="si-modal-footer">
+          <button type="button" className="btn btn-ghost si-modal-btn" onClick={cancelSettingsNavigation}>
+            {td.settingsStay}
+          </button>
+          <button type="button" className="btn btn-primary si-modal-btn" onClick={confirmSettingsNavigation}>
+            {td.settingsLeave}
+          </button>
+        </div>
+      </Modal>
+    )}
+    </>
   );
 }
