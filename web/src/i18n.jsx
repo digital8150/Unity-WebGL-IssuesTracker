@@ -502,6 +502,7 @@ const translations = {
       descriptionEmpty: 'The developer has not added a description yet.',
       reviewLabel: 'Game rating',
       articlesLabel: 'Game updates',
+      unityErrorTitle: 'Unity runtime notice',
     },
     report: {
       navTitle: 'Report a Bug',
@@ -1032,6 +1033,7 @@ const translations = {
       descriptionEmpty: '아직 게임 설명이 등록되지 않았습니다.',
       reviewLabel: '게임 이용 등급',
       articlesLabel: '게임 업데이트',
+      unityErrorTitle: 'Unity 실행 알림',
     },
     report: {
       navTitle: '버그 리포트',

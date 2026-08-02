@@ -251,6 +251,7 @@ export default function PlayPage() {
               gameOverTitle={t.play.gameOver}
               gameOverReload={t.play.reload}
               clickToActivate={t.play.clickToActivate}
+              unityErrorTitle={t.play.unityErrorTitle}
             />
           </div>
           <div className="play-game-actions" style={{ maxWidth: gameContainerStyle.maxWidth }}>

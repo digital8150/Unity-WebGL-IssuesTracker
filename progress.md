@@ -601,3 +601,16 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ### Decision
 - No listed findings were skipped; each remained valid against the current code.
+
+---
+
+## Session 2026-08-02 - Unity loader Growl notification
+
+### Completed
+- Traced the native Unity error popup to the generated WebGL loader's `alert()` fallback; `react-unity-webgl` also exposes initialization errors separately.
+- Added a theme-aware global Growl provider with dismissible, non-blocking error notifications.
+- Routed Unity loader alerts and React Unity initialization errors into the Growl while preserving unrelated application alerts.
+
+### Verified
+- `web`: `npm run build` passed.
+- UTF-8 validation, `git diff --check`, and Unity/Growl wiring checks passed.
