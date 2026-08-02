@@ -675,6 +675,44 @@
 .gi-code-block .hljs-meta        { color: #56b6c2; }
 
 /* ── Arcade visibility section ── */
+.gd-settings-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+
+.gd-settings-section-heading .gd-section-desc { margin-bottom: 0; }
+
+.gd-arcade-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding-top: 4px;
+  color: var(--color-mute);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.gd-arcade-status.dirty {
+  color: var(--color-warning-deep, #ab570a);
+  font-weight: 500;
+}
+
+.gd-arcade-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 14%, transparent);
+}
+
+.gd-arcade-status.dirty .gd-arcade-status-dot {
+  background: var(--color-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
 .gd-arcade-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -745,6 +783,13 @@
 
 .gd-arcade-hint { margin-bottom: 10px; }
 
+.gd-thumb-save-hint {
+  margin-top: 10px;
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .gd-thumb-row {
   display: flex;
   gap: 16px;
@@ -771,6 +816,19 @@
 
 .gd-thumb-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .gd-thumb-actions .btn-ghost { display: inline-flex; align-items: center; cursor: pointer; }
+
+.gd-thumb-selected {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(100%, 280px);
+  min-height: 36px;
+  overflow: hidden;
+  color: var(--color-body);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── Server integration: modal ── */
 .si-modal-overlay {
@@ -952,10 +1010,97 @@
   overflow: hidden;
 }
 
-.gd-arcade-save {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--color-hairline);
+.dash-main.has-settings-bar {
+  padding-bottom: calc(var(--space-3xl) + 96px);
+}
+
+.gd-unsaved-bar {
+  position: fixed;
+  z-index: 40;
+  right: 0;
+  bottom: 0;
+  left: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  min-height: 76px;
+  padding: 12px var(--space-5xl);
+  background: var(--color-canvas);
+  border-top: 1px solid var(--color-hairline-strong);
+  box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.08);
+  animation: gdUnsavedIn 0.2s ease both;
+}
+
+.gd-unsaved-bar::before {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: var(--color-warning);
+  content: '';
+}
+
+.gd-unsaved-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.gd-unsaved-copy strong,
+.gd-unsaved-copy span {
+  display: block;
+}
+
+.gd-unsaved-copy strong {
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.gd-unsaved-copy div > span {
+  margin-top: 2px;
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.gd-unsaved-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  color: #171717;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.gd-unsaved-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.gd-unsaved-actions .btn {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+@keyframes gdUnsavedIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Game review information ── */
@@ -1047,7 +1192,46 @@
   accent-color: var(--color-primary);
 }
 
+.gd-review-legal-hint {
+  margin-top: 24px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-hairline);
+  border-left: 2px solid var(--color-hairline-strong);
+  background: var(--color-canvas-soft);
+  color: var(--color-body);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.gd-settings-leave-message {
+  margin: 0;
+  color: var(--color-body);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 @media (max-width: 620px) {
   .gd-review-fields { grid-template-columns: 1fr; }
   .gd-review-descriptor-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .gd-settings-section-heading { flex-direction: column; gap: 4px; }
+  .gd-arcade-status { padding-top: 0; }
+
+  .gd-unsaved-bar {
+    right: 0;
+    left: 0;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px var(--space-lg);
+  }
+
+  .gd-unsaved-actions { justify-content: flex-end; }
+  .dash-main.has-settings-bar { padding-bottom: calc(var(--space-lg) + 148px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gd-unsaved-bar { animation: none; }
 }

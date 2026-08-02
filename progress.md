@@ -614,3 +614,31 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 ### Verified
 - `web`: `npm run build` passed.
 - UTF-8 validation, `git diff --check`, and Unity/Growl wiring checks passed.
+
+---
+
+## Session 2026-08-02 - Settings-wide dirty save bar UX
+
+### Completed
+- Fetched the repository and created `feat/arcade-settings-save-ux` from `origin/main`.
+- Unified dirty tracking and save/revert actions across Arcade visibility, game rating, and Discord webhook settings.
+- Moved the dirty bar outside the scroll layout so it stays fixed to the viewport bottom while Settings content scrolls.
+- Removed redundant Settings hint/footer copy; Arcade and game rating headers now share the same right-aligned saved/unsaved state treatment.
+- Kept collaborator invite/remove as immediate actions rather than dirty settings.
+
+### Verified
+- `web`: `npm run build` passed.
+- `git diff --check` passed.
+
+---
+
+## Session 2026-08-02 - Settings confirmation and rating guidance polish
+
+### Completed
+- Replaced the Settings dirty-navigation browser confirm with the shared portal-based `Modal` component.
+- Changed the dirty bar copy to `Be careful` / `You have unsaved changes.` and renamed the reset action to `Reset` (`재설정`).
+- Updated game-rating guidance copy and added a neutral legal-information hint border below the rating fields.
+
+### Verified
+- `web`: `npm run build` passed.
+- `git diff --check` passed.
