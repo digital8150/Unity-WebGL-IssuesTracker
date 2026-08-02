@@ -193,7 +193,7 @@
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
-  background: #fff;
+  background: transparent;
   border-radius: var(--radius-sm);
 }
 

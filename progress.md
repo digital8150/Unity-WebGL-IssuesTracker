@@ -545,3 +545,15 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
   runs at event phase 1, while an ordinary listener remains at event phase 3.
 - Confirmed the forced listener is removed correctly and diagnostics report
   `capture:true` for both its add and remove operations.
+
+## Session 2026-08-02 - Provided GRAC artwork assets
+
+### Completed
+- Archived the provided Illustrator/PDF source sheets under `assets/grac-source/`.
+- Extracted the four rating marks and seven content descriptor marks as high-resolution transparent PNGs under `web/public/grac/`.
+- Switched the play page from remote GIF URLs to local assets and preserved transparent corners in the dark theme.
+
+### Verified
+- `web/npm run build` succeeds.
+- UTF-8 source validation and `git diff --check` pass.
+- PR remains on hold for visual review.
