@@ -864,9 +864,9 @@ const translations = {
       siConfigInvalidNotice: '잘못된 JSON입니다 — 아래 텍스트 편집기에서 수정해주세요.',
     },
     gameArticles: {
-      publicTitle: '업데이트 및 아티클',
-      publicSub: '이 게임의 패치노트, 개발 업데이트와 소식을 확인하세요.',
-      publicEmpty: '아직 공개된 업데이트가 없습니다.',
+      publicTitle: '최근 이벤트 및 공지',
+      publicSub: '패치노트, 개발 업데이트와 소식을 확인하세요.',
+      publicEmpty: '아직 공개된 게시물이 없습니다.',
       adminTitle: '게임 아티클',
       adminSub: '이 게임의 패치노트, 개발 업데이트와 공지를 작성하세요.',
       newPost: '+ 새 아티클',
