@@ -12,6 +12,7 @@ export default defineConfig({
         proxyTimeout: 30 * 60 * 1000,
       },
       '/builds': 'http://localhost:4000',
+      '/blog-images': 'http://localhost:4000',
     },
   },
 });
