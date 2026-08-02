@@ -52,7 +52,12 @@ export default function PlayPage() {
   }, [gameSlug, buildId]);
 
   useEffect(() => {
-    if (!gameSlug || !buildInfo) return;
+    if (!gameSlug || !buildInfo) {
+      setArticles([]);
+      setArticlesLoading(false);
+      return;
+    }
+    setArticles([]);
     setArticlesLoading(true);
     listPublicGameArticles(gameSlug)
       .then(({ articles: loadedArticles }) => setArticles(loadedArticles ?? []))
@@ -330,16 +335,14 @@ export default function PlayPage() {
           </section>
         )}
 
-        <section className="play-articles-section play-shell">
-          <div className="play-articles-heading">
-            <div>
-              <h2>{t.gameArticles.publicTitle}</h2>
-              <p>{t.gameArticles.publicSub}</p>
+        {!articlesLoading && articles.length > 0 && (
+          <section className="play-articles-section play-shell">
+            <div className="play-articles-heading">
+              <div>
+                <h2>{t.gameArticles.publicTitle}</h2>
+                <p>{t.gameArticles.publicSub}</p>
+              </div>
             </div>
-          </div>
-          {articlesLoading ? (
-            <p className="play-articles-empty">{t.loading}</p>
-          ) : articles.length > 0 ? (
             <ArticleCardGrid
               posts={articles}
               lang={lang}
@@ -347,10 +350,8 @@ export default function PlayPage() {
               className="play-article-grid"
               linkForPost={(article) => `/play/${gameSlug}/articles/${article.slug}`}
             />
-          ) : (
-            <p className="play-articles-empty">{t.gameArticles.publicEmpty}</p>
-          )}
-        </section>
+          </section>
+        )}
       </main>
 
       <Footer />

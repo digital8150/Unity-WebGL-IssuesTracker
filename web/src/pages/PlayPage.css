@@ -284,13 +284,6 @@
 
 .play-article-grid { margin-top: 28px; }
 
-.play-articles-empty {
-  padding: 34px 0;
-  color: var(--color-mute);
-  font-family: var(--font-mono);
-  font-size: 13px;
-}
-
 @media (max-width: 760px) {
   .play-shell { width: min(100% - 32px, 1080px); }
   .play-game-section { padding-top: 28px; }
