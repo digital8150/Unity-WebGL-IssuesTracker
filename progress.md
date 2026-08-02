@@ -632,6 +632,26 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-08-02 - Blog image limit and GIF-to-MP4 uploads
+
+### Completed
+- Raised the blog image upload limit from 5MB to 10MB and return HTTP 413 for oversized multipart files.
+- Added `ffmpeg-static` server conversion: uploaded GIFs are stored as H.264 MP4 with `video/mp4` serving.
+- Added autoplay/loop/muted/playsinline/no-controls media rendering for blog Markdown, covers, cards, and SEO HTML.
+- Added the missing Vite `/blog-images` development proxy so local MP4 responses are not served as the SPA HTML shell.
+
+### Deployment
+- Published commits `e4c9eeb` and `93e70bf` to `main`.
+- Pulled production, installed the Linux FFmpeg binary, rebuilt `web`, and restarted `arcade-server` with PM2.
+- Confirmed Apache `upload.codingbot.kr` already has `LimitRequestBody 0`; no Apache limit change was needed.
+
+### Verified
+- Local GIF conversion produced a playable H.264 MP4; local server and Vite proxy both return `video/mp4`.
+- `web`: `npm run build` passed; server syntax checks and `git diff --check` passed.
+- Production health endpoint, PM2 status, clean Git status, and executable `ffmpeg-static` were confirmed.
+
+---
+
 ## Session 2026-08-02 - Settings review finding fixes
 
 ### Completed
