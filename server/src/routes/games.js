@@ -26,7 +26,10 @@ const LEGACY_RATING_ALIASES = {
 
 function normalizeGameRating(value) {
   const raw = String(value ?? '').trim();
-  return GAME_RATING_KEYS.includes(raw) ? raw : (LEGACY_RATING_ALIASES[raw] ?? '');
+  if (GAME_RATING_KEYS.includes(raw)) return raw;
+  return Object.prototype.hasOwnProperty.call(LEGACY_RATING_ALIASES, raw)
+    ? LEGACY_RATING_ALIASES[raw]
+    : '';
 }
 const upload = multer({
   storage: multer.diskStorage({
@@ -217,13 +220,14 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       const nextReview = reviewInfo && typeof reviewInfo === 'object' ? reviewInfo : {};
       const parsedDate = nextReview.classificationDate ? new Date(nextReview.classificationDate) : null;
       const contentDescriptors = Array.isArray(nextReview.contentDescriptors)
-        ? nextReview.contentDescriptors.filter((key) => GAME_CONTENT_DESCRIPTOR_KEYS.includes(key))
+        ? [...new Set(nextReview.contentDescriptors.filter((key) => GAME_CONTENT_DESCRIPTOR_KEYS.includes(key)))]
         : [];
+      const rating = normalizeGameRating(nextReview.rating);
       game.reviewInfo = {
-        enabled: Boolean(nextReview.enabled),
+        enabled: Boolean(nextReview.enabled) && Boolean(rating),
         title: String(nextReview.title ?? '').trim().slice(0, 200),
         businessName: String(nextReview.businessName ?? '').trim().slice(0, 200),
-        rating: normalizeGameRating(nextReview.rating),
+        rating,
         classificationNumber: String(nextReview.classificationNumber ?? '').trim().slice(0, 100),
         classificationDate: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
         developerReportNumber: String(nextReview.developerReportNumber ?? '').trim().slice(0, 100),

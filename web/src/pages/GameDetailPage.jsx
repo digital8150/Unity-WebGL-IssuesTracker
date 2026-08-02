@@ -552,7 +552,7 @@ function ReviewInfoSection({ gameId, game, setGame, t }) {
           contentDescriptors,
         },
       });
-      setGame(updated);
+      setGame((prev) => ({ ...prev, ...updated }));
     } catch (err) {
       setError(err.message);
     } finally {

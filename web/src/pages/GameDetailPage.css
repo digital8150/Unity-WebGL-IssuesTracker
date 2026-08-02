@@ -1036,6 +1036,11 @@
   background: var(--color-canvas-soft-2);
 }
 
+.gd-review-descriptor-option:focus-within {
+  border-color: var(--color-link);
+  background: var(--color-canvas-soft-2);
+}
+
 .gd-review-descriptor-option input {
   width: 15px;
   height: 15px;

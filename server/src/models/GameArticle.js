@@ -4,10 +4,18 @@ function slugify(str) {
   return String(str ?? '')
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s-]/g, '')
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/[\s_-]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+export const MAX_GAME_ARTICLE_COMMENTS = 500;
+
+const commentSchema = new mongoose.Schema({
+  body: { type: String, required: true, trim: true, maxlength: 2000 },
+  authorName: { type: String, trim: true, maxlength: 100, default: 'Anonymous' },
+  createdAt: { type: Date, default: () => new Date() },
+});
 
 const gameArticleSchema = new mongoose.Schema(
   {
@@ -21,13 +29,14 @@ const gameArticleSchema = new mongoose.Schema(
     published: { type: Boolean, default: false, index: true },
     publishedAt: { type: Date, default: null },
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    comments: [
-      {
-        body: { type: String, required: true, trim: true, maxlength: 2000 },
-        authorName: { type: String, trim: true, maxlength: 100, default: 'Anonymous' },
-        createdAt: { type: Date, default: () => new Date() },
+    comments: {
+      type: [commentSchema],
+      default: [],
+      validate: {
+        validator: (comments) => (comments?.length ?? 0) <= MAX_GAME_ARTICLE_COMMENTS,
+        message: `Comments cannot exceed ${MAX_GAME_ARTICLE_COMMENTS}`,
       },
-    ],
+    },
   },
   { timestamps: true },
 );

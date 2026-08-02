@@ -122,6 +122,7 @@ export default function BlogPostPage() {
   } : {});
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
     setNotFound(false);
     setPost(null);
@@ -131,11 +132,17 @@ export default function BlogPostPage() {
       : getBlogPost(contentSlug);
     loadArticle
       .then(({ post: blogPost, article, game: gameInfo }) => {
+        if (!active) return;
         setPost(blogPost ?? article);
         setGame(gameInfo ?? null);
       })
-      .catch(() => setNotFound(true))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (active) setNotFound(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
   }, [contentSlug, gameSlug, isGameArticle]);
 
   // Apply highlight.js after render

@@ -608,7 +608,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
         <div className="abe-topbar">
           <div className="abe-topbar-left">
             <Link to={isGameScope ? `/dashboard/games/${gameId}/articles` : '/admin/blog'} className="abe-back">
-              {isGameScope ? t.gameArticles.articleBack : `← ${t.blog.adminTitle}`}
+              {isGameScope ? t.gameArticles.blogBack : `← ${t.blog.adminTitle}`}
             </Link>
             <h1 className="abe-page-title">
               {isGameScope && game ? `${game.name} · ` : ''}{isEdit ? t.blog.editorTitleEdit : t.blog.editorTitleNew}

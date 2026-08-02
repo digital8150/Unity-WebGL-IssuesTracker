@@ -241,6 +241,16 @@ export function renderBlogPostContent(post, siteOrigin) {
   return `${navHtml()}<main><article><nav aria-label="이동 경로"><a href="/blog">블로그</a> / ${escapeHtml(post.title)}</nav>${image}<header>${tags}<h1>${escapeHtml(post.title)}</h1><p>${escapeHtml(date)}${post.author?.name ? ` · ${escapeHtml(post.author.name)}` : ''}</p>${post.summary ? `<p>${escapeHtml(post.summary)}</p>` : ''}</header><div class="markdown-body">${renderMarkdown(post.content)}</div></article></main>${footerHtml()}`;
 }
 
+export function renderGameArticleContent(post, game, siteOrigin) {
+  const image = post.coverImageUrl
+    ? `<img src="${escapeHtml(publicImageUrl(post.coverImageUrl, siteOrigin))}" alt="${escapeHtml(post.title)} 커버 이미지" />`
+    : '';
+  const date = formatDate(post.publishedAt || post.createdAt);
+  const tags = post.tags?.length ? `<p>${post.tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join(' ')}</p>` : '';
+  const gameHref = `/play/${game.slug}`;
+  return `${navHtml()}<main><article><nav aria-label="이동 경로"><a href="${escapeHtml(gameHref)}">${escapeHtml(game.name)}</a> / ${escapeHtml(post.title)}</nav>${image}<header>${tags}<h1>${escapeHtml(post.title)}</h1><p>${escapeHtml(date)}${post.author?.name ? ` · ${escapeHtml(post.author.name)}` : ''}</p>${post.summary ? `<p>${escapeHtml(post.summary)}</p>` : ''}</header><div class="markdown-body">${renderMarkdown(post.content)}</div></article></main>${footerHtml()}`;
+}
+
 export function renderPlayContent(game, build, siteOrigin, articles = []) {
   const image = game.thumbnailUrl
     ? `<img src="${escapeHtml(publicImageUrl(game.thumbnailUrl, siteOrigin))}" alt="${escapeHtml(game.name)} 게임 썸네일" />`

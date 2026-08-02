@@ -53,7 +53,7 @@
 }
 
 .play-canvas-label {
-  color: #656565;
+  color: #b8b8b8;
   font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -228,8 +228,11 @@
 .play-review-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
   width: 100%;
   align-content: center;
+  margin: 0;
+  background: var(--color-canvas-soft);
 }
 
 .play-review-detail-cell {
@@ -240,19 +243,19 @@
   min-height: 70px;
   padding: 11px 13px;
   background: var(--color-canvas-soft-2);
-  border: 1px solid var(--color-hairline);
-  margin: -0.5px;
+  border: 0;
+  margin: 0;
 }
 
-.play-review-detail-cell span {
+.play-review-detail-cell dt {
   color: var(--color-mute);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.play-review-detail-cell strong {
-  margin-top: 5px;
+.play-review-detail-cell dd {
+  margin: 5px 0 0;
   overflow-wrap: anywhere;
   color: var(--color-ink);
   font-size: 12px;

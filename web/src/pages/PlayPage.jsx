@@ -40,7 +40,8 @@ export default function PlayPage() {
 
   useEffect(() => {
     if (!gameSlug) {
-      setBuildInfo('legacy');
+      setBuildInfo(null);
+      setLoadError('');
       return;
     }
     setBuildInfo(null);
@@ -51,7 +52,7 @@ export default function PlayPage() {
   }, [gameSlug, buildId]);
 
   useEffect(() => {
-    if (!gameSlug || !buildInfo || buildInfo === 'legacy') return;
+    if (!gameSlug || !buildInfo) return;
     setArticlesLoading(true);
     listPublicGameArticles(gameSlug)
       .then(({ articles: loadedArticles }) => setArticles(loadedArticles ?? []))
@@ -84,7 +85,7 @@ export default function PlayPage() {
   }, []);
 
   const SITE = 'BCSDLab. Arcade';
-  const isRealBuild = buildInfo && buildInfo !== 'legacy';
+  const isRealBuild = Boolean(gameSlug && buildInfo);
   const canonicalUrl = gameSlug ? `${window.location.origin}/play/${gameSlug}` : window.location.href;
   const seoReviewInfo = isRealBuild && buildInfo.reviewInfo?.enabled ? buildInfo.reviewInfo : null;
   const seoRatingLabel = seoReviewInfo?.rating
@@ -165,6 +166,12 @@ export default function PlayPage() {
     }
   };
 
+  if (!gameSlug) return (
+    <div className="play-state">
+      <p className="play-state-title">{t.play.noGameTitle}</p>
+      <p className="play-state-sub">{t.play.noGameDescription}</p>
+    </div>
+  );
   if (loadError) return (
     <div className="play-state">
       <p className="play-state-title">{t.play.loadError}</p>
@@ -177,14 +184,13 @@ export default function PlayPage() {
     </div>
   );
 
-  const isLegacy = buildInfo === 'legacy';
-  const gameName = isLegacy ? t.play.localBuild : (buildInfo.gameName ?? 'Untitled Game');
-  const buildVersion = isLegacy ? null : (buildInfo.buildVersion ?? null);
-  const developerName = isLegacy ? null : (buildInfo.developerName ?? null);
-  const description = isLegacy ? '' : (buildInfo.description ?? '');
-  const reviewInfo = isLegacy ? null : buildInfo.reviewInfo;
-  const canvasW = isLegacy ? 1920 : (buildInfo.canvasWidth ?? 1920);
-  const canvasH = isLegacy ? 1080 : (buildInfo.canvasHeight ?? 1080);
+  const gameName = buildInfo.gameName ?? 'Untitled Game';
+  const buildVersion = buildInfo.buildVersion ?? null;
+  const developerName = buildInfo.developerName ?? null;
+  const description = buildInfo.description ?? '';
+  const reviewInfo = buildInfo.reviewInfo;
+  const canvasW = buildInfo.canvasWidth ?? 1920;
+  const canvasH = buildInfo.canvasHeight ?? 1080;
   const ratingMark = reviewInfo?.rating ? GRAC_RATING_MARKS[reviewInfo.rating] : null;
   const descriptorKeys = (reviewInfo?.contentDescriptors ?? []).filter((key) => GRAC_CONTENT_MARKS[key]);
   const ratingLabel = reviewInfo?.rating
@@ -199,20 +205,13 @@ export default function PlayPage() {
     [t.gameDetail.reviewDeveloperReportNumber, reviewInfo.developerReportNumber],
   ] : [];
 
-  const urls = isLegacy
-    ? {
-        loaderUrl: '/unity/Build/game.loader.js',
-        dataUrl: '/unity/Build/game.data',
-        frameworkUrl: '/unity/Build/game.framework.js',
-        codeUrl: '/unity/Build/game.wasm',
-      }
-    : {
-        loaderUrl: buildInfo.urls.loader,
-        dataUrl: buildInfo.urls.data,
-        frameworkUrl: buildInfo.urls.framework,
-        codeUrl: buildInfo.urls.wasm,
-        streamingAssetsUrl: buildInfo.urls.streamingAssets ?? undefined,
-      };
+  const urls = {
+    loaderUrl: buildInfo.urls.loader,
+    dataUrl: buildInfo.urls.data,
+    frameworkUrl: buildInfo.urls.framework,
+    codeUrl: buildInfo.urls.wasm,
+    streamingAssetsUrl: buildInfo.urls.streamingAssets ?? undefined,
+  };
 
   const gameContainerStyle = {
     maxWidth: `min(100%, calc(72vh * ${canvasW / canvasH}))`,
@@ -316,14 +315,14 @@ export default function PlayPage() {
                   </div>
                 </div>
                 <div className="play-review-details">
-                  <div className="play-review-detail-grid" role="table" aria-label={t.play.reviewLabel}>
+                  <dl className="play-review-detail-grid" aria-label={t.play.reviewLabel}>
                     {reviewDetails.map(([label, value]) => (
-                      <div key={label} className="play-review-detail-cell" role="row">
-                        <span>{label}</span>
-                        <strong>{value || '—'}</strong>
+                      <div key={label} className="play-review-detail-cell">
+                        <dt>{label}</dt>
+                        <dd>{value || '—'}</dd>
                       </div>
                     ))}
-                  </div>
+                  </dl>
                 </div>
               </div>
             </div>

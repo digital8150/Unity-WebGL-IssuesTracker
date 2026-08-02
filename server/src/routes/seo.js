@@ -16,6 +16,7 @@ import {
   publicImageUrl,
   renderArcadeContent,
   renderBlogListContent,
+  renderGameArticleContent,
   renderBlogPostContent,
   renderHomeContent,
   renderPlayContent,
@@ -287,7 +288,7 @@ function seoRouter({ distRoot, siteOrigin }) {
           author: { '@type': 'Person', name: article.author?.name || game.ownerId?.name || 'BCSDLab.' },
           isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
         },
-        content: renderBlogPostContent(article, siteOrigin),
+        content: renderGameArticleContent(article, game, siteOrigin),
       }), game.visibility === 'public' ? undefined : 'private, no-store');
     } catch (err) {
       next(err);

@@ -1,7 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Game from '../models/Game.js';
-import GameArticle, { slugify } from '../models/GameArticle.js';
+import GameArticle, { MAX_GAME_ARTICLE_COMMENTS, slugify } from '../models/GameArticle.js';
 import { optionalAuth, requireAuth, requireApproved } from '../middleware/auth.js';
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 
@@ -60,8 +60,8 @@ async function uniqueSlug(gameId, requestedSlug, title, excludeId = null) {
 
 router.get('/play/:gameSlug/articles', async (req, res, next) => {
   try {
-    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug');
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug visibility');
+    if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
 
     const articles = await GameArticle.find({ gameId: game._id, published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
@@ -76,8 +76,8 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
 
 router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
   try {
-    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug');
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug visibility');
+    if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
 
     const article = await GameArticle.findOne({
       gameId: game._id,
@@ -105,15 +105,34 @@ router.post(
       const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id');
       if (!game) return res.status(404).json({ error: 'Game not found' });
       const authorName = req.user
-        ? (req.user.name || req.user.email || 'User')
+        ? (typeof req.user.name === 'string' && req.user.name.trim() ? req.user.name.trim() : 'User')
         : (typeof guestName === 'string' && guestName.trim() ? guestName.trim() : 'Anonymous');
+      const comment = {
+        _id: new mongoose.Types.ObjectId(),
+        body: commentBody.trim(),
+        authorName,
+        createdAt: new Date(),
+      };
       const article = await GameArticle.findOneAndUpdate(
-        { gameId: game._id, slug: req.params.articleSlug, published: true },
-        { $push: { comments: { body: commentBody.trim(), authorName } } },
-        { new: true },
-      ).select('comments');
-      if (!article) return res.status(404).json({ error: 'Article not found' });
-      res.status(201).json({ comment: article.comments[article.comments.length - 1] });
+        {
+          gameId: game._id,
+          slug: req.params.articleSlug,
+          published: true,
+          $expr: { $lt: [{ $size: { $ifNull: ['$comments', []] } }, MAX_GAME_ARTICLE_COMMENTS] },
+        },
+        { $push: { comments: comment } },
+        { new: false },
+      ).select('_id');
+      if (!article) {
+        const exists = await GameArticle.exists({
+          gameId: game._id,
+          slug: req.params.articleSlug,
+          published: true,
+        });
+        if (!exists) return res.status(404).json({ error: 'Article not found' });
+        return res.status(409).json({ error: 'Article comment limit reached' });
+      }
+      res.status(201).json({ comment });
     } catch (err) {
       next(err);
     }
@@ -125,6 +144,9 @@ router.delete(
   requireAuth,
   async (req, res, next) => {
     try {
+      if (!mongoose.isValidObjectId(req.params.commentId)) {
+        return res.status(400).json({ error: 'Invalid comment ID' });
+      }
       const game = await Game.findOne({ slug: req.params.gameSlug }).select('ownerId collaborators');
       if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Article not found' });
       const article = await GameArticle.findOne({ gameId: game._id, slug: req.params.articleSlug });
@@ -156,6 +178,9 @@ router.get('/:gameId/articles', requireAuth, requireApproved, async (req, res, n
 
 router.get('/:gameId/articles/:articleId', requireAuth, requireApproved, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.articleId)) {
+      return res.status(400).json({ error: 'Invalid article ID' });
+    }
     const game = await findGameForUser(req.params.gameId, req.user.sub);
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const article = await GameArticle.findOne({ _id: req.params.articleId, gameId: game._id })
@@ -192,6 +217,9 @@ router.post('/:gameId/articles', requireAuth, requireApproved, async (req, res, 
 
 router.patch('/:gameId/articles/:articleId', requireAuth, requireApproved, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.articleId)) {
+      return res.status(400).json({ error: 'Invalid article ID' });
+    }
     const game = await findGameForUser(req.params.gameId, req.user.sub);
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const existing = await GameArticle.findOne({ _id: req.params.articleId, gameId: game._id });
@@ -217,6 +245,9 @@ router.patch('/:gameId/articles/:articleId', requireAuth, requireApproved, async
 
 router.delete('/:gameId/articles/:articleId', requireAuth, requireApproved, async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.articleId)) {
+      return res.status(400).json({ error: 'Invalid article ID' });
+    }
     const game = await findGameForUser(req.params.gameId, req.user.sub);
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const article = await GameArticle.findOne({ _id: req.params.articleId, gameId: game._id });
