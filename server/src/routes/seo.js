@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'node:fs/promises';
 import BlogPost from '../models/BlogPost.js';
+import GameArticle from '../models/GameArticle.js';
 import Build from '../models/Build.js';
 import Game from '../models/Game.js';
 import {
@@ -230,6 +231,47 @@ function seoRouter({ distRoot, siteOrigin }) {
         },
         content: renderBlogPostContent(post, siteOrigin),
       }));
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
+    try {
+      const game = await Game.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
+      if (!game) return res.status(404).send('Game not found');
+      const article = await GameArticle.findOne({
+        gameId: game._id,
+        slug: req.params.articleSlug,
+        published: true,
+      }).populate('author', 'name').lean();
+      if (!article) return res.status(404).send('Article not found');
+
+      const shell = await readShell(next);
+      if (!shell) return;
+      const url = `${siteOrigin}/play/${game.slug}/articles/${article.slug}`;
+      const image = publicImageUrl(article.coverImageUrl || game.thumbnailUrl, siteOrigin);
+      sendHtml(res, injectSeoHtml(shell, {
+        title: `${article.title} · ${game.name} — ${SITE_NAME}`,
+        description: article.summary || game.description || DEFAULT_DESCRIPTION,
+        image,
+        url,
+        type: 'article',
+        robots: game.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+        jsonLd: {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: article.title,
+          description: article.summary || game.description || DEFAULT_DESCRIPTION,
+          image,
+          url,
+          datePublished: article.publishedAt || article.createdAt,
+          dateModified: article.updatedAt || article.publishedAt || article.createdAt,
+          author: { '@type': 'Person', name: article.author?.name || game.ownerId?.name || 'BCSDLab.' },
+          isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
+        },
+        content: renderBlogPostContent(article, siteOrigin),
+      }), game.visibility === 'public' ? undefined : 'private, no-store');
     } catch (err) {
       next(err);
     }

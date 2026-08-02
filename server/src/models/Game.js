@@ -26,6 +26,16 @@ const gameSchema = new mongoose.Schema(
     description: { type: String, default: '', maxlength: 500 },
     thumbnailUrl: { type: String, default: '' },
 
+    // ── Game review / rating information ────────────────────────────────────
+    reviewInfo: {
+      enabled: { type: Boolean, default: false },
+      rating: { type: String, trim: true, maxlength: 50, default: '' },
+      certificateNumber: { type: String, trim: true, maxlength: 100, default: '' },
+      authority: { type: String, trim: true, maxlength: 100, default: '' },
+      reviewedAt: { type: Date, default: null },
+      note: { type: String, trim: true, maxlength: 300, default: '' },
+    },
+
     // ── Per-game server backend (leaderboards / dynamic config) ───────────────
     serverBackend: {
       leaderboardEnabled: { type: Boolean, default: false },

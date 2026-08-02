@@ -22,6 +22,7 @@
   --color-canvas:       #ffffff;
   --color-canvas-soft:  #fafafa;
   --color-canvas-soft-2: #f5f5f5;
+  --color-canvas-rgb:   255, 255, 255;
 
   /* Text */
   --color-ink:   #171717;
@@ -39,6 +40,16 @@
   --color-warning:      #f5a623;
   --color-warning-soft: #ffefcf;
   --color-success:      #0070f3;
+
+  /* Issue board status chips */
+  --status-open-bg:        #e6f0ff;
+  --status-open-fg:        #0055cc;
+  --status-progress-bg:    #fff3cd;
+  --status-progress-fg:    #8a4500;
+  --status-resolved-bg:    #d4edda;
+  --status-resolved-fg:    #155724;
+  --status-closed-bg:      #e9ecef;
+  --status-closed-fg:      #495057;
 
   /* Border radii (Vercel scale) */
   --radius-xs:      4px;
@@ -82,12 +93,14 @@
 
 /* ── Dark mode token overrides ── */
 [data-theme="dark"] {
+  color-scheme: dark;
   --color-primary:        #ededed;
   --color-on-primary:     #171717;
 
   --color-canvas:         #0a0a0a;
   --color-canvas-soft:    #111111;
   --color-canvas-soft-2:  #1a1a1a;
+  --color-canvas-rgb:     10, 10, 10;
 
   --color-ink:            #ededed;
   --color-body:           #a8a8a8;
@@ -102,6 +115,15 @@
 
   --color-error-soft:     #3a0f0f;
   --color-warning-soft:   #3a2a00;
+
+  --status-open-bg:        #0d2040;
+  --status-open-fg:        #8fc4ff;
+  --status-progress-bg:    #3a2a00;
+  --status-progress-fg:    #ffd36a;
+  --status-resolved-bg:    #0b3020;
+  --status-resolved-fg:    #83e3a8;
+  --status-closed-bg:      #242424;
+  --status-closed-fg:      #b7b7b7;
 
   --shadow-1: 0 0 0 1px rgba(255,255,255,0.06) inset;
   --shadow-2: 0px 1px 1px rgba(0,0,0,.3), 0px 2px 2px rgba(0,0,0,.2), 0 0 0 1px rgba(255,255,255,0.06) inset;

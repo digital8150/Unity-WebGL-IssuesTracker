@@ -516,6 +516,78 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
   );
 }
 
+function ReviewInfoSection({ gameId, game, setGame, t }) {
+  const td = t.gameDetail;
+  const current = game.reviewInfo ?? {};
+  const [enabled, setEnabled] = useState(Boolean(current.enabled));
+  const [rating, setRating] = useState(current.rating || '');
+  const [certificateNumber, setCertificateNumber] = useState(current.certificateNumber || '');
+  const [authority, setAuthority] = useState(current.authority || '');
+  const [reviewedAt, setReviewedAt] = useState(
+    current.reviewedAt ? new Date(current.reviewedAt).toISOString().slice(0, 10) : '',
+  );
+  const [note, setNote] = useState(current.note || '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const { game: updated } = await updateGame(gameId, {
+        reviewInfo: { enabled, rating, certificateNumber, authority, reviewedAt, note },
+      });
+      setGame(updated);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="gd-review-settings">
+      <h2 className="gd-section-title">{td.reviewTitle}</h2>
+      <p className="gd-section-desc">{td.reviewDesc}</p>
+      <form onSubmit={handleSave}>
+        <label className="gd-review-toggle">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <span>{td.reviewEnabled}</span>
+        </label>
+        <div className="gd-review-fields">
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewRating}</span>
+            <input className="form-input" value={rating} maxLength={50} placeholder={td.reviewRatingPlaceholder} onChange={(e) => setRating(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewCertificateNumber}</span>
+            <input className="form-input" value={certificateNumber} maxLength={100} placeholder={td.reviewCertificatePlaceholder} onChange={(e) => setCertificateNumber(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewAuthority}</span>
+            <input className="form-input" value={authority} maxLength={100} placeholder={td.reviewAuthorityPlaceholder} onChange={(e) => setAuthority(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewDate}</span>
+            <input className="form-input" type="date" value={reviewedAt} onChange={(e) => setReviewedAt(e.target.value)} />
+          </label>
+          <label className="gd-review-field gd-review-note-field">
+            <span className="form-label">{td.reviewNote}</span>
+            <textarea className="form-input gd-arcade-desc-input" rows={2} maxLength={300} value={note} placeholder={td.reviewNotePlaceholder} onChange={(e) => setNote(e.target.value)} />
+          </label>
+        </div>
+        {error && <div className="gd-error">{error}</div>}
+        <div className="gd-arcade-save">
+          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+            {saving ? td.saving : td.reviewSave}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function CollaboratorSection({ gameId, game, setGame, isOwner, t }) {
   const tc = t.collab;
   const collaborators = game?.collaborators ?? [];
@@ -963,6 +1035,7 @@ export default function GameDetailPage() {
         <nav className="dash-nav">
           <Link className="dash-nav-item" to="/dashboard">{td.back}</Link>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
+          <Link className="dash-nav-item" to={`/dashboard/games/${gameId}/articles`}>{td.articles}</Link>
           {user?.role === 'admin' && (
             <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
           )}
@@ -1001,6 +1074,9 @@ export default function GameDetailPage() {
           </button>
           <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
             {td.settings}
+          </button>
+          <button className="gd-tab" onClick={() => navigate(`/dashboard/games/${gameId}/articles`)}>
+            {td.articles}
           </button>
           <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => setTab('integration')}>
             {td.integration}
@@ -1213,6 +1289,13 @@ export default function GameDetailPage() {
                   game={game}
                   setGame={setGame}
                   builds={builds}
+                  t={t}
+                />
+                <div style={{ marginTop: 40 }} />
+                <ReviewInfoSection
+                  gameId={gameId}
+                  game={game}
+                  setGame={setGame}
                   t={t}
                 />
                 <div style={{ marginTop: 40 }} />

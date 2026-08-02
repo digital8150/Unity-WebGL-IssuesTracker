@@ -190,13 +190,25 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
   try {
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    const { name, discordWebhookUrl, visibility, description } = req.body;
+    const { name, discordWebhookUrl, visibility, description, reviewInfo } = req.body;
     if (name !== undefined) game.name = name;
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
       game.visibility = visibility;
     }
     if (description !== undefined) game.description = String(description).slice(0, 500);
+    if (reviewInfo !== undefined) {
+      const nextReview = reviewInfo && typeof reviewInfo === 'object' ? reviewInfo : {};
+      const parsedDate = nextReview.reviewedAt ? new Date(nextReview.reviewedAt) : null;
+      game.reviewInfo = {
+        enabled: Boolean(nextReview.enabled),
+        rating: String(nextReview.rating ?? '').trim().slice(0, 50),
+        certificateNumber: String(nextReview.certificateNumber ?? '').trim().slice(0, 100),
+        authority: String(nextReview.authority ?? '').trim().slice(0, 100),
+        reviewedAt: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
+        note: String(nextReview.note ?? '').trim().slice(0, 300),
+      };
+    }
     await game.save();
     res.json({ game: { ...game.toObject(), isOwner: true } });
   } catch (err) {
@@ -528,6 +540,16 @@ function buildUrls(buildId, files) {
 }
 
 function playResponse(game, build) {
+  const reviewInfo = game.reviewInfo?.enabled
+    ? {
+        rating: game.reviewInfo.rating || '',
+        certificateNumber: game.reviewInfo.certificateNumber || '',
+        authority: game.reviewInfo.authority || '',
+        reviewedAt: game.reviewInfo.reviewedAt || null,
+        note: game.reviewInfo.note || '',
+      }
+    : null;
+
   return {
     gameId:        game._id,
     gameSlug:      game.slug,
@@ -535,6 +557,7 @@ function playResponse(game, build) {
     description:   game.description || '',
     thumbnailUrl:  game.thumbnailUrl || '',
     visibility:    game.visibility || 'private',
+    reviewInfo,
     developerName: game.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,

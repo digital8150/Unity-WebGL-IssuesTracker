@@ -5,7 +5,16 @@ import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
-import { createBlogPost, updateBlogPost, getAdminBlogPost, uploadBlogImage } from '../api.js';
+import {
+  createBlogPost,
+  updateBlogPost,
+  getAdminBlogPost,
+  uploadBlogImage,
+  getGame,
+  getGameArticle,
+  createGameArticle,
+  updateGameArticle,
+} from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
@@ -205,11 +214,16 @@ function applyToolbarAction(textarea, action) {
 const VIEW_MODES = ['write', 'split', 'preview'];
 
 export default function AdminBlogEditorPage() {
-  const { id } = useParams(); // undefined if new post
+  const { id, gameId } = useParams(); // undefined if new post
+  const isGameScope = Boolean(gameId);
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { user: me, logout } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, toggleLang, t: baseT } = useI18n();
+  // The same markdown editor powers the global blog and each game's article CMS.
+  const t = isGameScope
+    ? { ...baseT, blog: { ...baseT.blog, ...baseT.gameArticles } }
+    : baseT;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -226,6 +240,7 @@ export default function AdminBlogEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [loadingPost, setLoadingPost] = useState(isEdit);
+  const [game, setGame] = useState(null);
 
   // Image Upload UI states
   const [coverUploading, setCoverUploading] = useState(false);
@@ -251,21 +266,26 @@ export default function AdminBlogEditorPage() {
 
   // Load existing post
   useEffect(() => {
+    if (isGameScope) {
+      getGame(gameId).then(({ game: loadedGame }) => setGame(loadedGame)).catch(err => setError(err.message));
+    }
     if (!isEdit) return;
-    getAdminBlogPost(id)
-      .then(({ post }) => {
-        setTitle(post.title || '');
-        setSlug(post.slug || '');
+    const loadArticle = isGameScope ? getGameArticle(gameId, id) : getAdminBlogPost(id);
+    loadArticle
+      .then(({ post, article }) => {
+        const entry = post ?? article;
+        setTitle(entry.title || '');
+        setSlug(entry.slug || '');
         setSlugManual(true);
-        setSummary(post.summary || '');
-        setContent(post.content || '');
-        setCoverImageUrl(post.coverImageUrl || '');
-        setTags((post.tags || []).join(', '));
-        setPublished(post.published || false);
+        setSummary(entry.summary || '');
+        setContent(entry.content || '');
+        setCoverImageUrl(entry.coverImageUrl || '');
+        setTags((entry.tags || []).join(', '));
+        setPublished(entry.published || false);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoadingPost(false));
-  }, [id, isEdit]);
+  }, [id, isEdit, gameId, isGameScope]);
 
   // Auto-slug from title
   useEffect(() => {
@@ -521,11 +541,13 @@ export default function AdminBlogEditorPage() {
         published: willPublish,
       };
       if (isEdit) {
-        await updateBlogPost(id, data);
+        if (isGameScope) await updateGameArticle(gameId, id, data);
+        else await updateBlogPost(id, data);
       } else {
-        await createBlogPost(data);
+        if (isGameScope) await createGameArticle(gameId, data);
+        else await createBlogPost(data);
       }
-      navigate('/admin/blog');
+      navigate(isGameScope ? `/dashboard/games/${gameId}/articles` : '/admin/blog');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -548,7 +570,8 @@ export default function AdminBlogEditorPage() {
         <nav className="dash-nav">
           <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className="dash-nav-item active" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          <Link className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          {isGameScope && <span className="dash-nav-item active">{t.gameArticles.adminTitle}</span>}
           {me?.role === 'admin' && (
             <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
           )}
@@ -576,9 +599,11 @@ export default function AdminBlogEditorPage() {
         {/* Top bar */}
         <div className="abe-topbar">
           <div className="abe-topbar-left">
-            <Link to="/admin/blog" className="abe-back">← {t.blog.adminTitle}</Link>
+            <Link to={isGameScope ? `/dashboard/games/${gameId}/articles` : '/admin/blog'} className="abe-back">
+              {isGameScope ? t.gameArticles.articleBack : `← ${t.blog.adminTitle}`}
+            </Link>
             <h1 className="abe-page-title">
-              {isEdit ? t.blog.editorTitleEdit : t.blog.editorTitleNew}
+              {isGameScope && game ? `${game.name} · ` : ''}{isEdit ? t.blog.editorTitleEdit : t.blog.editorTitleNew}
             </h1>
           </div>
 

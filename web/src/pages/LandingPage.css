@@ -648,8 +648,8 @@
 .report-back-btn {
   padding: 0 14px;
   height: 28px;
-  background: #e8e8e8;
-  color: var(--color-ink, #171717);
+  background: var(--color-canvas-soft-2);
+  color: var(--color-ink);
   border: none;
   border-radius: 9999px;
   cursor: pointer;

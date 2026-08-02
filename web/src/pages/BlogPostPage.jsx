@@ -5,7 +5,14 @@ import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
-import { getBlogPost, addBlogComment, deleteBlogComment } from '../api.js';
+import {
+  getBlogPost,
+  addBlogComment,
+  deleteBlogComment,
+  getPublicGameArticle,
+  addGameArticleComment,
+  deleteGameArticleComment,
+} from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
@@ -36,11 +43,14 @@ function formatDate(dateStr, lang) {
 }
 
 export default function BlogPostPage() {
-  const { slug } = useParams();
+  const { slug, gameSlug, articleSlug } = useParams();
+  const isGameArticle = Boolean(gameSlug && articleSlug);
+  const contentSlug = isGameArticle ? articleSlug : slug;
   const navigate = useNavigate();
   const { user } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const [post, setPost] = useState(null);
+  const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const contentRef = useRef(null);
@@ -63,7 +73,10 @@ export default function BlogPostPage() {
     setCommentError('');
     try {
       const authorName = user ? undefined : (guestName.trim() || undefined);
-      const { comment } = await addBlogComment(slug, commentBody.trim(), authorName, !user ? cfToken : undefined);
+      const response = isGameArticle
+        ? await addGameArticleComment(gameSlug, contentSlug, commentBody.trim(), authorName, !user ? cfToken : undefined)
+        : await addBlogComment(contentSlug, commentBody.trim(), authorName, !user ? cfToken : undefined);
+      const { comment } = response;
       setPost((prev) => prev ? { ...prev, comments: [...(prev.comments ?? []), comment] } : prev);
       setCommentBody('');
       setCfToken('');
@@ -79,7 +92,8 @@ export default function BlogPostPage() {
 
   async function handleDeleteComment(commentId) {
     try {
-      await deleteBlogComment(slug, commentId);
+      if (isGameArticle) await deleteGameArticleComment(gameSlug, contentSlug, commentId);
+      else await deleteBlogComment(contentSlug, commentId);
       setPost((prev) => prev
         ? { ...prev, comments: (prev.comments ?? []).filter((c) => c._id !== commentId) }
         : prev,
@@ -89,7 +103,7 @@ export default function BlogPostPage() {
 
   const SITE = 'BCSDLab. Arcade';
   useDocumentMeta(post ? {
-    title: `${post.title} — ${SITE}`,
+    title: `${post.title} — ${game?.name ? `${game.name} · ` : ''}${SITE}`,
     description: post.summary || undefined,
     image: post.coverImageUrl || undefined,
     url: window.location.href,
@@ -109,11 +123,20 @@ export default function BlogPostPage() {
 
   useEffect(() => {
     setLoading(true);
-    getBlogPost(slug)
-      .then(({ post }) => setPost(post))
+    setNotFound(false);
+    setPost(null);
+    setGame(null);
+    const loadArticle = isGameArticle
+      ? getPublicGameArticle(gameSlug, contentSlug)
+      : getBlogPost(contentSlug);
+    loadArticle
+      .then(({ post: blogPost, article, game: gameInfo }) => {
+        setPost(blogPost ?? article);
+        setGame(gameInfo ?? null);
+      })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [contentSlug, gameSlug, isGameArticle]);
 
   // Apply highlight.js after render
   useEffect(() => {
@@ -158,12 +181,16 @@ export default function BlogPostPage() {
         ) : notFound || !post ? (
           <div className="bpost-notfound">
             <h2>404 — Post not found</h2>
-            <Link to="/blog" className="btn btn-ghost">{t.blog.back}</Link>
+            <Link to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="btn btn-ghost">
+              {isGameArticle ? t.gameArticles.articleBack : t.blog.back}
+            </Link>
           </div>
         ) : (
           <article className="bpost-article">
             {/* Back link */}
-            <Link to="/blog" className="bpost-back">{t.blog.back}</Link>
+            <Link to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="bpost-back">
+              {isGameArticle ? t.gameArticles.articleBack : t.blog.back}
+            </Link>
 
             {/* Cover image */}
             {post.coverImageUrl && (

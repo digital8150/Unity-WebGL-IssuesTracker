@@ -10,6 +10,27 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-08-02 — Game articles, review information, and themed play/report pages
+
+### Completed
+- Added a separate `GameArticle` model and dashboard/public APIs for per-game patch notes and articles, reusing the existing blog editor, Markdown rendering, comments, image upload, and card-grid components.
+- Added game settings for optional review information and exposed it on the public play page only when enabled.
+- Reworked the play page order to canvas → title → description → review information → game articles, with responsive dark-theme styling.
+- Replaced hardcoded light colors on the play/report surfaces with shared theme tokens; Turnstile now follows the active theme.
+
+### Verification
+- `web`: `npm run build` passed.
+- `server`: `node --check` passed for changed server modules.
+- Live API flow passed against a temporary MongoDB database, including Korean UTF-8 article content and review-info visibility toggling.
+
+---
+
+## Session 2026-08-02 — Report-page documentation refresh
+
+### Completed
+- Updated README, AGENTS.md, CLAUDE.md, and unity/README.md to remove the obsolete F2/in-game overlay flow.
+- Documented the current flow: the play page's Report a Bug button requests a Unity snapshot, then opens the dedicated report page for form entry and submission.
+
 ## Session 2026-08-01 — SEO implementation
 
 ### Completed
