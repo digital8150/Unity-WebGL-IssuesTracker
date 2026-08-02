@@ -6,18 +6,9 @@ import { listBlogPosts } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
-
-function formatDate(dateStr, lang) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
 
 export default function BlogListPage() {
   const { user } = useAuth();
@@ -97,46 +88,12 @@ export default function BlogListPage() {
           </div>
         ) : (
           <>
-            <div className="blog-grid">
-              {posts.map((post, i) => (
-                <Link
-                  key={post._id}
-                  to={`/blog/${post.slug}`}
-                  className="blog-card"
-                  style={{ animationDelay: `${i * 0.06}s` }}
-                >
-                  {post.coverImageUrl && (
-                    <div className="blog-card-cover">
-                      <img src={post.coverImageUrl} alt="" loading="lazy" />
-                    </div>
-                  )}
-                  <div className="blog-card-body">
-                    {post.tags?.length > 0 && (
-                      <div className="blog-card-tags">
-                        {post.tags.slice(0, 3).map(tag => (
-                          <span key={tag} className="blog-tag">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                    <h2 className="blog-card-title">{post.title}</h2>
-                    {post.summary && (
-                      <p className="blog-card-summary">{post.summary}</p>
-                    )}
-                    <div className="blog-card-meta">
-                      <span className="blog-card-date">
-                        {formatDate(post.publishedAt || post.createdAt, lang)}
-                      </span>
-                      {post.author?.name && (
-                        <span className="blog-card-author">
-                          {t.blog.byLine} {post.author.name}
-                        </span>
-                      )}
-                    </div>
-                    <span className="blog-card-readmore">{t.blog.readMore}</span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+            <ArticleCardGrid
+              posts={posts}
+              lang={lang}
+              labels={t.blog}
+              linkForPost={(post) => `/blog/${post.slug}`}
+            />
 
             {/* Pagination */}
             {pages > 1 && (

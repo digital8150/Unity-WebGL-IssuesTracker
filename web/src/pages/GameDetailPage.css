@@ -957,3 +957,97 @@
   padding-top: 16px;
   border-top: 1px solid var(--color-hairline);
 }
+
+/* ── Game review information ── */
+.gd-review-settings {
+  max-width: 760px;
+}
+
+.gd-review-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--color-body);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gd-review-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+}
+
+.gd-review-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-top: 22px;
+}
+
+.gd-review-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.gd-review-field .form-input { min-width: 0; }
+
+.gd-review-descriptors {
+  min-width: 0;
+  margin: 24px 0 0;
+  padding: 18px 0 0;
+  border: 0;
+  border-top: 1px solid var(--color-hairline);
+}
+
+.gd-review-descriptors .form-label {
+  margin-bottom: 4px;
+}
+
+.gd-review-descriptors-desc {
+  margin: 0 0 14px;
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.gd-review-descriptor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.gd-review-descriptor-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-sm);
+  color: var(--color-body);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gd-review-descriptor-option:hover {
+  background: var(--color-canvas-soft-2);
+}
+
+.gd-review-descriptor-option:focus-within {
+  border-color: var(--color-link);
+  background: var(--color-canvas-soft-2);
+}
+
+.gd-review-descriptor-option input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary);
+}
+
+@media (max-width: 620px) {
+  .gd-review-fields { grid-template-columns: 1fr; }
+  .gd-review-descriptor-grid { grid-template-columns: 1fr; }
+}

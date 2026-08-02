@@ -59,6 +59,47 @@ export async function updateGame(gameId, fields) {
   return request(`/api/games/${gameId}`, { method: 'PATCH', body: JSON.stringify(fields) });
 }
 
+// ── Game articles (public play page + dashboard CMS) ─────────────────────────
+
+export async function listGameArticles(gameId) {
+  return request(`/api/games/${gameId}/articles`);
+}
+
+export async function getGameArticle(gameId, articleId) {
+  return request(`/api/games/${gameId}/articles/${articleId}`);
+}
+
+export async function createGameArticle(gameId, data) {
+  return request(`/api/games/${gameId}/articles`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateGameArticle(gameId, articleId, data) {
+  return request(`/api/games/${gameId}/articles/${articleId}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteGameArticle(gameId, articleId) {
+  return request(`/api/games/${gameId}/articles/${articleId}`, { method: 'DELETE' });
+}
+
+export async function listPublicGameArticles(gameSlug) {
+  return request(`/api/games/play/${gameSlug}/articles`);
+}
+
+export async function getPublicGameArticle(gameSlug, articleSlug) {
+  return request(`/api/games/play/${gameSlug}/articles/${articleSlug}`);
+}
+
+export async function addGameArticleComment(gameSlug, articleSlug, body, authorName, turnstileToken) {
+  return request(`/api/games/play/${gameSlug}/articles/${articleSlug}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body, authorName, turnstileToken }),
+  });
+}
+
+export async function deleteGameArticleComment(gameSlug, articleSlug, commentId) {
+  return request(`/api/games/play/${gameSlug}/articles/${articleSlug}/comments/${commentId}`, { method: 'DELETE' });
+}
+
 // ── Builds ────────────────────────────────────────────────────────────────────
 
 export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1920, canvasHeight = 1080, streamingAssetsZip = null } = {}) {

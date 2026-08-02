@@ -4,6 +4,7 @@ import { collectBrowserMetadata } from '../browserMetadata.js';
 import { postIssue, getPlayInfo, getPublicIssues, voteIssue, addComment, getIssue } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useTheme } from '../context/ThemeContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
@@ -32,10 +33,10 @@ function parseOS(ua) {
 }
 
 const STATUS_COLOR = {
-  open:         { bg: '#e6f0ff', color: '#0055cc' },
-  'in-progress':{ bg: '#fff3cd', color: '#8a4500' },
-  resolved:     { bg: '#d4edda', color: '#155724' },
-  closed:       { bg: '#e9ecef', color: '#495057' },
+  open:         { bg: 'var(--status-open-bg)', color: 'var(--status-open-fg)' },
+  'in-progress':{ bg: 'var(--status-progress-bg)', color: 'var(--status-progress-fg)' },
+  resolved:     { bg: 'var(--status-resolved-bg)', color: 'var(--status-resolved-fg)' },
+  closed:       { bg: 'var(--status-closed-bg)', color: 'var(--status-closed-fg)' },
 };
 
 const PRIORITY_DOT = { high: '#dc3545', medium: '#fd7e14', low: '#6c757d' };
@@ -49,6 +50,7 @@ export default function ReportPage() {
   const navigate = useNavigate();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
+  const { theme } = useTheme();
 
   const [buildInfo, setBuildInfo]   = useState(null);
   const [title, setTitle]           = useState('');
@@ -232,7 +234,7 @@ export default function ReportPage() {
             {/* Left: form fields */}
             <div style={formFields}>
               <label style={fieldGroup}>
-                <span style={fieldLabel}>{t.report.fieldTitle} <span style={{ color: '#d33' }}>*</span></span>
+                <span style={fieldLabel}>{t.report.fieldTitle} <span style={{ color: 'var(--color-error)' }}>*</span></span>
                 <input
                   required
                   autoFocus
@@ -276,6 +278,7 @@ export default function ReportPage() {
                 onToken={handleCfToken}
                 onExpire={handleCfExpire}
                 resetRef={turnstileResetRef}
+                theme={theme}
               />
 
               <div style={formBottom}>
@@ -508,18 +511,18 @@ function InfoRow({ icon, k, v, mono }) {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const FONT    = '"Pretendard", system-ui, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif';
-const INK     = '#171717';
-const MUTED   = '#888888';
-const PARCH   = '#fafafa';
-const HAIRLINE= '#ebebeb';
-const BLUE    = '#171717';
+const INK     = 'var(--color-ink)';
+const MUTED   = 'var(--color-mute)';
+const PARCH   = 'var(--color-canvas-soft)';
+const HAIRLINE= 'var(--color-hairline)';
+const BLUE    = 'var(--color-primary)';
 
 const centeredPage = {
   minHeight: '100vh', display: 'flex', flexDirection: 'column',
-  alignItems: 'center', justifyContent: 'center', fontFamily: FONT, background: '#fff',
+  alignItems: 'center', justifyContent: 'center', fontFamily: FONT, background: 'var(--color-canvas)',
 };
 const errSub    = { fontSize: 14, color: MUTED, marginTop: 8 };
-const pageWrap  = { fontFamily: FONT, background: '#fff', minHeight: '100vh', color: INK };
+const pageWrap  = { fontFamily: FONT, background: 'var(--color-canvas)', minHeight: '100vh', color: INK };
 const container = { maxWidth: 1080, margin: '0 auto', padding: '0 24px' };
 
 
@@ -531,36 +534,36 @@ const formFields = { display: 'flex', flexDirection: 'column', gap: 16 };
 const fieldGroup = { display: 'flex', flexDirection: 'column', gap: 6 };
 const fieldLabel = { fontSize: 13, fontWeight: 600, color: INK, letterSpacing: '0.02em' };
 const textInput  = {
-  padding: '0 12px', height: 40, background: '#fff', color: INK,
+  padding: '0 12px', height: 40, background: 'var(--color-canvas)', color: INK,
   border: `1px solid ${HAIRLINE}`, borderRadius: 6, fontFamily: FONT, fontSize: 14,
   outline: 'none', width: '100%', boxSizing: 'border-box',
 };
 const formBottom  = { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 4 };
 const submitBtn   = {
-  padding: '0 24px', height: 40, background: BLUE, color: '#fff',
+  padding: '0 24px', height: 40, background: BLUE, color: 'var(--color-on-primary)',
   border: 'none', borderRadius: 100, cursor: 'pointer', fontFamily: FONT, fontSize: 14, fontWeight: 500,
 };
 const statusMsg = (status) => ({
-  fontSize: 14, color: status === 'error' ? '#c0392b' : status === 'success' ? '#1a7f4b' : MUTED,
+  fontSize: 14, color: status === 'error' ? 'var(--color-error)' : status === 'success' ? 'var(--color-success)' : MUTED,
 });
 
 // Tag picker
 const tagPickerRow = { display: 'flex', gap: 8, flexWrap: 'wrap' };
 const tagToggleBtn = (active) => ({
   padding: '6px 16px', borderRadius: 100,
-  background: active ? '#171717' : '#f0f0f0',
-  color: active ? '#fff' : INK,
-  border: `1px solid ${active ? '#171717' : HAIRLINE}`,
+  background: active ? 'var(--color-primary)' : 'var(--color-canvas-soft-2)',
+  color: active ? 'var(--color-on-primary)' : INK,
+  border: `1px solid ${active ? 'var(--color-primary)' : HAIRLINE}`,
   fontFamily: FONT, fontSize: 13, fontWeight: active ? 600 : 400,
   cursor: 'pointer', transition: 'background 0.15s, color 0.15s',
 });
 
 // Debug panel
 const debugAside = { display: 'flex', flexDirection: 'column' };
-const debugCard  = { background: '#fff', border: `1px solid ${HAIRLINE}`, borderRadius: 18, padding: '16px 18px' };
+const debugCard  = { background: 'var(--color-canvas)', border: `1px solid ${HAIRLINE}`, borderRadius: 18, padding: '16px 18px' };
 const debugCardTitle = {
   fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
-  textTransform: 'uppercase', color: '#777', margin: '0 0 10px',
+  textTransform: 'uppercase', color: MUTED, margin: '0 0 10px',
 };
 const tableBlock = { background: PARCH, borderRadius: 8, overflow: 'hidden', border: `1px solid ${HAIRLINE}` };
 const infoRow    = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '5px 10px', borderBottom: `1px solid ${HAIRLINE}` };
@@ -573,7 +576,7 @@ const unityNoteSource = { display: 'block', fontSize: 10, color: MUTED, marginTo
 
 // Board section (below form)
 const boardSection = {
-  background: '#fff', borderTop: `1px solid ${HAIRLINE}`,
+  background: 'var(--color-canvas)', borderTop: `1px solid ${HAIRLINE}`,
   padding: '48px 0 80px',
 };
 const boardSectionTitle = {
@@ -599,12 +602,12 @@ const boardCardRight  = { display: 'flex', flexDirection: 'column', alignItems: 
 
 const voteButton = (hasVoted, disabled) => ({
   display: 'flex', flexDirection: 'column', alignItems: 'center',
-  gap: 2, background: hasVoted ? '#e6f0ff' : '#fff',
-  border: `1px solid ${hasVoted ? '#0070f3' : HAIRLINE}`,
+  gap: 2, background: hasVoted ? 'var(--color-link-bg-soft)' : 'var(--color-canvas)',
+  border: `1px solid ${hasVoted ? 'var(--color-link)' : HAIRLINE}`,
   borderRadius: 8, padding: '6px 8px', cursor: disabled ? 'not-allowed' : 'pointer',
   opacity: disabled ? 0.5 : 1, minWidth: 42, transition: 'background 0.15s, border-color 0.15s',
 });
-const voteArrow = { fontSize: 14, color: '#0070f3', lineHeight: 1 };
+const voteArrow = { fontSize: 14, color: 'var(--color-link)', lineHeight: 1 };
 const voteCount = { fontSize: 11, fontWeight: 600, color: INK };
 
 const statusBadge = {
@@ -614,30 +617,31 @@ const statusBadge = {
 const priorityDot = { width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0 };
 const tagChip     = {
   fontSize: 10, padding: '2px 7px', borderRadius: 100,
-  background: '#f0f0f0', color: MUTED, border: `1px solid ${HAIRLINE}`,
+  background: 'var(--color-canvas-soft-2)', color: MUTED, border: `1px solid ${HAIRLINE}`,
 };
 const commentCountBadge = { fontSize: 11, color: MUTED };
 const expandBtn   = {
-  fontSize: 11, color: '#0070f3', background: 'none', border: 'none',
+  fontSize: 11, color: 'var(--color-link)', background: 'none', border: 'none',
   cursor: 'pointer', padding: 0, textDecoration: 'underline', whiteSpace: 'nowrap',
 };
 
 const expandedArea = {
   borderTop: `1px solid ${HAIRLINE}`, padding: '14px 16px',
-  background: '#fff', display: 'flex', flexDirection: 'column', gap: 12,
+  background: 'var(--color-canvas)', display: 'flex', flexDirection: 'column', gap: 12,
 };
-const expandedDesc   = { fontSize: 13, color: '#444', lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: 0 };
+const expandedDesc   = { fontSize: 13, color: 'var(--color-body)', lineHeight: 1.5, whiteSpace: 'pre-wrap', margin: 0 };
 const commentsSection = { display: 'flex', flexDirection: 'column', gap: 8 };
 const commentsLabel  = { fontSize: 11, fontWeight: 600, color: MUTED, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 };
 const commentItem    = { background: PARCH, border: `1px solid ${HAIRLINE}`, borderRadius: 8, padding: '8px 12px' };
 const commentAuthorStyle = { fontSize: 11, fontWeight: 600, color: INK, marginBottom: 4 };
-const commentBodyStyle   = { fontSize: 13, color: '#444', lineHeight: 1.5, whiteSpace: 'pre-wrap' };
+const commentBodyStyle   = { fontSize: 13, color: 'var(--color-body)', lineHeight: 1.5, whiteSpace: 'pre-wrap' };
 const commentForm    = { display: 'flex', flexDirection: 'column', gap: 6 };
 const commentTextarea = {
   border: `1px solid ${HAIRLINE}`, borderRadius: 8, padding: '8px 10px',
+  background: 'var(--color-canvas)', color: INK,
   fontFamily: FONT, fontSize: 13, resize: 'vertical', outline: 'none',
 };
 const commentSubmitBtn = {
-  alignSelf: 'flex-end', padding: '6px 16px', background: BLUE, color: '#fff',
+  alignSelf: 'flex-end', padding: '6px 16px', background: BLUE, color: 'var(--color-on-primary)',
   border: 'none', borderRadius: 100, cursor: 'pointer', fontFamily: FONT, fontSize: 12, fontWeight: 500,
 };

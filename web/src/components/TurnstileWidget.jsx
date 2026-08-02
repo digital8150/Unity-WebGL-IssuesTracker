@@ -72,7 +72,7 @@ export default function TurnstileWidget({ onToken, onExpire, theme = 'auto', res
         widgetIdRef.current = null;
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [theme]);
 
   // Expose a reset handle so parent forms can call it after submission.
   useEffect(() => {

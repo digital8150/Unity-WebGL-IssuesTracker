@@ -506,3 +506,111 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
   runs at event phase 1, while an ordinary listener remains at event phase 3.
 - Confirmed the forced listener is removed correctly and diagnostics report
   `capture:true` for both its add and remove operations.
+
+## Session 2026-08-02 - Provided GRAC artwork assets
+
+### Completed
+- Archived the provided Illustrator/PDF source sheets under `assets/grac-source/`.
+- Extracted the four rating marks and seven content descriptor marks as high-resolution transparent PNGs under `web/public/grac/`.
+- Switched the play page from remote GIF URLs to local assets and preserved transparent corners in the dark theme.
+
+### Verified
+- `web/npm run build` succeeds.
+- UTF-8 source validation and `git diff --check` pass.
+- PR remains on hold for visual review.
+
+## Session 2026-08-02 - SEO completion for game pages and articles
+
+### Completed
+- Added published game-article URLs for public games to `sitemap.xml`.
+- Added game rating/content descriptor markup, official local marks, article links, and article `hasPart` data to play-page SSR.
+- Added `contentRating`, descriptor keywords, review `PropertyValue` data, and a stable game canonical URL to client-side play-page metadata.
+
+### Verified
+- `web/npm run build` succeeds.
+- Server SEO modules pass `node --check`.
+- SEO renderer assertions, UTF-8 validation, and `git diff --check` pass.
+- Follow-up will be added to PR #13.
+
+## Session 2026-08-02 - Dashboard article view and rating mark layout
+
+### Completed
+- Split the play-page rating mark row from the content-descriptor row so descriptors render below the rating.
+- Kept game article list/create/edit flows inside `GameDetailPage` while reusing the existing blog list/editor implementations in embedded mode.
+- Removed the game-article sidebar entry and routed the article URLs back through the game dashboard shell.
+
+### Verified
+- `web/npm run build` succeeds.
+- `git diff --check` passes.
+- PR remains on hold for visual review.
+
+---
+
+## Session 2026-08-02 — GRAC rating display revision
+
+### Completed
+- Replaced the initial review-info fields with game title, business name, selected rating, classification number/date, developer report number, and multi-select content descriptors.
+- Added official GCRB/GRAC rating and content-descriptor image assets to the play-page display.
+- Redesigned the play-page rating card as a left visual mark rail plus a right 2-column × 3-row details table.
+- Removed redundant blue kicker labels from the game profile, rating, and article sections.
+
+### Verification
+- Official rating and descriptor asset URLs returned HTTP 200.
+- Review-info API flow passed with Korean UTF-8 values, rating selection, descriptor selection, and disabled-state redaction.
+- `web`: `npm run build` passed; server syntax checks passed.
+
+### Decision
+- PR creation remains on hold for the user's visual review.
+
+---
+
+## Session 2026-08-02 — Game articles, review information, and themed play/report pages
+
+### Completed
+- Added a separate `GameArticle` model and dashboard/public APIs for per-game patch notes and articles, reusing the existing blog editor, Markdown rendering, comments, image upload, and card-grid components.
+- Added game settings for optional review information and exposed it on the public play page only when enabled.
+- Reworked the play page order to canvas → title → description → review information → game articles, with responsive dark-theme styling.
+- Replaced hardcoded light colors on the play/report surfaces with shared theme tokens; Turnstile now follows the active theme.
+
+### Verification
+- `web`: `npm run build` passed.
+- `server`: `node --check` passed for changed server modules.
+- Live API flow passed against a temporary MongoDB database, including Korean UTF-8 article content and review-info visibility toggling.
+
+---
+
+## Session 2026-08-02 — Report-page documentation refresh
+
+### Completed
+- Updated README, AGENTS.md, CLAUDE.md, and unity/README.md to remove the obsolete F2/in-game overlay flow.
+- Documented the current flow: the play page's Report a Bug button requests a Unity snapshot, then opens the dedicated report page for form entry and submission.
+
+---
+
+## Session 2026-08-02 - Review findings audit
+
+### Completed
+- Verified and fixed the listed validation, visibility, concurrency, accessibility, SEO breadcrumb, cancellation, and state-merge findings.
+- Removed the legacy local Unity artifact path from `PlayPage` and added the no-game guidance state.
+- Added a Git LFS rule and README for the Illustrator source assets while keeping runtime PNGs in the web app.
+
+### Verified
+- `web`: `npm run build` passed.
+- Server modules pass `node --check`; targeted model and SEO renderer assertions passed.
+- UTF-8 validation, `git diff --check`, progress ordering, LFS tracking, and contrast checks passed.
+
+### Decision
+- No listed findings were skipped; each remained valid against the current code.
+
+---
+
+## Session 2026-08-02 - Unity loader Growl notification
+
+### Completed
+- Traced the native Unity error popup to the generated WebGL loader's `alert()` fallback; `react-unity-webgl` also exposes initialization errors separately.
+- Added a theme-aware global Growl provider with dismissible, non-blocking error notifications.
+- Routed Unity loader alerts and React Unity initialization errors into the Growl while preserving unrelated application alerts.
+
+### Verified
+- `web`: `npm run build` passed.
+- UTF-8 validation, `git diff --check`, and Unity/Growl wiring checks passed.

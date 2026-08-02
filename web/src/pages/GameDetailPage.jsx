@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
+import AdminBlogPage from './AdminBlogPage.jsx';
+import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { GRAC_CONTENT_DESCRIPTOR_KEYS, GRAC_RATING_KEYS } from '../constants/gracAssets.js';
 import hljs from 'highlight.js/lib/core';
 import hljsCsharp from 'highlight.js/lib/languages/csharp';
 import hljsJs from 'highlight.js/lib/languages/javascript';
@@ -516,6 +519,116 @@ function ArcadeSection({ gameId, game, setGame, builds, t }) {
   );
 }
 
+function ReviewInfoSection({ gameId, game, setGame, t }) {
+  const td = t.gameDetail;
+  const current = game.reviewInfo ?? {};
+  const [enabled, setEnabled] = useState(Boolean(current.enabled));
+  const [title, setTitle] = useState(current.title || '');
+  const [businessName, setBusinessName] = useState(current.businessName || '');
+  const [rating, setRating] = useState(current.rating || '');
+  const [classificationNumber, setClassificationNumber] = useState(current.classificationNumber || '');
+  const [classificationDate, setClassificationDate] = useState(
+    current.classificationDate ? new Date(current.classificationDate).toISOString().slice(0, 10) : '',
+  );
+  const [developerReportNumber, setDeveloperReportNumber] = useState(current.developerReportNumber || '');
+  const [contentDescriptors, setContentDescriptors] = useState(current.contentDescriptors || []);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const { game: updated } = await updateGame(gameId, {
+        reviewInfo: {
+          enabled,
+          title,
+          businessName,
+          rating,
+          classificationNumber,
+          classificationDate,
+          developerReportNumber,
+          contentDescriptors,
+        },
+      });
+      setGame((prev) => ({ ...prev, ...updated }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="gd-review-settings">
+      <h2 className="gd-section-title">{td.reviewTitle}</h2>
+      <p className="gd-section-desc">{td.reviewDesc}</p>
+      <form onSubmit={handleSave}>
+        <label className="gd-review-toggle">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          <span>{td.reviewEnabled}</span>
+        </label>
+        <div className="gd-review-fields">
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewTitleField}</span>
+            <input className="form-input" value={title} maxLength={200} placeholder={td.reviewTitlePlaceholder} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewBusinessName}</span>
+            <input className="form-input" value={businessName} maxLength={200} placeholder={td.reviewBusinessNamePlaceholder} onChange={(e) => setBusinessName(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewRating}</span>
+            <select className="form-input" value={rating} required={enabled} onChange={(e) => setRating(e.target.value)}>
+              <option value="">{td.reviewRatingPlaceholder}</option>
+              {GRAC_RATING_KEYS.map((key) => (
+                <option key={key} value={key}>{td.reviewRatings[key]}</option>
+              ))}
+            </select>
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewClassificationNumber}</span>
+            <input className="form-input" value={classificationNumber} maxLength={100} placeholder={td.reviewClassificationNumberPlaceholder} onChange={(e) => setClassificationNumber(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewClassificationDate}</span>
+            <input className="form-input" type="date" value={classificationDate} onChange={(e) => setClassificationDate(e.target.value)} />
+          </label>
+          <label className="gd-review-field">
+            <span className="form-label">{td.reviewDeveloperReportNumber}</span>
+            <input className="form-input" value={developerReportNumber} maxLength={100} placeholder={td.reviewDeveloperReportNumberPlaceholder} onChange={(e) => setDeveloperReportNumber(e.target.value)} />
+          </label>
+        </div>
+        <fieldset className="gd-review-descriptors">
+          <legend className="form-label">{td.reviewDescriptors}</legend>
+          <p className="gd-review-descriptors-desc">{td.reviewDescriptorsDesc}</p>
+          <div className="gd-review-descriptor-grid">
+            {GRAC_CONTENT_DESCRIPTOR_KEYS.map((key) => (
+              <label key={key} className="gd-review-descriptor-option">
+                <input
+                  type="checkbox"
+                  checked={contentDescriptors.includes(key)}
+                  onChange={() => setContentDescriptors((prev) => (
+                    prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+                  ))}
+                />
+                <span>{td.reviewDescriptorLabels[key]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {error && <div className="gd-error">{error}</div>}
+        <div className="gd-arcade-save">
+          <button className="btn btn-primary btn-sm" type="submit" disabled={saving}>
+            {saving ? td.saving : td.reviewSave}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function CollaboratorSection({ gameId, game, setGame, isOwner, t }) {
   const tc = t.collab;
   const collaborators = game?.collaborators ?? [];
@@ -828,8 +941,9 @@ export function CodeBlock({ filename, code }) {
 }
 
 export default function GameDetailPage() {
-  const { gameId } = useParams();
+  const { gameId, id: articleId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
 
@@ -837,7 +951,9 @@ export default function GameDetailPage() {
   const [builds, setBuilds] = useState([]);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('builds');
+  const isArticleRoute = location.pathname.includes(`/dashboard/games/${gameId}/articles`);
+  const isArticleEditorRoute = isArticleRoute && (location.pathname.endsWith('/new') || location.pathname.endsWith('/edit'));
+  const [tab, setTab] = useState(isArticleRoute ? 'articles' : 'builds');
   const [isOwner, setIsOwner] = useState(false);
 
   const [uploading,     setUploading]     = useState(false);
@@ -860,6 +976,12 @@ export default function GameDetailPage() {
   const [reportPriorityFilter, setReportPriorityFilter] = useState('');
   const [reportSort, setReportSort] = useState('newest');
   const [deletingReportId, setDeletingReportId] = useState(null);
+
+  useEffect(() => {
+    setTab((current) => isArticleRoute
+      ? 'articles'
+      : current === 'articles' ? 'builds' : current);
+  }, [isArticleRoute]);
 
   useEffect(() => {
     Promise.all([getGame(gameId), getGameReports(gameId)])
@@ -939,6 +1061,15 @@ export default function GameDetailPage() {
     }
   }
 
+  function selectTab(nextTab) {
+    setTab(nextTab);
+    if (nextTab === 'articles') {
+      navigate(`/dashboard/games/${gameId}/articles`);
+    } else if (isArticleRoute) {
+      navigate(`/dashboard/games/${gameId}`);
+    }
+  }
+
   const td = t.gameDetail;
 
   if (loading) {
@@ -993,19 +1124,22 @@ export default function GameDetailPage() {
 
         {/* Tabs */}
         <div className="gd-tabs">
-          <button className={`gd-tab${tab === 'builds' ? ' active' : ''}`} onClick={() => setTab('builds')}>
+          <button className={`gd-tab${tab === 'builds' ? ' active' : ''}`} onClick={() => selectTab('builds')}>
             {td.builds} ({builds.length})
           </button>
-          <button className={`gd-tab${tab === 'reports' ? ' active' : ''}`} onClick={() => setTab('reports')}>
+          <button className={`gd-tab${tab === 'reports' ? ' active' : ''}`} onClick={() => selectTab('reports')}>
             {td.reports} ({reports.length})
           </button>
-          <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>
+          <button className={`gd-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => selectTab('settings')}>
             {td.settings}
           </button>
-          <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => setTab('integration')}>
+          <button className={`gd-tab${tab === 'articles' ? ' active' : ''}`} onClick={() => selectTab('articles')}>
+            {td.articles}
+          </button>
+          <button className={`gd-tab${tab === 'integration' ? ' active' : ''}`} onClick={() => selectTab('integration')}>
             {td.integration}
           </button>
-          <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => setTab('serverIntegration')}>
+          <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => selectTab('serverIntegration')}>
             {td.serverIntegration}
           </button>
         </div>
@@ -1162,6 +1296,20 @@ export default function GameDetailPage() {
           </div>
         )}
 
+        {/* ── Game articles ── */}
+        {tab === 'articles' && (
+          isArticleEditorRoute ? (
+            <AdminBlogEditorPage
+              embedded
+              gameId={gameId}
+              articleId={articleId}
+              game={game}
+            />
+          ) : (
+            <AdminBlogPage embedded gameId={gameId} game={game} />
+          )
+        )}
+
         {/* ── Integration ── */}
         {tab === 'integration' && (
           <div className="gi-container">
@@ -1213,6 +1361,13 @@ export default function GameDetailPage() {
                   game={game}
                   setGame={setGame}
                   builds={builds}
+                  t={t}
+                />
+                <div style={{ marginTop: 40 }} />
+                <ReviewInfoSection
+                  gameId={gameId}
+                  game={game}
+                  setGame={setGame}
                   t={t}
                 />
                 <div style={{ marginTop: 40 }} />

@@ -1,28 +1,51 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
-import { listAdminBlogPosts, deleteBlogPost } from '../api.js';
+import {
+  listAdminBlogPosts,
+  deleteBlogPost,
+  getGame,
+  listGameArticles,
+  deleteGameArticle,
+} from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './AdminBlogPage.css';
 
-export default function AdminBlogPage() {
+export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId, game: embeddedGame }) {
   const { user: me, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
   const navigate = useNavigate();
+  const { gameId: routeGameId } = useParams();
+  const gameId = embeddedGameId ?? routeGameId;
+  const isGameScope = Boolean(gameId);
+  const labels = isGameScope ? { ...t.blog, ...t.gameArticles } : t.blog;
 
   const [posts, setPosts] = useState([]);
+  const [game, setGame] = useState(embeddedGame ?? null);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+    if (isGameScope && !embeddedGame) {
+      getGame(gameId).then(({ game: loadedGame }) => setGame(loadedGame)).catch((err) => alert(err.message));
+    }
+  }, [gameId, isGameScope, embeddedGame]);
+
+  useEffect(() => {
+    if (embeddedGame) setGame(embeddedGame);
+  }, [embeddedGame]);
 
   async function refresh() {
     setLoading(true);
     try {
-      const { posts } = await listAdminBlogPosts();
+      const response = isGameScope
+        ? await listGameArticles(gameId)
+        : await listAdminBlogPosts();
+      const posts = response.articles ?? response.posts ?? [];
       setPosts(posts);
     } catch (err) {
       alert(err.message);
@@ -32,10 +55,11 @@ export default function AdminBlogPage() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm(t.blog.deleteConfirm)) return;
+    if (!window.confirm(labels.deleteConfirm)) return;
     setBusyId(id);
     try {
-      await deleteBlogPost(id);
+      if (isGameScope) await deleteGameArticle(gameId, id);
+      else await deleteBlogPost(id);
       setPosts(prev => prev.filter(p => p._id !== id));
     } catch (err) {
       alert(err.message);
@@ -56,14 +80,20 @@ export default function AdminBlogPage() {
     });
   }
 
+  const Main = embedded ? 'div' : 'main';
+
   return (
-    <div className="dash-layout">
-      <aside className="dash-sidebar">
+    <div className={embedded ? 'gd-articles-view' : 'dash-layout'}>
+      {!embedded && (
+        <aside className="dash-sidebar">
         <Link to="/" className="dash-logo"><BrandLogo /></Link>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
+          <Link className="dash-nav-item" to={isGameScope ? `/dashboard/games/${gameId}` : '/dashboard'}>
+            {isGameScope ? t.gameDetail.back : t.nav.dashboard}
+          </Link>
           <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className="dash-nav-item active" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          <Link className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          {isGameScope && <span className="dash-nav-item active">{labels.adminTitle}</span>}
           {me?.role === 'admin' && (
             <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
           )}
@@ -84,25 +114,26 @@ export default function AdminBlogPage() {
           </div>
           <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
         </div>
-      </aside>
+        </aside>
+      )}
 
-      <main className="dash-main">
-        <header className="dash-header">
+      <Main className={embedded ? 'gd-articles-main' : 'dash-main'}>
+        <header className={`dash-header${embedded ? ' gd-articles-header' : ''}`}>
           <div>
-            <h1 className="dash-page-title">{t.blog.adminTitle}</h1>
-            <p className="dash-page-sub">{t.blog.adminSub}</p>
+            <h1 className="dash-page-title">{isGameScope && game ? `${game.name} · ` : ''}{labels.adminTitle}</h1>
+            <p className="dash-page-sub">{labels.adminSub}</p>
           </div>
-          <Link to="/admin/blog/new" className="btn btn-primary btn-sm">
-            {t.blog.newPost}
+          <Link to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">
+            {labels.newPost}
           </Link>
         </header>
 
         {loading ? (
-          <p className="dash-loading">{t.blog.loading}</p>
+          <p className="dash-loading">{labels.loading}</p>
         ) : posts.length === 0 ? (
           <div className="dash-empty">
-            <p className="dash-empty-desc">{t.blog.noPostsAdmin}</p>
-            <Link to="/admin/blog/new" className="btn btn-primary btn-sm">{t.blog.newPost}</Link>
+            <p className="dash-empty-desc">{labels.noPostsAdmin}</p>
+            <Link to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">{labels.newPost}</Link>
           </div>
         ) : (
           <div className="ablog-table-wrap">
@@ -119,6 +150,9 @@ export default function AdminBlogPage() {
               <tbody>
                 {posts.map(post => {
                   const busy = busyId === post._id;
+                  const canEdit = me?.role === 'admin'
+                    || String(post.author?._id ?? post.author) === me?.id
+                    || (isGameScope && String(game?.ownerId?._id ?? game?.ownerId) === me?.id);
                   return (
                     <tr key={post._id}>
                       <td>
@@ -129,7 +163,7 @@ export default function AdminBlogPage() {
                       </td>
                       <td>
                         <span className={`ablog-status${post.published ? ' published' : ' draft'}`}>
-                          {post.published ? t.blog.published : t.blog.draft}
+                          {post.published ? labels.published : labels.draft}
                         </span>
                       </td>
                       <td>
@@ -143,31 +177,31 @@ export default function AdminBlogPage() {
                         {formatDate(post.publishedAt || post.createdAt)}
                       </td>
                       <td className="ablog-actions">
-                        {(me?.role === 'admin' || String(post.author?._id ?? post.author) === me?.id) && (
+                        {canEdit && (
                           <Link
                             className="btn-ghost ablog-btn"
-                            to={`/admin/blog/${post._id}/edit`}
+                            to={isGameScope ? `/dashboard/games/${gameId}/articles/${post._id}/edit` : `/admin/blog/${post._id}/edit`}
                           >
-                            {t.blog.editPost}
+                            {labels.editPost}
                           </Link>
                         )}
                         {post.published && (
                           <a
                             className="btn-ghost ablog-btn view"
-                            href={`/blog/${post.slug}`}
+                            href={isGameScope ? `/play/${game?.slug}/articles/${post.slug}` : `/blog/${post.slug}`}
                             target="_blank"
                             rel="noreferrer"
                           >
                             View ↗
                           </a>
                         )}
-                        {(me?.role === 'admin' || String(post.author?._id ?? post.author) === me?.id) && (
+                        {canEdit && (
                           <button
                             className="btn-ghost ablog-btn danger"
                             disabled={busy}
                             onClick={() => handleDelete(post._id)}
                           >
-                            {t.blog.deletePost}
+                            {labels.deletePost}
                           </button>
                         )}
                       </td>
@@ -178,7 +212,7 @@ export default function AdminBlogPage() {
             </table>
           </div>
         )}
-      </main>
+      </Main>
     </div>
   );
 }

@@ -21,11 +21,11 @@ void Start()
 }
 ```
 
-## How the web overlay triggers a report
+## How the play page triggers a report
 
-The React host calls `unityInstance.SendMessage("IssueTracker", "SubmitReport", '{"title":"...","description":"..."}')`.
+The play page's **Report a Bug** button calls `unityInstance.SendMessage("IssueTracker", "SubmitReport", '{"manualTrigger":true}')`.
 
-The C# side appends buffered logs + custom state, serializes to JSON, and hands the payload back to JS via `IssueTracker_SubmitReport` (declared in `IssueTracker.jslib`). The JS side forwards it to `window.__issueTrackerReceive`, which the React app defines.
+The C# side appends buffered logs + custom state, serializes to JSON, and hands the payload back to JS via `IssueTracker_SubmitReport` (declared in `IssueTracker.jslib`). The JS side forwards it to `window.__issueTrackerReceive`; the play page stores that snapshot and opens the dedicated report page, where the tester enters the title and description.
 
 ## WebGL build settings
 

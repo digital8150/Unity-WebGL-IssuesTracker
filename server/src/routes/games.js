@@ -5,13 +5,32 @@ import os from 'node:os';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import AdmZip from 'adm-zip';
-import Game from '../models/Game.js';
+import Game, { GAME_CONTENT_DESCRIPTOR_KEYS, GAME_RATING_KEYS } from '../models/Game.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import User from '../models/User.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
 
 const router = Router();
+
+const LEGACY_RATING_ALIASES = {
+  '전체이용가': 'all',
+  '전체 이용가': 'all',
+  '12세이용가': 'over12',
+  '12세 이용가': 'over12',
+  '15세이용가': 'over15',
+  '15세 이용가': 'over15',
+  '청소년이용불가': 'over18',
+  '청소년 이용불가': 'over18',
+};
+
+function normalizeGameRating(value) {
+  const raw = String(value ?? '').trim();
+  if (GAME_RATING_KEYS.includes(raw)) return raw;
+  return Object.prototype.hasOwnProperty.call(LEGACY_RATING_ALIASES, raw)
+    ? LEGACY_RATING_ALIASES[raw]
+    : '';
+}
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -190,13 +209,31 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
   try {
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    const { name, discordWebhookUrl, visibility, description } = req.body;
+    const { name, discordWebhookUrl, visibility, description, reviewInfo } = req.body;
     if (name !== undefined) game.name = name;
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
       game.visibility = visibility;
     }
     if (description !== undefined) game.description = String(description).slice(0, 500);
+    if (reviewInfo !== undefined) {
+      const nextReview = reviewInfo && typeof reviewInfo === 'object' ? reviewInfo : {};
+      const parsedDate = nextReview.classificationDate ? new Date(nextReview.classificationDate) : null;
+      const contentDescriptors = Array.isArray(nextReview.contentDescriptors)
+        ? [...new Set(nextReview.contentDescriptors.filter((key) => GAME_CONTENT_DESCRIPTOR_KEYS.includes(key)))]
+        : [];
+      const rating = normalizeGameRating(nextReview.rating);
+      game.reviewInfo = {
+        enabled: Boolean(nextReview.enabled) && Boolean(rating),
+        title: String(nextReview.title ?? '').trim().slice(0, 200),
+        businessName: String(nextReview.businessName ?? '').trim().slice(0, 200),
+        rating,
+        classificationNumber: String(nextReview.classificationNumber ?? '').trim().slice(0, 100),
+        classificationDate: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null,
+        developerReportNumber: String(nextReview.developerReportNumber ?? '').trim().slice(0, 100),
+        contentDescriptors,
+      };
+    }
     await game.save();
     res.json({ game: { ...game.toObject(), isOwner: true } });
   } catch (err) {
@@ -528,6 +565,18 @@ function buildUrls(buildId, files) {
 }
 
 function playResponse(game, build) {
+  const reviewInfo = game.reviewInfo?.enabled
+    ? {
+        title: game.reviewInfo.title || '',
+        businessName: game.reviewInfo.businessName || '',
+        rating: game.reviewInfo.rating || '',
+        classificationNumber: game.reviewInfo.classificationNumber || '',
+        classificationDate: game.reviewInfo.classificationDate || null,
+        developerReportNumber: game.reviewInfo.developerReportNumber || '',
+        contentDescriptors: game.reviewInfo.contentDescriptors || [],
+      }
+    : null;
+
   return {
     gameId:        game._id,
     gameSlug:      game.slug,
@@ -535,6 +584,7 @@ function playResponse(game, build) {
     description:   game.description || '',
     thumbnailUrl:  game.thumbnailUrl || '',
     visibility:    game.visibility || 'private',
+    reviewInfo,
     developerName: game.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,
