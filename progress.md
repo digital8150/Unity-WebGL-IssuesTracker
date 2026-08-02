@@ -632,6 +632,20 @@ Append a new dated section above when scope shifts. Don't rewrite history — no
 
 ---
 
+## Session 2026-08-02 - Settings review finding fixes
+
+### Completed
+- Preserved stored `YYYY-MM-DD` classification dates and formatted other date values with local calendar components.
+- Propagated boolean save results across Arcade, review information, and Discord settings so later saves stop after a failure.
+- Added React Router `useBlocker` protection for all in-app settings navigations, including browser back/forward, with the existing custom confirmation modal.
+- Switched the app entry point to a data router so `useBlocker` is available without changing the existing route declarations.
+
+### Verified
+- `web`: `npm run build` passed.
+- `git diff --check` passed.
+
+---
+
 ## Session 2026-08-02 - Settings confirmation and rating guidance polish
 
 ### Completed

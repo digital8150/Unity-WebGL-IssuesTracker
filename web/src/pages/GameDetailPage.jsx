@@ -1,5 +1,5 @@
 import React, { forwardRef, useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useBlocker, Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
@@ -33,6 +33,16 @@ function fmtDate(iso, lang) {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+}
+
+function formatDateForInput(value) {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 const INTEGRATION_CS = `using System;
@@ -416,7 +426,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
 
   async function handleSave(e) {
     e?.preventDefault?.();
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges) return true;
     setError('');
     setSaving(true);
     try {
@@ -447,8 +457,10 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
       setSavedSettings({ visibility, description, thumbnailUrl: nextThumbnailUrl });
       setThumbnailFile(null);
       setThumbnailRemoved(false);
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -599,9 +611,7 @@ const ReviewInfoSection = forwardRef(function ReviewInfoSection({ gameId, game, 
     businessName: current.businessName || '',
     rating: current.rating || '',
     classificationNumber: current.classificationNumber || '',
-    classificationDate: current.classificationDate
-      ? new Date(current.classificationDate).toISOString().slice(0, 10)
-      : '',
+    classificationDate: formatDateForInput(current.classificationDate),
     developerReportNumber: current.developerReportNumber || '',
     contentDescriptors: [...(current.contentDescriptors || [])],
   }), [current]);
@@ -639,10 +649,10 @@ const ReviewInfoSection = forwardRef(function ReviewInfoSection({ gameId, game, 
 
   async function handleSave(e) {
     e?.preventDefault?.();
-    if (!hasUnsavedChanges) return;
+    if (!hasUnsavedChanges) return true;
     if (enabled && !rating) {
       setError(td.reviewRatingRequired);
-      return;
+      return false;
     }
     setSaving(true);
     setError('');
@@ -663,8 +673,10 @@ const ReviewInfoSection = forwardRef(function ReviewInfoSection({ gameId, game, 
         ...reviewInfo,
         contentDescriptors: [...contentDescriptors],
       });
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -1108,6 +1120,7 @@ export default function GameDetailPage() {
   const [savingWebhook, setSavingWebhook] = useState(false);
   const webhookDirty = editingWebhook && webhookVal !== (game?.discordWebhookUrl || '');
   const settingsDirty = tab === 'settings' && (arcadeDirty || reviewDirty || webhookDirty);
+  const settingsBlocker = useBlocker(settingsDirty);
 
   // Reports filter/sort state (client-side)
   const [reportSearch, setReportSearch] = useState('');
@@ -1121,6 +1134,11 @@ export default function GameDetailPage() {
       ? 'articles'
       : current === 'articles' ? 'builds' : current);
   }, [isArticleRoute]);
+
+  useEffect(() => {
+    if (settingsBlocker.state !== 'blocked') return;
+    setPendingSettingsNavigation(() => () => settingsBlocker.proceed());
+  }, [settingsBlocker.state, settingsBlocker.location]);
 
   useEffect(() => {
     if (!settingsDirty) return undefined;
@@ -1197,14 +1215,16 @@ export default function GameDetailPage() {
   }
 
   async function saveWebhook() {
-    if (!webhookDirty) return;
+    if (!webhookDirty) return true;
     setSavingWebhook(true);
     try {
       const { game: updated } = await updateGame(gameId, { discordWebhookUrl: webhookVal });
       setGame((prev) => ({ ...prev, ...updated }));
       setEditingWebhook(false);
+      return true;
     } catch (err) {
       alert(err.message);
+      return false;
     } finally {
       setSavingWebhook(false);
     }
@@ -1215,9 +1235,9 @@ export default function GameDetailPage() {
     const shouldSaveWebhook = webhookDirty;
     setSavingSettings(true);
     try {
-      await arcadeSettingsRef.current?.save();
-      await reviewSettingsRef.current?.save();
-      if (shouldSaveWebhook) await saveWebhook();
+      if (await arcadeSettingsRef.current?.save() === false) return;
+      if (await reviewSettingsRef.current?.save() === false) return;
+      if (shouldSaveWebhook && await saveWebhook() === false) return;
     } finally {
       setSavingSettings(false);
     }
@@ -1241,10 +1261,12 @@ export default function GameDetailPage() {
   }
 
   function performTabChange(nextTab) {
-    setTab(nextTab);
     if (nextTab === 'articles') {
       navigate(`/dashboard/games/${gameId}/articles`);
-    } else if (isArticleRoute) {
+      return;
+    }
+    setTab(nextTab);
+    if (isArticleRoute) {
       navigate(`/dashboard/games/${gameId}`);
     }
   }
@@ -1256,18 +1278,20 @@ export default function GameDetailPage() {
   }
 
   function cancelSettingsNavigation() {
+    if (settingsBlocker.state === 'blocked') settingsBlocker.reset();
     setPendingSettingsNavigation(null);
   }
 
   function handleDashboardNavigate(event) {
     if (tab !== 'settings' || !settingsDirty) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
     const href = event.currentTarget.getAttribute('href');
-    setPendingSettingsNavigation(() => () => navigate(href));
+    navigate(href);
   }
 
   function selectTab(nextTab) {
-    if (nextTab !== 'settings' && tab === 'settings' && settingsDirty) {
+    if (nextTab !== 'settings' && nextTab !== 'articles' && tab === 'settings' && settingsDirty) {
       setPendingSettingsNavigation(() => () => performTabChange(nextTab));
       return;
     }
