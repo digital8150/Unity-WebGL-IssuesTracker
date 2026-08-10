@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { confirmAge } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './AuthPage.css';
 
 export default function AgeConsentPage() {
   const { user, login } = useAuth();
   const { t } = useI18n();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -34,7 +35,7 @@ export default function AgeConsentPage() {
   return (
     <div className="auth-page">
       <nav className="auth-topbar">
-        <Link to="/" className="auth-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="auth-logo"><BrandLogo /></PageLink>
       </nav>
 
       <div className="auth-card">

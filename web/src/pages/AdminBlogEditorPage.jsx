@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
@@ -19,6 +19,8 @@ import BrandLogo from '../components/BrandLogo.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { createBlogMarkdownRenderer, isVideoMediaUrl } from '../utils/blogMedia.js';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './DashboardPage.css';
 import './BlogPostPage.css';
 import './AdminBlogEditorPage.css';
@@ -224,7 +226,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
   const gameId = embeddedGameId ?? routeGameId;
   const isGameScope = Boolean(gameId);
   const isEdit = Boolean(id);
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const { user: me, logout } = useAuth();
   const { lang, toggleLang, t: baseT } = useI18n();
   // The same markdown editor powers the global blog and each game's article CMS.
@@ -578,14 +580,14 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
       {/* Sidebar */}
       {!embedded && (
         <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
-          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          <PageLink className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</PageLink>
+          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
+          <PageLink className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
           {isGameScope && <span className="dash-nav-item active">{t.gameArticles.adminTitle}</span>}
           {me?.role === 'admin' && (
-            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
+            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
           )}
         </nav>
         <div className="dash-sidebar-footer">
@@ -612,9 +614,9 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
         {/* Top bar */}
         <div className="abe-topbar">
           <div className="abe-topbar-left">
-            <Link to={isGameScope ? `/dashboard/games/${gameId}/articles` : '/admin/blog'} className="abe-back">
+          <PageLink to={isGameScope ? `/dashboard/games/${gameId}/articles` : '/admin/blog'} className="abe-back">
               {isGameScope ? t.gameArticles.blogBack : `← ${t.blog.adminTitle}`}
-            </Link>
+          </PageLink>
             <h1 className="abe-page-title">
               {isGameScope && game ? `${game.name} · ` : ''}{isEdit ? t.blog.editorTitleEdit : t.blog.editorTitleNew}
             </h1>

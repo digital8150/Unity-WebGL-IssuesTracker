@@ -99,6 +99,12 @@
   /* Nav height */
   --nav-height: 64px;
 
+  /* Page transition timing (public default; internal routes override below) */
+  --route-transition-duration: 240ms;
+  --route-transition-exit-duration: 150ms;
+  --route-transition-directional-distance: 28px;
+  --route-transition-ease: cubic-bezier(0.22, 0.7, 0.3, 1);
+
   /* Intentionally dark public surfaces (hero, player, and footer) */
   --surface-night:             #080808;
   --surface-night-deep:        #000000;
@@ -189,7 +195,21 @@ html, body, #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell { animation: none; }
+  .app-shell,
+  .route-transition--navigation {
+    animation: none !important;
+  }
+
+  html::view-transition-group(root),
+  html::view-transition-old(root),
+  html::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+html[data-route-transition-surface="internal"] {
+  --route-transition-duration: 125ms;
+  --route-transition-exit-duration: 90ms;
 }
 
 body {
@@ -232,6 +252,65 @@ input, textarea, select { font-family: inherit; }
 @keyframes pulse-ring {
   0%   { transform: scale(1);    opacity: 0.4; }
   100% { transform: scale(1.6);  opacity: 0; }
+}
+
+@keyframes route-crossfade-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes route-directional-enter {
+  from { opacity: 0; transform: translateX(var(--route-transition-directional-distance)); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes route-view-old {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes route-view-new {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes route-view-directional-new {
+  from {
+    opacity: 0;
+    transform: translateX(var(--route-transition-directional-distance));
+  }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.route-transition {
+  min-height: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html.supports-view-transitions::view-transition-group(root) {
+    animation-duration: var(--route-transition-duration);
+    animation-timing-function: var(--route-transition-ease);
+  }
+
+  html.supports-view-transitions::view-transition-old(root) {
+    animation: route-view-old var(--route-transition-exit-duration) var(--route-transition-ease) both;
+  }
+
+  html.supports-view-transitions::view-transition-new(root) {
+    animation: route-view-new var(--route-transition-duration) var(--route-transition-ease) both;
+  }
+
+  html.supports-view-transitions[data-route-transition="directional"]::view-transition-new(root) {
+    animation-name: route-view-directional-new;
+  }
+
+  .route-transition--navigation:not(.route-transition--native) {
+    animation: route-crossfade-enter var(--route-transition-duration) var(--route-transition-ease) both;
+  }
+
+  .route-transition--navigation.route-transition--directional:not(.route-transition--native) {
+    animation-name: route-directional-enter;
+  }
 }
 
 /* ── Global button primitives ── */

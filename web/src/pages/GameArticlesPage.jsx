@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { listPublicGameArticles } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
+import PageLink from '../components/PageLink.jsx';
 import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { assetUrl } from '../utils/gameVisuals.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
@@ -96,16 +97,16 @@ export default function GameArticlesPage() {
         ) : notFound || !game ? (
           <div className="game-articles-notfound">
             <h1>{t.play.loadError}</h1>
-            <Link to={`/play/${gameSlug}`} className="btn btn-ghost">
+            <PageLink to={`/play/${gameSlug}`} className="btn btn-ghost">
               {t.gameArticles.articleBack}
-            </Link>
+            </PageLink>
           </div>
         ) : (
           <>
             <header className="game-articles-header">
-              <Link to={`/play/${gameSlug}`} className="game-articles-back">
+              <PageLink to={`/play/${gameSlug}`} className="game-articles-back">
                 {t.gameArticles.articleBack}
-              </Link>
+              </PageLink>
               <p className="game-articles-eyebrow">GAME ARTICLES</p>
               <h1>{game.name}</h1>
               <p>{game.description || t.gameArticles.publicSub}</p>

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import BrandLogo from '../components/BrandLogo.jsx';
+import PageLink from '../components/PageLink.jsx';
 import { PRIVACY_POLICY_VERSIONS } from '../data/privacyPolicyVersions.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './PrivacyPolicyPage.css';
@@ -23,8 +24,8 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="pp-page">
       <nav className="pp-nav">
-        <Link to="/" className="pp-logo"><BrandLogo size="md" /></Link>
-        <Link to="/" className="pp-back">← 홈으로</Link>
+        <PageLink to="/" className="pp-logo"><BrandLogo size="md" /></PageLink>
+        <PageLink to="/" className="pp-back">← 홈으로</PageLink>
       </nav>
 
       <article className="pp-article">
@@ -34,7 +35,7 @@ export default function PrivacyPolicyPage() {
         {isPast && (
           <p className="pp-history-notice">
             이 문서는 과거에 시행되었던 버전입니다.{' '}
-            <Link to="/privacy">최신 개인정보처리방침 보기 →</Link>
+            <PageLink to="/privacy">최신 개인정보처리방침 보기 →</PageLink>
           </p>
         )}
 
@@ -46,7 +47,7 @@ export default function PrivacyPolicyPage() {
             <ul className="pp-history-list">
               {PRIVACY_POLICY_VERSIONS.filter((v) => v.effectiveDate !== current.effectiveDate).map((v) => (
                 <li key={v.effectiveDate}>
-                  <Link to={`/privacy/${v.effectiveDate}`}>{v.effectiveDate} 시행본</Link>
+                  <PageLink to={`/privacy/${v.effectiveDate}`}>{v.effectiveDate} 시행본</PageLink>
                 </li>
               ))}
             </ul>

@@ -139,3 +139,41 @@ implementation details. Entries are written in English for agent readability.
 - Restored a small visible `#seo-preview` inside `#root` for every public SEO response: H1, summary, plain-text body/list content; no `aria-hidden`, transparent color, or hidden media.
 - Kept `__SSR_DATA__` unchanged and made the preview replace the inline shell skeleton until `createRoot` mounts; server preview uses plain-text Markdown cleanup, not a second Markdown HTML renderer.
 - Added route/injection assertions that raw public HTML contains non-empty visible text; server tests: 34 passing; web build passed.
+
+## 2026-08-10 (hybrid SPA page transitions)
+
+- Added React Router `viewTransition` navigation through `PageLink` and `usePageNavigate`, with hover/focus lazy-chunk prefetching and a non-null Suspense loading shell.
+- Added keyed route enter fallback (`125ms` crossfade; blog/auth `8px` directional enter), native View Transitions root styling, and reduced-motion gates.
+- Added slug-scoped game artwork shared-element names for landing/Arcade sources and PlayPage canvas/loading destinations; only the active card/hero source is named.
+- Replaced internal SPA links across public, dashboard, admin, auth, article, report, and play surfaces with the transition-aware link wrapper.
+- Verification: `cd web; npm run build` passed; reduced-motion/shared-name/link grep checks and `git diff --check` passed.
+
+## 2026-08-10 (data-router view-transition fix)
+
+- Lifted the complete route table into `createBrowserRouter` child data routes; kept the path order, catch-all redirect, protected-route props, and providers above `RouterProvider`.
+- Replaced page-level `React.lazy`/Suspense routing with route-level `lazy`; centralized dynamic imports for router loading and hover/focus prefetch, preserving page chunks.
+- Fallback CSS now keys off React Router's actual view-transition state, not feature detection; public routes use 240/150 ms timing with a 28 px directional slide, internal dashboard/admin routes use 125/90 ms.
+- Verification: `cd web; npm run build` passed with separate Play/GameDetail/AdminBlogEditor/BlogPost and other page chunks; `git diff --check` passed. Entry bundle 304.40 kB -> 301.73 kB (no splitting regression).
+- Browser-measured confirmation (Chrome, dev server): patched `document.startViewTransition` to count calls. Before the fix a `PageLink` navigation gave `calls: 0` — VT never fired, and the CSS fallback was simultaneously disabled by the `html:not(.supports-view-transitions)` gate, so zero transition ran. After the fix `/` -> `/blog` and `/blog` -> `/dashboard` (redirected to `/login`) gave `calls: 2, finished: 2, errors: []`.
+- Root cause for the record: the route table lived in a **descendant** `<Routes>`, so `RouteContext.isDataRoute` was false and `useNavigate()` resolved to `useNavigateUnstable`, which calls `navigator.push` and silently drops the `viewTransition` option before it reaches `router.navigate`.
+- Shared-element morph measured on both sources: landing `.l-featured-art` and Arcade `.game-card-media` each carried exactly one `game-art-<slug>` name at capture, destination `.play-canvas-frame` carried the match, `duplicateNames: []`, `finished: 1`.
+## 2026-08-10 (landing loading-state cleanup)
+
+- Replaced LandingPage's intermediate "게임을 불러오는 중" screen with skeletons that continue the inline `#app-shell-skeleton` from `index.html`: hero bars inside the real `.l-featured-inner`/`.l-hero-copy` boxes, and three 16/9 card skeletons in the real `.l-games-grid`. First paint now reads as skeleton -> content.
+- The removed text was the only loading cue for assistive tech, so the skeletons carry `aria-busy` + `aria-label={t.arcade.loading}` and the bars are `aria-hidden`.
+- Dropped the now-dead `.l-hero-loading` rule and the `.l-games-state` selector; `.l-featured-empty` stays (still used by the no-featured-game state).
+- Verification: `npm run build` passed; `git diff --check` clean. Browser-measured with a 20s fetch stall: hero skeleton present, 3 card skeletons, 11 bars, hero height 590px (matches the loaded hero, so no layout shift), and "게임을 불러오는 중" no longer in visible text — only in `aria-label`.
+- SEO regression check for the data-router refactor: `server/` untouched; every path the SEO router serves (`/`, `/privacy`, `/privacy/:date`, `/arcade`, `/blog`, `/blog/:slug`, `/play/:gameSlug/articles`, `/play/:gameSlug/articles/:articleSlug`, `/play/:gameSlug`, `/play/:gameSlug/:buildId`) still exists client-side with the same pattern; `readSsrData` call sites unchanged.
+- Measured cold load of `/arcade` frame-by-frame: inline skeleton 136-225 ms, a 2 ms textless frame at mount, content from 244 ms — `trulyBlankTotalMs: 0`, so route-level `lazy` did not introduce a blank-screen gap. Caveat: measured against a warm local dev server; there is no root `HydrateFallback`, so a cold cache on a slow network could still expose a gap between `createRoot` clearing `#root` and the route chunk resolving.
+- Still open: the "최근 아티클" section still renders a plain `{t.blog.loading}` text line (`LandingPage.jsx:251`) while everything around it is a skeleton.
+
+## 2026-08-10 (SEO default copy)
+
+- Replaced legacy bug-report/tester wording in default, home, and Arcade metadata with the approved BCSDLab. Game Track web-game description.
+- Aligned `web/index.html`, client metadata fallbacks, server SSR constants/Arcade JSON-LD, and Korean/English home/Arcade copy.
+- Verification: `web/npm run build`, `git diff --check`, and relevant SEO bootstrap tests passed; `server/npm test` has 31 passing and 3 pre-existing `seo-route-coverage` parser failures because the test still expects `<Route>` while `App.jsx` uses `createBrowserRouter`.
+
+## 2026-08-10 (SEO route coverage test update)
+
+- Updated `seo-route-coverage.test.js` to read the current `main.jsx` data-router route table (`pageRoute`, `protectedPageRoute`, and literal route entries) instead of the removed `<Route>` syntax in `App.jsx`.
+- Verification: `server/npm test` passes all 34 tests; `git diff --check` passed.

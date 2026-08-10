@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import {
@@ -11,13 +11,15 @@ import {
 } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './DashboardPage.css';
 import './AdminBlogPage.css';
 
 export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId, game: embeddedGame }) {
   const { user: me, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const { gameId: routeGameId } = useParams();
   const gameId = embeddedGameId ?? routeGameId;
   const isGameScope = Boolean(gameId);
@@ -86,16 +88,16 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
     <div className={embedded ? 'gd-articles-view' : 'dash-layout'}>
       {!embedded && (
         <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to={isGameScope ? `/dashboard/games/${gameId}` : '/dashboard'}>
+          <PageLink className="dash-nav-item" to={isGameScope ? `/dashboard/games/${gameId}` : '/dashboard'}>
             {isGameScope ? t.gameDetail.back : t.nav.dashboard}
-          </Link>
-          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          </PageLink>
+          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
+          <PageLink className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
           {isGameScope && <span className="dash-nav-item active">{labels.adminTitle}</span>}
           {me?.role === 'admin' && (
-            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
+            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
           )}
         </nav>
         <div className="dash-sidebar-footer">
@@ -123,9 +125,9 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
             <h1 className="dash-page-title">{isGameScope && game ? `${game.name} · ` : ''}{labels.adminTitle}</h1>
             <p className="dash-page-sub">{labels.adminSub}</p>
           </div>
-          <Link to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">
+          <PageLink to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">
             {labels.newPost}
-          </Link>
+          </PageLink>
         </header>
 
         {loading ? (
@@ -133,7 +135,7 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
         ) : posts.length === 0 ? (
           <div className="dash-empty">
             <p className="dash-empty-desc">{labels.noPostsAdmin}</p>
-            <Link to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">{labels.newPost}</Link>
+            <PageLink to={isGameScope ? `/dashboard/games/${gameId}/articles/new` : '/admin/blog/new'} className="btn btn-primary btn-sm">{labels.newPost}</PageLink>
           </div>
         ) : (
           <div className="ablog-table-wrap">
@@ -178,12 +180,12 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
                       </td>
                       <td className="ablog-actions">
                         {canEdit && (
-                          <Link
+                          <PageLink
                             className="btn-ghost ablog-btn"
                             to={isGameScope ? `/dashboard/games/${gameId}/articles/${post._id}/edit` : `/admin/blog/${post._id}/edit`}
                           >
                             {labels.editPost}
-                          </Link>
+                          </PageLink>
                         )}
                         {post.published && (
                           <a

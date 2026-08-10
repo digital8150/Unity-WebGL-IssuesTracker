@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { getMe } from '../api.js';
 
 export default function AuthCallbackPage() {
   const [params] = useSearchParams();
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
 
   useEffect(() => {
     const token = params.get('token');

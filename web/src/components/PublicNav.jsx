@@ -1,8 +1,8 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from './BrandLogo.jsx';
 import DarkModeToggle from './DarkModeToggle.jsx';
+import PageLink from './PageLink.jsx';
 import './PublicNav.css';
 
 export default function PublicNav({ active = '' }) {
@@ -12,24 +12,24 @@ export default function PublicNav({ active = '' }) {
 
   return (
     <nav className="public-nav">
-      <Link to="/" className="public-nav-logo" aria-label={t.nav.home}>
+      <PageLink to="/" className="public-nav-logo" aria-label={t.nav.home}>
         <BrandLogo size="md" />
-      </Link>
+      </PageLink>
       <div className="public-nav-links">
-        <Link
+        <PageLink
           to="/arcade"
           className={`public-nav-link${gamesActive ? ' is-active' : ''}`}
           aria-current={gamesActive ? 'page' : undefined}
         >
           {t.nav.games}
-        </Link>
-        <Link
+        </PageLink>
+        <PageLink
           to="/blog"
           className={`public-nav-link${blogActive ? ' is-active' : ''}`}
           aria-current={blogActive ? 'page' : undefined}
         >
           {t.nav.articles}
-        </Link>
+        </PageLink>
         <button
           className="public-nav-language"
           onClick={toggleLang}

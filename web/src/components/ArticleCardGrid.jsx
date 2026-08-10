@@ -1,7 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import '../pages/BlogListPage.css';
 import { BlogMedia } from './BlogMedia.jsx';
+import PageLink from './PageLink.jsx';
 import { assetUrl } from '../utils/gameVisuals.js';
 
 export function formatArticleDate(dateStr, lang) {
@@ -23,7 +23,7 @@ export default function ArticleCardGrid({
   return (
     <div className={`blog-grid${className ? ` ${className}` : ''}`}>
       {posts.map((post, index) => (
-        <Link
+        <PageLink
           key={post._id}
           to={linkForPost(post)}
           className="blog-card"
@@ -55,7 +55,7 @@ export default function ArticleCardGrid({
               )}
             </div>
           </div>
-        </Link>
+        </PageLink>
       ))}
     </div>
   );

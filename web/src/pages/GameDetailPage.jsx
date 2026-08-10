@@ -1,5 +1,5 @@
 import React, { forwardRef, useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
-import { useParams, useNavigate, useLocation, useBlocker, Link } from 'react-router-dom';
+import { useParams, useLocation, useBlocker } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
@@ -11,6 +11,8 @@ import Modal from '../components/Modal.jsx';
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import { GRAC_CONTENT_DESCRIPTOR_KEYS, GRAC_RATING_KEYS } from '../constants/gracAssets.js';
 import hljs from 'highlight.js/lib/core';
@@ -978,7 +980,7 @@ function ReportsTab({
         <div className="gd-report-list">
           {filtered.map((r) => (
             <div key={r._id} className="gd-report-row-wrap">
-              <Link className="gd-report-row" to={`/dashboard/games/${gameId}/issues/${r._id}`}>
+              <PageLink className="gd-report-row" to={`/dashboard/games/${gameId}/issues/${r._id}`}>
                 <div className="gd-report-row-top">
                   <StatusBadge status={r.status} />
                   <PriorityDot priority={r.priority} />
@@ -997,7 +999,7 @@ function ReportsTab({
                   )}
                   <span className="gd-report-date">{fmtDate(r.createdAt, lang)}</span>
                 </div>
-              </Link>
+              </PageLink>
               {/* Quick status selector */}
               <select
                 className="gd-report-status-select"
@@ -1083,7 +1085,7 @@ export function CodeBlock({ filename, code }) {
 
 export default function GameDetailPage() {
   const { gameId, id: articleId } = useParams();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const location = useLocation();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
@@ -1304,7 +1306,7 @@ export default function GameDetailPage() {
     return (
       <div className="dash-layout">
         <aside className="dash-sidebar">
-          <Link to="/" className="dash-logo"><BrandLogo /></Link>
+          <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         </aside>
         <main className="dash-main">
           <p className="dash-loading">{t.loading}</p>
@@ -1319,12 +1321,12 @@ export default function GameDetailPage() {
     <>
     <div className="dash-layout">
       <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo" onClick={handleDashboardNavigate}><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo" onClick={handleDashboardNavigate}><BrandLogo /></PageLink>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard" onClick={handleDashboardNavigate}>{td.back}</Link>
-          <Link className="dash-nav-item" to="/arcade" onClick={handleDashboardNavigate}>{t.nav.arcade}</Link>
+          <PageLink className="dash-nav-item" to="/dashboard" onClick={handleDashboardNavigate}>{td.back}</PageLink>
+          <PageLink className="dash-nav-item" to="/arcade" onClick={handleDashboardNavigate}>{t.nav.arcade}</PageLink>
           {user?.role === 'admin' && (
-            <Link className="dash-nav-item" to="/admin/users" onClick={handleDashboardNavigate}>{t.nav.admin}</Link>
+            <PageLink className="dash-nav-item" to="/admin/users" onClick={handleDashboardNavigate}>{t.nav.admin}</PageLink>
           )}
         </nav>
         <div className="dash-sidebar-footer">

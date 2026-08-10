@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { listAllUsers, updateUser, deleteUser } from '../api.js';
@@ -13,7 +14,7 @@ const FILTERS = ['all', 'pending', 'approved', 'rejected'];
 export default function AdminUsersPage() {
   const { user: me, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -79,11 +80,11 @@ export default function AdminUsersPage() {
   return (
     <div className="dash-layout">
       <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</Link>
-          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          <PageLink className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</PageLink>
+          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
+          <PageLink className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
           <span className="dash-nav-item active">{t.nav.admin}</span>
         </nav>
         <div className="dash-sidebar-footer">

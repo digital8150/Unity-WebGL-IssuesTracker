@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { collectBrowserMetadata } from '../browserMetadata.js';
 import { postIssue, getPlayInfo, getPublicIssues, voteIssue, addComment, getIssue } from '../api.js';
 import { useI18n } from '../i18n.jsx';
@@ -9,6 +9,8 @@ import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './LandingPage.css';
 
 // ── UA helpers ────────────────────────────────────────────────────────────────
@@ -47,7 +49,7 @@ const PRESET_TAGS = ['bug', 'suggestion'];
 
 export default function ReportPage() {
   const { gameSlug, buildId } = useParams();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -199,10 +201,10 @@ export default function ReportPage() {
     <div style={pageWrap}>
       {/* ── Global Nav ── */}
       <nav className="l-nav" ref={navRef}>
-        <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
+        <PageLink to="/" className="l-logo"><BrandLogo size="md" /></PageLink>
         <div className="l-nav-links">
-          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
-          <Link to="/blog" className="l-nav-link report-nav-blog">{t.nav.blog}</Link>
+          <PageLink to="/arcade" className="l-nav-link">{t.nav.arcade}</PageLink>
+          <PageLink to="/blog" className="l-nav-link report-nav-blog">{t.nav.blog}</PageLink>
           <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
             {lang === 'en' ? '한국어' : 'English'}
           </button>

@@ -237,7 +237,64 @@
 
 .l-featured-empty .l-hero-title { max-width: 680px; margin-top: var(--space-lg); }
 .l-featured-empty .l-hero-description { margin-bottom: var(--space-lg); }
-.l-hero-loading { color: var(--surface-night-muted); font-family: var(--font-mono); }
+
+/* ── Loading skeletons ──
+   These continue the inline #app-shell-skeleton from index.html rather than
+   introducing a separate "loading" screen, so the first paint flows straight
+   into real content. Bar geometry mirrors the copy each one stands in for. */
+.l-skeleton-bar {
+  display: block;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.14);
+  animation: l-skeleton-pulse 1.8s ease-in-out infinite;
+}
+
+.l-featured-skeleton { background: var(--surface-night); }
+
+.l-skeleton-hero-copy {
+  display: grid;
+  width: min(100%, 540px);
+  gap: 14px;
+}
+
+.l-skeleton-hero-copy > .l-skeleton-bar:nth-child(1) { width: 92px; height: 18px; }
+.l-skeleton-hero-copy > .l-skeleton-bar:nth-child(2) { width: min(84%, 430px); height: 42px; border-radius: 10px; }
+.l-skeleton-hero-copy > .l-skeleton-bar:nth-child(3) { width: min(100%, 520px); height: 14px; }
+.l-skeleton-hero-copy > .l-skeleton-bar:nth-child(4) { width: min(74%, 380px); height: 14px; }
+.l-skeleton-hero-copy > .l-skeleton-bar:nth-child(5) { width: 128px; height: 42px; margin-top: 8px; }
+
+.l-card-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.l-card-skeleton-media {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-canvas-soft-2);
+}
+
+.l-card-skeleton-copy {
+  display: grid;
+  gap: 8px;
+  padding: var(--space-lg);
+}
+
+.l-card-skeleton-copy > .l-skeleton-bar { background: var(--color-hairline-strong); }
+.l-card-skeleton-copy > .l-skeleton-bar:nth-child(1) { width: 72%; height: 11px; }
+.l-card-skeleton-copy > .l-skeleton-bar:nth-child(2) { width: 42%; height: 9px; animation-delay: 120ms; }
+
+@keyframes l-skeleton-pulse {
+  0%, 100% { opacity: 0.58; }
+  50%      { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .l-skeleton-bar { animation: none; }
+}
 
 .l-featured-strip {
   position: relative;
@@ -355,7 +412,6 @@
   gap: var(--space-lg);
 }
 
-.l-games-state,
 .l-games-empty {
   display: flex;
   min-height: 180px;

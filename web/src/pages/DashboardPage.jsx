@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
-import { useNavigate, Link } from 'react-router-dom';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { listGames, createGame } from '../api.js';
 import StorageBar from '../components/StorageBar.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
@@ -11,7 +12,7 @@ import './DashboardPage.css';
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
 
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,13 +54,13 @@ export default function DashboardPage() {
     <div className="dash-layout">
       {/* Sidebar */}
       <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         <nav className="dash-nav">
           <span className="dash-nav-item active">{t.dash.title}</span>
-          <Link className="dash-nav-item" to="/arcade">{t.nav.arcade}</Link>
-          <Link className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</Link>
+          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
+          <PageLink className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
           {user?.role === 'admin' && (
-            <Link className="dash-nav-item" to="/admin/users">{t.nav.admin}</Link>
+            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
           )}
         </nav>
         <div className="dash-sidebar-footer">
@@ -128,7 +129,7 @@ export default function DashboardPage() {
         ) : (
           <div className="dash-game-grid">
             {games.map((game) => (
-              <Link key={game._id} className="dash-game-card" to={`/dashboard/games/${game._id}`}>
+              <PageLink key={game._id} className="dash-game-card" to={`/dashboard/games/${game._id}`}>
                 <div className="dash-game-info">
                   <div className="dash-game-name-row">
                     <div className="dash-game-name">{game.name}</div>
@@ -139,7 +140,7 @@ export default function DashboardPage() {
                   <div className="dash-game-slug">/{game.slug}</div>
                 </div>
                 <div className="dash-game-arrow">›</div>
-              </Link>
+              </PageLink>
             ))}
           </div>
         )}

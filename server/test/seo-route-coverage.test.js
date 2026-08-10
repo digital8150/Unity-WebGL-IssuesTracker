@@ -2,7 +2,7 @@
 //
 // `server/src/routes/seo.js` keeps a hand-maintained list of server-rendered
 // public routes that runs in parallel with the client route table in
-// `web/src/App.jsx`. Nothing links the two, and `web/index.html` ships
+// `web/src/main.jsx`. Nothing links the two, and `web/index.html` ships
 // `robots: noindex` by default -- so a new public route that nobody adds to
 // seo.js is deployed noindex and missing from sitemap.xml, silently.
 //
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
 
-const APP_JSX = path.join(repoRoot, 'web', 'src', 'App.jsx');
+const CLIENT_ENTRY = path.join(repoRoot, 'web', 'src', 'main.jsx');
 const SEO_ROUTES = path.join(repoRoot, 'server', 'src', 'routes', 'seo.js');
 
 // Public routes that are deliberately not server-rendered. Every entry needs a
@@ -40,16 +40,19 @@ function matchAll(source, pattern) {
 }
 
 async function readSources() {
-  const [appSource, seoSource] = await Promise.all([
-    readFile(APP_JSX, 'utf8'),
+  const [clientSource, seoSource] = await Promise.all([
+    readFile(CLIENT_ENTRY, 'utf8'),
     readFile(SEO_ROUTES, 'utf8'),
   ]);
-  return { appSource, seoSource };
+  return { clientSource, seoSource };
 }
 
-function clientRoutes(appSource) {
-  const found = matchAll(appSource, /<Route\s+path="([^"]*)"/g).map(normalize);
-  assert.ok(found.length > 0, 'Could not parse any <Route path="..."> out of App.jsx');
+function clientRoutes(clientSource) {
+  const found = [
+    ...matchAll(clientSource, /(?:pageRoute|protectedPageRoute)\(\s*'([^']+)'/g),
+    ...matchAll(clientSource, /\{\s*path:\s*'([^']+)'/g),
+  ].map(normalize);
+  assert.ok(found.length > 0, 'Could not parse any route path out of main.jsx');
   return [...new Set(found)];
 }
 
@@ -80,11 +83,11 @@ function sitemapHandlerBody(seoSource) {
 }
 
 test('every indexable public route is server-rendered by seo.js', async () => {
-  const { appSource, seoSource } = await readSources();
+  const { clientSource, seoSource } = await readSources();
   const prefixes = disallowedPrefixes(seoSource);
   const covered = new Set(seoRoutes(seoSource));
 
-  const missing = clientRoutes(appSource).filter((routePath) => {
+  const missing = clientRoutes(clientSource).filter((routePath) => {
     if (isDisallowed(routePath, prefixes)) return false;
     if (NOT_INDEXED_BY_DESIGN.has(routePath)) return false;
     return !covered.has(routePath);
@@ -102,8 +105,8 @@ test('every indexable public route is server-rendered by seo.js', async () => {
 });
 
 test('seo.js has no handler for a route the client router dropped', async () => {
-  const { appSource, seoSource } = await readSources();
-  const clientPaths = new Set(clientRoutes(appSource));
+  const { clientSource, seoSource } = await readSources();
+  const clientPaths = new Set(clientRoutes(clientSource));
 
   const orphaned = seoRoutes(seoSource).filter(
     (routePath) => !NON_PAGE_SEO_ROUTES.has(routePath) && !clientPaths.has(routePath),
@@ -112,7 +115,7 @@ test('seo.js has no handler for a route the client router dropped', async () => 
   assert.deepEqual(
     orphaned,
     [],
-    `seo.js server-renders route(s) that no longer exist in web/src/App.jsx:\n` +
+    `seo.js server-renders route(s) that no longer exist in web/src/main.jsx:\n` +
       orphaned.map((routePath) => `  - ${routePath}`).join('\n') +
       `\n\nThese return indexable HTML for URLs the app will bounce to /. Remove the handler.`,
   );
@@ -136,11 +139,11 @@ test('no route is both server-rendered and blocked in robots.txt', async () => {
 });
 
 test('every static indexable route is listed in sitemap.xml', async () => {
-  const { appSource, seoSource } = await readSources();
+  const { clientSource, seoSource } = await readSources();
   const prefixes = disallowedPrefixes(seoSource);
   const body = sitemapHandlerBody(seoSource);
 
-  const staticIndexable = clientRoutes(appSource).filter(
+  const staticIndexable = clientRoutes(clientSource).filter(
     (routePath) =>
       !routePath.includes(':') &&
       routePath !== '*' &&

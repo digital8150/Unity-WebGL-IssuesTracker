@@ -1,7 +1,7 @@
 export const SITE_NAME = 'BCSDLab. Arcade';
-export const DEFAULT_DESCRIPTION = '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.';
-export const HOME_TITLE = 'Unity WebGL 게임과 버그 리포트 — BCSDLab. Arcade';
-export const HOME_DESCRIPTION = 'Unity WebGL 게임을 브라우저에서 플레이하고 세션 스냅샷과 함께 테스터 버그 리포트를 수집하세요.';
+export const DEFAULT_DESCRIPTION = 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.';
+export const HOME_TITLE = 'BCSDLab. Game Track 웹 게임 | BCSDLab. Arcade';
+export const HOME_DESCRIPTION = 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.';
 export const DEFAULT_IMAGE_PATH = '/bcsd_main_page_image.webp';
 
 export function escapeHtml(value) {
