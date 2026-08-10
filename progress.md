@@ -123,3 +123,19 @@ implementation details. Entries are written in English for agent readability.
 - `sitemap.xml` article-list entries (`/play/:gameSlug/articles`) took `lastmod` from `Game.updatedAt`; now derived from the newest `updatedAt || publishedAt` across that game's published articles. URL shape, slug lookup, and `null` fallback unchanged; no extra query.
 - Production `/privacy` shell-only regression is **not** a deploy failure: the privacy SSR handler lives only in `67075f6` on `feat/polish-hero-and-ssr-flash`, never merged to `main`. The sitemap entry shipped earlier via `a409d6d` (on `main`), so the sitemap advertises a route production cannot render. Fix is to merge the branch and redeploy.
 - Verification: `node --check src/routes/seo.js`, `cd server; npm test` (20 passing), `git diff --check`.
+
+## 2026-08-10 (public-route SSR data bootstrap)
+
+- Added independent robots patch commit `5d2ad08`: crawlers may read public blog, arcade, and game-play APIs; admin blog paths remain blocked by a longer rule.
+- Added `__SSR_DATA__` JSON bootstrap injection with route-key + URL validation and one-time client consumption; `<` is escaped before script insertion.
+- Bootstrapped `/blog/:slug`, `/arcade`, `/blog`, both game-article routes, and both play routes from existing SEO queries; public payloads whitelist fields and exclude email/admin/backend/build-storage data.
+- Removed hidden `#seo-prerender` injection/CSS and server-side Markdown prerendering; kept the GRAC renderer for legal-notice compatibility. Removed unused server `marked`/`sanitize-html` dependencies and prerender-only media detection.
+- Added route HTML bootstrap contract, sensitive-field, injection, and client-reader tests. Commit: `4e0f003`.
+- Verification: `cd server; npm test` (33 passing), server `node --check`, `cd web; npm run build`, and `git diff --check` passed.
+- Manual JS-on/API-blocked browser verification is pending because no browser session was available in this environment; run it before deployment, then verify rendered content in GSC.
+
+## 2026-08-10 (visible SEO preview follow-up)
+
+- Restored a small visible `#seo-preview` inside `#root` for every public SEO response: H1, summary, plain-text body/list content; no `aria-hidden`, transparent color, or hidden media.
+- Kept `__SSR_DATA__` unchanged and made the preview replace the inline shell skeleton until `createRoot` mounts; server preview uses plain-text Markdown cleanup, not a second Markdown HTML renderer.
+- Added route/injection assertions that raw public HTML contains non-empty visible text; server tests: 34 passing; web build passed.

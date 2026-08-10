@@ -86,29 +86,120 @@
         min-height: 100%;
       }
 
-      #seo-prerender {
-        position: absolute;
-        inset: 0;
+      /* Public SEO responses carry a small, real-text preview until React
+         replaces #root. Keep the first paint aligned with the shell skeleton. */
+      #root[data-seo-preview] #app-shell-skeleton { display: none; }
+
+      #seo-preview {
+        position: relative;
+        z-index: 2;
+        min-height: 100vh;
+        box-sizing: border-box;
         overflow: hidden;
-        pointer-events: none;
-        user-select: none;
-        color: transparent;
-        background: transparent;
-        text-shadow: none;
-        z-index: 0;
+        padding: 0 clamp(20px, 5vw, 64px) 56px;
+        background: #080808;
+        color: #ffffff;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
-      #seo-prerender * {
-        color: transparent !important;
-        background-color: transparent !important;
-        border-color: transparent !important;
-        text-shadow: none !important;
+      .seo-preview-nav {
+        display: flex;
+        height: 64px;
+        align-items: center;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.82);
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
       }
 
-      #seo-prerender img,
-      #seo-prerender video {
-        opacity: 0;
+      .seo-preview-main {
+        width: min(100%, 900px);
+        margin: 0 auto;
       }
+
+      .seo-preview-article {
+        margin-top: clamp(36px, 8vw, 104px);
+        padding: clamp(28px, 5vw, 64px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 18px;
+        background: #171717;
+      }
+
+      .seo-preview-article h1 {
+        margin: 0;
+        color: #ffffff;
+        font-size: clamp(32px, 5vw, 56px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .seo-preview-summary,
+      .seo-preview-body,
+      .seo-preview-item p {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 16px;
+        line-height: 1.7;
+      }
+
+      .seo-preview-summary {
+        max-width: 720px;
+        margin: 22px 0 0;
+        font-size: 18px;
+      }
+
+      .seo-preview-body {
+        max-width: 760px;
+        margin: 28px 0 0;
+      }
+
+      .seo-preview-list {
+        display: grid;
+        gap: 16px;
+        margin: 32px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .seo-preview-item {
+        padding-top: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .seo-preview-item a,
+      .seo-preview-item strong {
+        color: #ffffff;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      .seo-preview-item a { text-decoration: underline; text-underline-offset: 3px; }
+      .seo-preview-item p { margin: 6px 0 0; font-size: 14px; }
+
+      :root[data-theme="light"] #seo-preview {
+        background: #ffffff;
+        color: #171717;
+      }
+
+      :root[data-theme="light"] .seo-preview-nav {
+        border-bottom-color: rgba(23, 23, 23, 0.1);
+        color: rgba(23, 23, 23, 0.72);
+      }
+
+      :root[data-theme="light"] .seo-preview-article {
+        border-color: rgba(23, 23, 23, 0.08);
+        background: #f5f5f5;
+      }
+
+      :root[data-theme="light"] .seo-preview-article h1,
+      :root[data-theme="light"] .seo-preview-item a,
+      :root[data-theme="light"] .seo-preview-item strong { color: #171717; }
+
+      :root[data-theme="light"] .seo-preview-summary,
+      :root[data-theme="light"] .seo-preview-body,
+      :root[data-theme="light"] .seo-preview-item p { color: rgba(23, 23, 23, 0.68); }
+
+      :root[data-theme="light"] .seo-preview-item { border-top-color: rgba(23, 23, 23, 0.1); }
 
       #app-shell-skeleton {
         position: relative;
@@ -475,6 +566,7 @@
       :root[data-theme="light"] .shell-skeleton-card::after { background: linear-gradient(90deg, transparent, rgba(23, 23, 23, 0.06), transparent); }
 
       @media (max-width: 720px) {
+        .seo-preview-article { margin-top: 36px; padding: 28px; }
         .shell-skeleton-cards { grid-template-columns: 1fr; }
         .shell-skeleton-card { min-height: 132px; }
         .shell-skeleton-card-media { height: 58px; }

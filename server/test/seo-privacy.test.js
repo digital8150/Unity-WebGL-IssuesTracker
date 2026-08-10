@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 
 import {
   PRIVACY_POLICY_DATES,
-  renderPrivacyContent,
   resolvePrivacyVersion,
 } from '../src/services/seo.js';
 
@@ -62,25 +61,4 @@ test('an unknown date is rejected rather than silently served', () => {
   assert.equal(resolvePrivacyVersion('1999-01-01'), null);
   assert.equal(resolvePrivacyVersion('../../etc/passwd'), null);
   assert.equal(resolvePrivacyVersion('<script>'), null);
-});
-
-test('rendered content carries the effective date and real policy text', () => {
-  const html = renderPrivacyContent(resolvePrivacyVersion(undefined));
-
-  assert.match(html, /<h1>개인정보처리방침<\/h1>/);
-  assert.ok(html.includes(PRIVACY_POLICY_DATES[0]), 'The effective date must appear in the body');
-  assert.match(html, /개인정보/);
-  assert.ok(
-    html.length > 400,
-    'The server-rendered privacy body must carry enough text to be worth indexing, ' +
-      'not just a heading.',
-  );
-});
-
-test('a superseded revision links back to the current policy', () => {
-  const past = PRIVACY_POLICY_DATES[1];
-  if (!past) return;
-
-  const html = renderPrivacyContent({ effectiveDate: past, isLatest: false });
-  assert.match(html, /href="\/privacy"/, 'Superseded revisions must link to the current policy');
 });

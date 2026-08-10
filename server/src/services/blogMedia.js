@@ -84,13 +84,3 @@ export async function convertGifToMp4(buffer, outputPath) {
     await fs.rm(tempRoot, { recursive: true, force: true });
   }
 }
-
-export function isVideoMediaUrl(value) {
-  try {
-    const parsed = new URL(String(value), 'https://bcsdlab.invalid');
-    return ['http:', 'https:'].includes(parsed.protocol)
-      && parsed.pathname.toLowerCase().endsWith('.mp4');
-  } catch {
-    return false;
-  }
-}

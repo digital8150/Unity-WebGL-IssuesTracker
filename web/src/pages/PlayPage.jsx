@@ -8,6 +8,7 @@ import Footer from '../components/Footer.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { GRAC_CONTENT_MARKS, GRAC_RATING_MARKS } from '../constants/gracAssets.js';
 import { assetUrl } from '../utils/gameVisuals.js';
+import { readSsrData } from '../utils/ssrData.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './PlayPage.css';
 
@@ -27,22 +28,52 @@ function formatArticleDate(date, lang) {
   });
 }
 
+function toBuildInfo({ game, build } = {}) {
+  if (!game || !build) return null;
+  return {
+    gameId: game.id,
+    gameSlug: game.slug,
+    gameName: game.name,
+    description: game.description || '',
+    thumbnailUrl: game.thumbnailUrl || '',
+    visibility: game.visibility || 'private',
+    reviewInfo: game.reviewInfo || null,
+    developerName: game.developerName ?? null,
+    buildId: build.id,
+    buildVersion: build.version ?? null,
+    canvasWidth: build.canvasWidth ?? 1920,
+    canvasHeight: build.canvasHeight ?? 1080,
+    urls: build.urls ?? {},
+  };
+}
+
 export default function PlayPage() {
   const { gameSlug, buildId } = useParams();
   const { lang, t } = useI18n();
 
-  const [buildInfo, setBuildInfo] = useState(null);
+  const bootstrap = readSsrData(buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug');
+  const initialBuildInfo = toBuildInfo(bootstrap);
+  const initialArticles = Array.isArray(bootstrap?.articles) ? bootstrap.articles : [];
+  const hasBootstrap = Boolean(initialBuildInfo);
+  const [buildInfo, setBuildInfo] = useState(initialBuildInfo);
   const [loadError, setLoadError] = useState('');
-  const [articles, setArticles] = useState([]);
-  const [articlesLoading, setArticlesLoading] = useState(false);
+  const [articles, setArticles] = useState(initialArticles);
+  const [articlesLoading, setArticlesLoading] = useState(!hasBootstrap);
   const [relatedGames, setRelatedGames] = useState([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const bootstrapBuildPendingRef = useRef(hasBootstrap);
+  const bootstrapArticlesPendingRef = useRef(hasBootstrap);
 
   const sendMessageFn = useRef(null);
   const gameWrapRef = useRef(null);
   const isWaitingForReport = useRef(false);
 
   useEffect(() => {
+    if (bootstrapBuildPendingRef.current) {
+      bootstrapBuildPendingRef.current = false;
+      return undefined;
+    }
+
     if (!gameSlug) {
       setBuildInfo(null);
       setLoadError('');
@@ -56,6 +87,11 @@ export default function PlayPage() {
   }, [gameSlug, buildId]);
 
   useEffect(() => {
+    if (bootstrapArticlesPendingRef.current) {
+      bootstrapArticlesPendingRef.current = false;
+      return undefined;
+    }
+
     if (!gameSlug || !buildInfo) {
       setArticles([]);
       setArticlesLoading(false);
