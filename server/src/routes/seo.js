@@ -9,6 +9,9 @@ import {
   DEFAULT_IMAGE_PATH,
   HOME_DESCRIPTION,
   HOME_TITLE,
+  PRIVACY_DESCRIPTION,
+  PRIVACY_POLICY_DATES,
+  PRIVACY_TITLE,
   SITE_NAME,
   absoluteUrl,
   escapeXml,
@@ -23,6 +26,8 @@ import {
   renderBlogPostContent,
   renderHomeContent,
   renderPlayContent,
+  renderPrivacyContent,
+  resolvePrivacyVersion,
 } from '../services/seo.js';
 
 function seoRouter({ distRoot, siteOrigin }) {
@@ -79,6 +84,8 @@ function seoRouter({ distRoot, siteOrigin }) {
         { loc: siteOrigin, lastmod: null },
         { loc: `${siteOrigin}/arcade`, lastmod: null },
         { loc: `${siteOrigin}/blog`, lastmod: posts[0]?.updatedAt || null },
+        // Only the current policy; superseded revisions are noindex by design.
+        { loc: `${siteOrigin}/privacy`, lastmod: PRIVACY_POLICY_DATES[0] },
         ...posts.map((post) => ({
           loc: `${siteOrigin}/blog/${post.slug}`,
           lastmod: post.updatedAt || post.publishedAt,
@@ -143,6 +150,40 @@ function seoRouter({ distRoot, siteOrigin }) {
       content: renderHomeContent(),
     }));
   });
+
+  // The current policy is indexable; superseded revisions stay crawlable but are
+  // marked noindex and canonicalised to /privacy so they cannot outrank it.
+  function renderPrivacy(req, res, next) {
+    const version = resolvePrivacyVersion(req.params.date);
+    if (!version) return next();
+
+    return readShell(next).then((shell) => {
+      if (!shell) return;
+      const canonical = version.isLatest ? `${siteOrigin}/privacy` : `${siteOrigin}/privacy/${version.effectiveDate}`;
+      sendHtml(res, injectSeoHtml(shell, {
+        title: PRIVACY_TITLE,
+        description: PRIVACY_DESCRIPTION,
+        image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
+        url: canonical,
+        robots: version.isLatest ? 'index,follow' : 'noindex,follow',
+        jsonLd: version.isLatest ? {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: '개인정보처리방침',
+          description: PRIVACY_DESCRIPTION,
+          url: canonical,
+          inLanguage: 'ko-KR',
+          datePublished: version.effectiveDate,
+          isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: siteOrigin },
+          publisher: { '@type': 'Organization', name: 'BCSDLab.' },
+        } : null,
+        content: renderPrivacyContent(version),
+      }));
+    }).catch(next);
+  }
+
+  router.get('/privacy', renderPrivacy);
+  router.get('/privacy/:date', renderPrivacy);
 
   router.get('/arcade', async (_req, res, next) => {
     try {

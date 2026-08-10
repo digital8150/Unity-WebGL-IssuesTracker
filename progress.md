@@ -78,3 +78,34 @@ implementation details. Entries are written in English for agent readability.
 
 - Restored Chrome/Edge keyboard-lock timing for the play-page fullscreen control by locking `Escape` from `fullscreenchange` instead of immediately after `requestFullscreen()`.
 - Unlock the keyboard on fullscreen exit and component cleanup so short `Escape` reaches the Unity game while a long press remains the browser escape hatch.
+
+## 2026-08-10 (hero texture and shell loading polish)
+
+- Removed the landing featured-hero diagonal texture; kept the existing darkening scrim unchanged.
+- Added a first-paint shell skeleton, hidden SEO prerender container, and reduced-motion-aware app fade-in.
+- Kept landing, Arcade, and Blog page data-loading states unchanged because each already renders a loading state.
+- Verification: web build, SEO shell injection smoke assertions, server `node --check`, and `git diff --check` passed; no existing SEO assertion scripts were found under `server/`.
+
+## 2026-08-10 (SEO guard tests, /privacy indexing, theme flash fix)
+
+- Added the first server test suite: `npm test` in `server/` runs `node --test`.
+  - `seo-route-coverage.test.js` — fails when a public route in `App.jsx` has no `seo.js` handler, when `seo.js` renders a route the client dropped, when a server-rendered route is also `Disallow`ed in robots.txt, when a static public route is missing from `sitemap.xml`, or when the shell stops defaulting to `noindex`. robots.txt `Disallow` rules are the single source of truth for "private".
+  - `seo-inject.test.js` — asserts `injectSeoHtml` behaviour (not implementation) against the real shell, so an `index.html` edit that breaks the injection anchor fails loudly instead of silently serving an empty shell to crawlers.
+  - `seo-privacy.test.js` — keeps `PRIVACY_POLICY_DATES` in sync with `web/src/data/privacyPolicyVersions.jsx`.
+- `/privacy` and `/privacy/:date` are now server-rendered. The current revision is `index,follow` and listed in `sitemap.xml`; superseded revisions are `noindex,follow`, self-canonical, and link back to `/privacy`. Unknown dates fall through to `next()` rather than rendering.
+- Fixed a theme flash: `ThemeProvider` only set `data-theme` in an effect, so the shell painted with the OS preference before snapping to the saved choice. An inline pre-paint script in `index.html` now resolves the theme, and the skeleton keys off `[data-theme]` instead of `prefers-color-scheme`.
+- Confirmed in production that SSR is healthy (`/`, `/arcade`, `/blog` all return `index,follow` with JSON-LD and body text; sitemap lists 14 URLs). Slow indexing is domain age/authority, not markup.
+- Verification: `cd web; npm run build`, `cd server; npm test` (20 passing), `node --check` on changed server modules, `git diff --check`, plus an injection check against the built `dist/index.html`.
+
+## 2026-08-10 (route-aware shell skeletons)
+
+- The first-paint skeleton now has three variants selected at runtime: `auth` (`/login`, `/register`, `/consent`, `/pending`, `/auth/callback`), `dash` (`/dashboard*`, `/admin/*`), and `public` (everything else, unchanged). Previously every route flashed the landing hero + card grid.
+- Selection happens in the existing pre-paint inline script, which sets `data-shell` on `<html>`; the inline CSS reveals exactly one variant. Route classification runs before any `localStorage` access so blocked storage cannot also cost the correct variant, and it degrades to `public` on error.
+- Trailing slashes are normalised (`/login/` matches `/login`, as React Router does). Segment-boundary matching keeps `/dashboardish` on the public variant.
+- Shell cost: `dist/index.html` grew 767 B → 4.8 KB gzipped of render-blocking content.
+- Verification: `npm run build`, `npm test` (20 passing), `git diff --check`, and a harness that extracts the shipped inline script and runs it against 13 paths plus trailing-slash/casing/blocked-storage edge cases.
+
+## 2026-08-10 (PR preparation)
+
+- Revalidated the SEO shell, privacy SSR, and route-coverage changes before commit.
+- Verification: `server/npm test` (20 passing), `web/npm run build`, and `git diff --check`.

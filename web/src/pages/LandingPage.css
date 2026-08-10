@@ -88,7 +88,6 @@
 }
 
 .l-featured-art,
-.l-featured-texture,
 .l-featured-scrim {
   position: absolute;
   inset: 0;
@@ -99,16 +98,6 @@
   background-position: center;
   background-size: cover;
   opacity: 0.92;
-}
-
-.l-featured-texture {
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.035),
-    rgba(255, 255, 255, 0.035) 10px,
-    transparent 10px,
-    transparent 20px
-  );
 }
 
 .l-featured-scrim {
