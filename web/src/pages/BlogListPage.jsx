@@ -1,26 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext.jsx';
-import { useI18n } from '../i18n.jsx';
+import React, { useEffect, useMemo, useState } from 'react';
 import { listBlogPosts } from '../api.js';
-import BrandLogo from '../components/BrandLogo.jsx';
+import { useI18n } from '../i18n.jsx';
 import Footer from '../components/Footer.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import PublicNav from '../components/PublicNav.jsx';
 import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
 
 export default function BlogListPage() {
-  const { user } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
-
-  useDocumentMeta({
-    title: '블로그 — BCSDLab. Arcade',
-    description: 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.',
-    url: `${window.location.origin}/blog`,
-    type: 'website',
-  });
+  const { lang, t } = useI18n();
   const [posts, setPosts] = useState([]);
+  const [tagOptions, setTagOptions] = useState([]);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [tag, setTag] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -28,103 +21,196 @@ export default function BlogListPage() {
 
   const LIMIT = 9;
 
+  useDocumentMeta({
+    title: `${t.blog.listTitle} — BCSDLab. Arcade`,
+    description: t.blog.listSub,
+    url: `${window.location.origin}/blog`,
+    type: 'website',
+  });
+
   useEffect(() => {
-    setLoading(true);
-    listBlogPosts({ page, limit: LIMIT })
-      .then(({ posts, total, pages }) => {
-        setPosts(posts);
-        setTotal(total);
-        setPages(pages);
+    let cancelled = false;
+    listBlogPosts({ page: 1, limit: 50 })
+      .then(({ posts: loadedPosts }) => {
+        if (cancelled) return;
+        const tags = [...new Set((loadedPosts ?? []).flatMap((post) => post.tags ?? []))];
+        setTagOptions(tags);
       })
-      .catch(() => setPosts([]))
-      .finally(() => setLoading(false));
-  }, [page]);
+      .catch(() => {
+        if (!cancelled) setTagOptions([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const nextSearch = searchInput.trim();
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setSearch((current) => (current === nextSearch ? current : nextSearch));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    listBlogPosts({ page, limit: LIMIT, tag, q: search })
+      .then(({ posts: loadedPosts, total: loadedTotal, pages: loadedPages }) => {
+        if (cancelled) return;
+        setPosts(loadedPosts ?? []);
+        setTotal(loadedTotal ?? 0);
+        setPages(loadedPages ?? 1);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPosts([]);
+        setTotal(0);
+        setPages(1);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [page, tag, search]);
+
+  const sortedTags = useMemo(
+    () => [...tagOptions].sort((a, b) => a.localeCompare(b, lang === 'ko' ? 'ko' : 'en')),
+    [tagOptions, lang],
+  );
+
+  function handleTagClick(nextTag) {
+    setTag((current) => (current === nextTag ? '' : nextTag));
+    setPage(1);
+  }
+
+  function resetFilters() {
+    setSearchInput('');
+    setSearch('');
+    setTag('');
+    setPage(1);
+  }
 
   return (
     <div className="blog-page">
-      {/* Nav */}
-      <nav className="blog-nav">
-        <Link to="/" className="blog-logo"><BrandLogo size="md" /></Link>
-        <div className="blog-nav-links">
-          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
-          <span className="l-nav-link blog-nav-active">{t.nav.blog}</span>
-          <button className="l-lang-toggle" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
-          <DarkModeToggle />
-          {user ? (
-            <Link
-              to={user.status === 'approved' ? '/dashboard' : '/pending'}
-              className="btn btn-primary btn-sm"
-            >
-              {t.nav.dashboard}
-            </Link>
-          ) : (
-            <>
-              <Link to="/login" className="l-nav-link nav-signin">{t.nav.signIn}</Link>
-              <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
-            </>
-          )}
-        </div>
-      </nav>
+      <PublicNav active="articles" />
 
-      {/* Hero */}
-      <header className="blog-hero">
-        <div className="blog-hero-glow" aria-hidden="true" />
-        <div className="blog-hero-inner">
-          <span className="blog-hero-label">BLOG</span>
-          <h1 className="blog-hero-title">{t.blog.listTitle}</h1>
-          <p className="blog-hero-sub">{t.blog.listSub}</p>
-        </div>
-      </header>
-
-      {/* Posts grid */}
       <main className="blog-main">
-        {loading ? (
-          <p className="blog-loading">{t.blog.loading}</p>
-        ) : posts.length === 0 ? (
-          <div className="blog-empty">
-            <p>{t.blog.empty}</p>
-          </div>
-        ) : (
-          <>
-            <ArticleCardGrid
-              posts={posts}
-              lang={lang}
-              labels={t.blog}
-              linkForPost={(post) => `/blog/${post.slug}`}
-            />
+        <div className="blog-layout">
+          <aside className="blog-sidebar">
+            <div className="blog-filter-group">
+              <label className="blog-filter-label" htmlFor="blog-search">{t.blog.searchLabel}</label>
+              <input
+                id="blog-search"
+                className="blog-filter-input"
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder={t.blog.searchPlaceholder}
+                aria-label={t.blog.searchPlaceholder}
+              />
+            </div>
 
-            {/* Pagination */}
-            {pages > 1 && (
-              <div className="blog-pagination">
-                <button
-                  className="blog-page-btn"
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => p - 1)}
-                >
-                  ←
-                </button>
-                {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
+            <div className="blog-filter-group">
+              <div className="blog-filter-label">{t.blog.tags}</div>
+              <div className="blog-tag-cloud">
+                {sortedTags.map((option) => (
                   <button
-                    key={p}
-                    className={`blog-page-btn${p === page ? ' active' : ''}`}
-                    onClick={() => setPage(p)}
+                    key={option}
+                    type="button"
+                    className={`blog-filter-tag${tag === option ? ' is-active' : ''}`}
+                    onClick={() => handleTagClick(option)}
+                    aria-pressed={tag === option}
                   >
-                    {p}
+                    #{option}
                   </button>
                 ))}
-                <button
-                  className="blog-page-btn"
-                  disabled={page >= pages}
-                  onClick={() => setPage(p => p + 1)}
-                >
-                  →
-                </button>
               </div>
+            </div>
+
+            <button type="button" className="blog-reset-btn" onClick={resetFilters}>
+              {t.blog.resetFilters}
+            </button>
+          </aside>
+
+          <section className="blog-results" aria-labelledby="blog-page-title">
+            <header className="blog-results-header">
+              <h1 id="blog-page-title">{t.blog.listTitle}</h1>
+              <p>{t.blog.listSub}</p>
+              <div className="blog-results-meta">
+                <span>{t.blog.resultCount(total)}</span>
+                {search && (
+                  <button
+                    type="button"
+                    className="blog-active-filter"
+                    onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}
+                    aria-label={t.blog.clearSearch}
+                  >
+                    {search} <span aria-hidden="true">×</span>
+                  </button>
+                )}
+                {tag && (
+                  <button
+                    type="button"
+                    className="blog-active-filter"
+                    onClick={() => { setTag(''); setPage(1); }}
+                    aria-label={t.blog.clearTag}
+                  >
+                    #{tag} <span aria-hidden="true">×</span>
+                  </button>
+                )}
+              </div>
+            </header>
+
+            {loading ? (
+              <p className="blog-loading">{t.blog.loading}</p>
+            ) : posts.length === 0 ? (
+              <div className="blog-empty"><p>{t.blog.filteredEmpty}</p></div>
+            ) : (
+              <>
+                <ArticleCardGrid
+                  posts={posts}
+                  lang={lang}
+                  labels={t.blog}
+                  linkForPost={(post) => `/blog/${post.slug}`}
+                />
+
+                {pages > 1 && (
+                  <nav className="blog-pagination" aria-label={t.blog.paginationLabel}>
+                    <button
+                      type="button"
+                      className="blog-page-btn"
+                      disabled={page <= 1}
+                      onClick={() => setPage((current) => current - 1)}
+                      aria-label={t.blog.previousPage}
+                    >
+                      ←
+                    </button>
+                    {Array.from({ length: pages }, (_, index) => index + 1).map((pageNumber) => (
+                      <button
+                        key={pageNumber}
+                        type="button"
+                        className={`blog-page-btn${pageNumber === page ? ' active' : ''}`}
+                        onClick={() => setPage(pageNumber)}
+                        aria-current={pageNumber === page ? 'page' : undefined}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="blog-page-btn"
+                      disabled={page >= pages}
+                      onClick={() => setPage((current) => current + 1)}
+                      aria-label={t.blog.nextPage}
+                    >
+                      →
+                    </button>
+                  </nav>
+                )}
+              </>
             )}
-          </>
-        )}
+          </section>
+        </div>
       </main>
 
       <Footer />

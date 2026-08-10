@@ -49,3 +49,11 @@ implementation details. Entries are written in English for agent readability.
 - Discord uses the per-game webhook when present, otherwise `DISCORD_WEBHOOK_URL`; missing configuration is a no-op.
 - Unity custom state stays opaque/schemaless; the hand-rolled C# JSON writer is retained.
 - Server-backend leaderboards are named per game, HMAC-protected, and top-N bounded; current nonce/rate-limit state assumes one process.
+
+## 2026-08-10
+
+- Replaced public home, arcade catalogue, article list, and play layouts with the Arcade redesign; added responsive dark-theme token usage.
+- Added shared public nav, game card/artwork fallback, expanded footer, and play-page slim footer; removed unused landing mockups and ParticleCanvas.
+- Added server-side blog `q` filtering with escaped case-insensitive title/summary matching and threaded it through the web API.
+- Preserved Unity report bridge, canvas sizing, play SEO/JSON-LD, and all six GRAC review detail fields; omitted mockup-only genre/category/status/club links.
+- Verification: `npm run build`, `node --check src/routes/blog.js`, and `git diff --check` passed; redesign CSS has no direct hex color literals.

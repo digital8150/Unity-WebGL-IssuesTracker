@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import UnityGame from '../components/UnityGame.jsx';
-import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
-import { getPlayInfo, listPublicGameArticles } from '../api.js';
-import { useAuth } from '../context/AuthContext.jsx';
+import { getArcadeGames, getPlayInfo, listPublicGameArticles } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { BlogMedia } from '../components/BlogMedia.jsx';
 import { GRAC_CONTENT_MARKS, GRAC_RATING_MARKS } from '../constants/gracAssets.js';
+import { assetUrl } from '../utils/gameVisuals.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
-import './LandingPage.css';
 import './PlayPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -22,21 +20,27 @@ function formatReviewDate(date, lang) {
   });
 }
 
+function formatArticleDate(date, lang) {
+  if (!date) return '';
+  return new Date(date).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  });
+}
+
 export default function PlayPage() {
   const { gameSlug, buildId } = useParams();
-  const { user } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, t } = useI18n();
 
   const [buildInfo, setBuildInfo] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [articles, setArticles] = useState([]);
   const [articlesLoading, setArticlesLoading] = useState(false);
+  const [relatedGames, setRelatedGames] = useState([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const sendMessageFn = useRef(null);
   const gameWrapRef = useRef(null);
   const isWaitingForReport = useRef(false);
-  const navRef = useRef(null);
 
   useEffect(() => {
     if (!gameSlug) {
@@ -66,6 +70,20 @@ export default function PlayPage() {
   }, [gameSlug, buildInfo]);
 
   useEffect(() => {
+    if (!gameSlug) {
+      setRelatedGames([]);
+      return undefined;
+    }
+    setRelatedGames([]);
+    getArcadeGames()
+      .then(({ games }) => {
+        setRelatedGames((games ?? []).filter((game) => game.slug !== gameSlug).slice(0, 3));
+      })
+      .catch(() => setRelatedGames([]));
+    return undefined;
+  }, [gameSlug]);
+
+  useEffect(() => {
     window.__issueTrackerReceive = (payloadJson) => {
       sessionStorage.setItem('pendingReport', payloadJson);
       const url = `/report/${gameSlug || 'local'}${buildId ? `/${buildId}` : ''}`;
@@ -79,14 +97,6 @@ export default function PlayPage() {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
-  }, []);
-
-  useEffect(() => {
-    function onScroll() {
-      navRef.current?.classList.toggle('scrolled', window.scrollY > 8);
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const SITE = 'BCSDLab. Arcade';
@@ -189,7 +199,7 @@ export default function PlayPage() {
     </div>
   );
 
-  const gameName = buildInfo.gameName ?? 'Untitled Game';
+  const gameName = buildInfo.gameName ?? t.play.untitledGame;
   const buildVersion = buildInfo.buildVersion ?? null;
   const developerName = buildInfo.developerName ?? null;
   const description = buildInfo.description ?? '';
@@ -225,30 +235,32 @@ export default function PlayPage() {
 
   return (
     <div className="play-page">
-      <nav className="l-nav" ref={navRef}>
-        <Link to="/" className="l-logo"><BrandLogo size="md" /></Link>
-        <div className="l-nav-links">
-          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
-          <Link to="/blog" className="l-nav-link">{t.nav.blog}</Link>
-          <button className="l-lang-toggle" onClick={toggleLang} aria-label="Toggle language">
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
-          <DarkModeToggle />
-          {user ? (
-            <Link to={user.status === 'approved' ? '/dashboard' : '/pending'} className="btn btn-primary btn-sm">
-              {t.nav.dashboard}
+      <section className="play-player" aria-label={gameName}>
+        <div className="play-player-bar">
+          <div className="play-player-left">
+            <Link to="/" className="play-back" aria-label={t.play.backToArcade}>
+              ←
             </Link>
-          ) : (
-            <>
-              <Link to="/login" className="l-nav-link">{t.nav.signIn}</Link>
-              <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
-            </>
-          )}
+            <Link to="/" className="play-player-brand" aria-label={t.nav.home}>
+              <BrandLogo size="sm" />
+            </Link>
+            <span className="play-player-divider" aria-hidden="true" />
+            <strong className="play-player-name">{gameName}</strong>
+            <span className="play-player-version">
+              {buildVersion ? `${t.home.versionPrefix}${buildVersion}` : t.play.noVersion}
+            </span>
+          </div>
+          <div className="play-player-actions">
+            <span className="play-player-dimensions">{canvasW} × {canvasH}</span>
+            <button type="button" onClick={handleReportClick} className="play-player-report">
+              <span aria-hidden="true">↗</span> {t.play.reportBug}
+            </button>
+            <button type="button" onClick={toggleFullscreen} className="play-player-fullscreen">
+              {isFullscreen ? `✕ ${t.play.exitFullScreen}` : `⛶ ${t.play.fullScreen}`}
+            </button>
+          </div>
         </div>
-      </nav>
-
-      <section className="play-game-section">
-        <div className="play-shell">
+        <div className="play-canvas-stage">
           <div ref={gameWrapRef} className="play-canvas-frame" style={gameContainerStyle}>
             <UnityGame
               {...urls}
@@ -259,102 +271,129 @@ export default function PlayPage() {
               unityErrorTitle={t.play.unityErrorTitle}
             />
           </div>
-          <div className="play-game-actions" style={{ maxWidth: gameContainerStyle.maxWidth }}>
-            <span className="play-canvas-label">{canvasW} × {canvasH}</span>
-            <button onClick={toggleFullscreen} className="play-fullscreen-btn">
-              {isFullscreen ? `✕ ${t.play.exitFullScreen}` : `⛶ ${t.play.fullScreen}`}
-            </button>
-          </div>
         </div>
       </section>
 
       <main className="play-content">
-        <section className="play-info-section play-shell">
-          <div className="play-title-row">
-            <div>
-              <h1 className="play-title">{gameName}</h1>
-              <div className="play-meta">
-                {buildVersion && <span>v{buildVersion}</span>}
-                {buildVersion && developerName && <span className="play-meta-dot">·</span>}
-                {developerName && <span>{t.play.by} {developerName}</span>}
-              </div>
+        <div className="play-info-layout play-shell">
+          <div className="play-main-column">
+            <h1 className="play-title">{gameName}</h1>
+            <div className="play-meta">
+              <span>{developerName ? `${t.play.by} ${developerName}` : t.arcade.trackName}</span>
+              <span className="play-meta-dot">·</span>
+              <span>{buildVersion ? `${t.home.versionPrefix}${buildVersion}` : t.play.noVersion}</span>
             </div>
-            <button onClick={handleReportClick} className="play-report-btn">
-              <span aria-hidden="true">↗</span> {t.play.reportBug}
-            </button>
-          </div>
+            <p className="play-description">{description || t.play.descriptionEmpty}</p>
 
-          <div className="play-description-block">
-            <h2>{t.play.descriptionLabel}</h2>
-            <p>{description || t.play.descriptionEmpty}</p>
-          </div>
-        </section>
-
-        {reviewInfo && (
-          <section className="play-review-section play-shell">
-            <div className="play-review-card">
-              <h2>{t.play.reviewLabel}</h2>
-              <div className="play-review-layout">
-                <div className="play-review-visual" aria-label={t.gameDetail.reviewDescriptors}>
-                  <div className="play-review-marks">
-                    {ratingMark && (
-                      <div className="play-review-rating-row">
-                        <img
-                          className="play-rating-mark"
-                          src={ratingMark}
-                          alt={ratingLabel}
-                        />
-                      </div>
-                    )}
-                    {descriptorKeys.length > 0 && (
-                      <div className="play-review-descriptor-row">
-                        {descriptorKeys.map((key) => (
-                          <img
-                            key={key}
-                            className="play-descriptor-mark"
-                            src={GRAC_CONTENT_MARKS[key]}
-                            alt={t.gameDetail.reviewDescriptorLabels[key]}
-                          />
-                        ))}
-                      </div>
-                    )}
+            {!articlesLoading && articles.length > 0 && (
+              <section className="play-articles-section">
+                <div className="play-articles-heading">
+                  <div>
+                    <p className="play-section-eyebrow">{t.play.devlogEyebrow}</p>
+                    <h2>{t.play.updatesTitle}</h2>
                   </div>
+                  <Link to="/blog" className="play-view-all">{t.play.viewAllArticles}</Link>
                 </div>
-                <div className="play-review-details">
-                  <dl className="play-review-detail-grid" aria-label={t.play.reviewLabel}>
+                <div className="play-article-list">
+                  {articles.map((article) => {
+                    const articleDate = article.publishedAt || article.createdAt;
+                    return (
+                      <Link
+                        key={article._id || article.slug}
+                        to={`/play/${gameSlug}/articles/${article.slug}`}
+                        className="play-article-row"
+                      >
+                        <div className="play-article-thumb">
+                          {article.coverImageUrl ? (
+                            <BlogMedia src={assetUrl(article.coverImageUrl)} alt="" loading="lazy" />
+                          ) : (
+                            <div className="play-article-thumb-fallback" aria-hidden="true" />
+                          )}
+                        </div>
+                        <div className="play-article-copy">
+                          <div className="play-article-meta">
+                            <span className="play-article-tag">
+                              {article.tags?.[0] || t.home.articleFallbackTag}
+                            </span>
+                            <time dateTime={articleDate}>{formatArticleDate(articleDate, lang)}</time>
+                          </div>
+                          <h3>{article.title}</h3>
+                          {article.summary && <p>{article.summary}</p>}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <aside className="play-rail">
+            <section className="play-info-card">
+              <h2 className="play-rail-eyebrow">{t.play.gameInfo}</h2>
+              <dl className="play-info-list">
+                <div><dt>{t.play.developerLabel}</dt><dd>{developerName || '—'}</dd></div>
+                <div><dt>{t.play.latestBuildLabel}</dt><dd>{buildVersion ? `${t.home.versionPrefix}${buildVersion}` : '—'}</dd></div>
+              </dl>
+
+              {reviewInfo && (
+                <div className="play-rating-block">
+                  <h3>{t.play.reviewLabel}</h3>
+                  <div className="play-review-marks" aria-label={t.gameDetail.reviewDescriptors}>
+                    {ratingMark && (
+                      <img className="play-rating-mark" src={ratingMark} alt={ratingLabel} />
+                    )}
+                    {descriptorKeys.map((key) => (
+                      <img
+                        key={key}
+                        className="play-descriptor-mark"
+                        src={GRAC_CONTENT_MARKS[key]}
+                        alt={t.gameDetail.reviewDescriptorLabels[key]}
+                      />
+                    ))}
+                  </div>
+                  <p className="play-review-classification">
+                    {t.play.classificationNumberShort} {reviewInfo.classificationNumber || '—'}
+                  </p>
+                  <dl className="play-review-detail-list" aria-label={t.play.reviewLabel}>
                     {reviewDetails.map(([label, value]) => (
-                      <div key={label} className="play-review-detail-cell">
+                      <div key={label}>
                         <dt>{label}</dt>
                         <dd>{value || '—'}</dd>
                       </div>
                     ))}
                   </dl>
                 </div>
-              </div>
-            </div>
-          </section>
-        )}
+              )}
+            </section>
 
-        {!articlesLoading && articles.length > 0 && (
-          <section className="play-articles-section play-shell">
-            <div className="play-articles-heading">
-              <div>
-                <h2>{t.gameArticles.publicTitle}</h2>
-                <p>{t.gameArticles.publicSub}</p>
-              </div>
-            </div>
-            <ArticleCardGrid
-              posts={articles}
-              lang={lang}
-              labels={t.blog}
-              className="play-article-grid"
-              linkForPost={(article) => `/play/${gameSlug}/articles/${article.slug}`}
-            />
-          </section>
-        )}
+            {relatedGames.length > 0 && (
+              <section className="play-related-section">
+                <h2 className="play-rail-eyebrow">{t.play.continuePlaying}</h2>
+                <div className="play-related-list">
+                  {relatedGames.map((game) => (
+                    <Link key={game.id} to={`/play/${game.slug}`} className="play-related-card">
+                      <div className="play-related-thumb">
+                        {game.thumbnailUrl ? (
+                          <img src={assetUrl(game.thumbnailUrl)} alt="" loading="lazy" />
+                        ) : (
+                          <div className="play-related-thumb-fallback" aria-hidden="true" />
+                        )}
+                      </div>
+                      <span className="play-related-copy">
+                        <strong>{game.name}</strong>
+                        <small>{game.developerName || t.arcade.trackName}</small>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </aside>
+        </div>
       </main>
 
-      <Footer />
+      <Footer variant="slim" />
     </div>
   );
 }

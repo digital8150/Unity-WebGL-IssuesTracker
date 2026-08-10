@@ -274,9 +274,10 @@ export async function getPlayInfo(gameSlug, buildId = null) {
 
 // ── Blog (public) ─────────────────────────────────────────────────────────────
 
-export async function listBlogPosts({ page = 1, limit = 10, tag = '' } = {}) {
+export async function listBlogPosts({ page = 1, limit = 10, tag = '', q = '' } = {}) {
   const params = new URLSearchParams({ page, limit });
   if (tag) params.set('tag', tag);
+  if (q) params.set('q', q);
   return request(`/api/blog?${params.toString()}`);
 }
 

@@ -1,14 +1,16 @@
 import React from 'react';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useI18n } from '../i18n.jsx';
 
 export default function DarkModeToggle({ className = '' }) {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useI18n();
   return (
     <button
       className={`dark-mode-toggle ${className}`}
       onClick={toggleTheme}
-      aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-      title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      aria-label={theme === 'dark' ? t.nav.switchToLight : t.nav.switchToDark}
+      title={theme === 'dark' ? t.nav.switchToLight : t.nav.switchToDark}
     >
       {theme === 'dark' ? (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
