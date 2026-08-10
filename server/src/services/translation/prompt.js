@@ -103,25 +103,25 @@ export function buildGeneratePayload(options = {}) {
     // truncated, unparseable JSON. Translation still wants a conservative
     // setting, just not one that makes the decoder greedy enough to loop.
     temperature: 0.5,
-    // Hard ceiling so a runaway fails in seconds instead of minutes. English
-    // runs ~2.5x Korean at worst; 4x the source plus headroom is generous for a
-    // faithful translation and nowhere near a repetition loop.
-    maxOutputTokens: Math.min(16384, Math.max(2048, Math.ceil((sourceChars || 4000) * 4 / 3))),
+    // On a reasoning model this budget is shared with the thoughts, and the
+    // thoughts go first. Sizing it for the translation alone starved the answer:
+    // a 3997-character chunk spent 4397 tokens thinking and had 913 left to
+    // write with, so the JSON came back truncated (finishReason=MAX_TOKENS).
+    // Body requests therefore reserve room for both. The runaway this cap
+    // originally guarded against was a looping title, which can no longer reach
+    // a body request now that metadata is fetched separately — so only the tiny
+    // metadata call still needs a tight ceiling.
+    maxOutputTokens: mode === 'metadata'
+      ? 2048
+      : Math.min(32768, Math.max(8192, Math.ceil((sourceChars || 4000) * 3))),
     responseMimeType: 'application/json',
     responseSchema: mode === 'metadata' ? METADATA_SCHEMA : BODY_SCHEMA,
   };
 
-  // Translation is not a reasoning task, but the reasoning models in the
-  // fallback chain spend output tokens on thoughts before writing the answer.
-  // On a 9104-character post that consumed the whole budget: the request took
-  // ~296s and came back with the `content` array missing entirely. Turning
-  // thinking off keeps the budget for the translation itself.
-  //
-  // `thinkingConfig` is not accepted by every model, and an unsupported field
-  // is rejected with HTTP 400 for the whole request — the same failure mode
-  // that `additionalProperties` caused. `generateContent` therefore retries
-  // once without it and remembers which models refuse it.
-  if (!thinking) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  // Thinking is switched off by `generateContent`, not here: the parameter that
+  // does it differs by model generation, so the working variant has to be
+  // discovered per model at runtime. See THINKING_OFF_VARIANTS in gemini.js.
+  generationConfig.__thinkingOff = !thinking;
 
   return {
     systemInstruction: {
@@ -132,9 +132,14 @@ export function buildGeneratePayload(options = {}) {
   };
 }
 
-/** Strips the thinking directive so a refusing model can be retried as-is. */
-export function withoutThinkingConfig(payload) {
-  if (!payload?.generationConfig?.thinkingConfig) return payload;
-  const { thinkingConfig, ...generationConfig } = payload.generationConfig;
+/** Returns the payload with a specific thinking-off variant applied (or none). */
+export function withThinkingVariant(payload, thinkingConfig) {
+  const { __thinkingOff, ...generationConfig } = payload?.generationConfig || {};
+  if (__thinkingOff && thinkingConfig) generationConfig.thinkingConfig = thinkingConfig;
   return { ...payload, generationConfig };
+}
+
+/** True when this payload asked for thinking to be disabled. */
+export function wantsThinkingOff(payload) {
+  return Boolean(payload?.generationConfig?.__thinkingOff);
 }
