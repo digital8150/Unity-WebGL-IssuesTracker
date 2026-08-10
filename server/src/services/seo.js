@@ -164,6 +164,63 @@ function replaceCanonical(html, url) {
   return pattern.test(html) ? html.replace(pattern, tag) : html.replace('</head>', `  ${tag}\n  </head>`);
 }
 
+function markdownToPlainText(value) {
+  return String(value ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/^\s{0,3}(?:[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/^\s*([-*_])(?:\s*\1){2,}\s*$/gm, '')
+    .replace(/[*_~`]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function renderPreviewParagraphs(value, className) {
+  const plainText = markdownToPlainText(value);
+  if (!plainText) return '';
+
+  return plainText
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p class="${className}">${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`)
+    .join('');
+}
+
+/**
+ * Render the small, visible HTML preview shown before React replaces the shell.
+ * This intentionally uses plain text instead of the client Markdown renderer so
+ * the SEO layer does not grow a second, full Markdown rendering pipeline.
+ */
+export function renderSeoPreview({ title, summary = '', body = '', items = [] } = {}) {
+  const itemMarkup = (Array.isArray(items) ? items : [])
+    .slice(0, 12)
+    .map((item) => {
+      const itemTitle = markdownToPlainText(item?.title ?? item?.name);
+      if (!itemTitle) return '';
+      const itemSummary = markdownToPlainText(item?.summary ?? item?.description);
+      const href = String(item?.href || '');
+      const titleMarkup = href
+        ? `<a href="${escapeHtml(href)}">${escapeHtml(itemTitle)}</a>`
+        : `<strong>${escapeHtml(itemTitle)}</strong>`;
+      return `<li class="seo-preview-item">${titleMarkup}${itemSummary ? `<p>${escapeHtml(itemSummary)}</p>` : ''}</li>`;
+    })
+    .join('');
+
+  const listMarkup = itemMarkup ? `<ul class="seo-preview-list">${itemMarkup}</ul>` : '';
+  const titleText = markdownToPlainText(title);
+  const summaryMarkup = renderPreviewParagraphs(summary, 'seo-preview-summary');
+  const bodyMarkup = renderPreviewParagraphs(body, 'seo-preview-body');
+
+  return `<div id="seo-preview"><div class="seo-preview-nav"><span>BCSDLab. Arcade</span></div><main class="seo-preview-main"><article class="seo-preview-article"><h1>${escapeHtml(titleText)}</h1>${summaryMarkup}${bodyMarkup}${listMarkup}</article></main></div>`;
+}
+
 export function injectSeoHtml(html, {
   title,
   description,
@@ -172,6 +229,7 @@ export function injectSeoHtml(html, {
   type = 'website',
   robots = 'index,follow',
   jsonLd = null,
+  preview = null,
   bootstrap = null,
 }) {
   let result = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(title)}</title>`);
@@ -192,13 +250,22 @@ export function injectSeoHtml(html, {
     : '';
   result = result.replace('<!-- SEO_JSON_LD -->', jsonLdTag);
 
-  if (bootstrap !== null && bootstrap !== undefined) {
-    const serialized = JSON.stringify(bootstrap);
-    if (serialized) {
-      const bootstrapTag = `<script type="application/json" id="__SSR_DATA__">${serialized.replace(/</g, '\\u003c')}</script>`;
-      const rootOpenTag = /<div\s+id=(['"])root\1[^>]*>/i;
-      result = result.replace(rootOpenTag, (openingTag) => `${bootstrapTag}${openingTag}`);
-    }
+  const serializedBootstrap = bootstrap === null || bootstrap === undefined
+    ? ''
+    : JSON.stringify(bootstrap);
+  const bootstrapTag = serializedBootstrap
+    ? `<script type="application/json" id="__SSR_DATA__">${serializedBootstrap.replace(/</g, '\\u003c')}</script>`
+    : '';
+  const previewMarkup = preview === null || preview === undefined ? '' : renderSeoPreview(preview);
+
+  if (bootstrapTag || previewMarkup) {
+    const rootOpenTag = /<div\s+id=(['"])root\1[^>]*>/i;
+    result = result.replace(rootOpenTag, (openingTag) => {
+      const previewRootTag = previewMarkup
+        ? openingTag.replace(/>$/, ' data-seo-preview="true">')
+        : openingTag;
+      return `${bootstrapTag}${previewRootTag}${previewMarkup}`;
+    });
   }
 
   return result;

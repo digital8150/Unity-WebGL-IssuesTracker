@@ -166,6 +166,10 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
         inLanguage: 'ko-KR',
         publisher: { '@type': 'Organization', name: 'BCSDLab.' },
       },
+      preview: {
+        title: HOME_TITLE,
+        summary: HOME_DESCRIPTION,
+      },
     }));
   });
 
@@ -195,6 +199,11 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: siteOrigin },
           publisher: { '@type': 'Organization', name: 'BCSDLab.' },
         } : null,
+        preview: {
+          title: '개인정보처리방침',
+          summary: PRIVACY_DESCRIPTION,
+          body: `시행일자: ${version.effectiveDate}`,
+        },
       }));
     }).catch(next);
   }
@@ -222,9 +231,10 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       const shell = await readShell(next);
       if (!shell) return;
       const url = `${siteOrigin}/arcade`;
+      const description = 'BCSDLab. Game Track이 공개한 Unity WebGL 게임을 브라우저에서 바로 플레이하세요.';
       sendHtml(res, injectSeoHtml(shell, {
         title: `Arcade — ${SITE_NAME}`,
-        description: 'BCSDLab. Game Track이 공개한 Unity WebGL 게임을 브라우저에서 바로 플레이하세요.',
+        description,
         image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
         url,
         jsonLd: {
@@ -247,6 +257,15 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           route: '/arcade',
           url: req.originalUrl,
           data: { games: visibleGames.map(toPublicArcadeGame) },
+        },
+        preview: {
+          title: 'Arcade',
+          summary: description,
+          items: visibleGames.map((game) => ({
+            title: game.name,
+            summary: game.description,
+            href: `/play/${game.slug}`,
+          })),
         },
       }));
     } catch (err) {
@@ -274,9 +293,10 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       if (!shell) return;
       const url = page === 1 ? `${siteOrigin}/blog` : `${siteOrigin}/blog?page=${page}`;
       const canBootstrap = !req.query.tag && !req.query.q;
+      const description = 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.';
       sendHtml(res, injectSeoHtml(shell, {
         title: page === 1 ? `블로그 — ${SITE_NAME}` : `블로그 ${page}페이지 — ${SITE_NAME}`,
-        description: 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.',
+        description,
         image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
         url,
         jsonLd: {
@@ -296,6 +316,15 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
             pages,
           },
         } : null,
+        preview: {
+          title: page === 1 ? '블로그' : `블로그 ${page}페이지`,
+          summary: description,
+          items: canBootstrap ? posts.map((post) => ({
+            title: post.title,
+            summary: post.summary,
+            href: `/blog/${post.slug}`,
+          })) : [],
+        },
       }));
     } catch (err) {
       next(err);
@@ -335,6 +364,11 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           route: '/blog/:slug',
           url: req.originalUrl,
           data: { post: toPublicBlogPost(post) },
+        },
+        preview: {
+          title: post.title,
+          summary: post.summary || DEFAULT_DESCRIPTION,
+          body: post.content,
         },
       }));
     } catch (err) {
@@ -390,6 +424,15 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
             articles: articles.map(toPublicGameArticleSummary),
           },
         },
+        preview: {
+          title: `${game.name} · 게임 아티클`,
+          summary: description,
+          items: articles.map((article) => ({
+            title: article.title,
+            summary: article.summary,
+            href: `/play/${game.slug}/articles/${article.slug}`,
+          })),
+        },
       }));
     } catch (err) {
       next(err);
@@ -413,9 +456,10 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       if (!shell) return;
       const url = `${siteOrigin}/play/${game.slug}/articles/${article.slug}`;
       const image = publicImageUrl(article.coverImageUrl || game.thumbnailUrl, siteOrigin);
+      const description = article.summary || game.description || DEFAULT_DESCRIPTION;
       sendHtml(res, injectSeoHtml(shell, {
         title: `${article.title} · ${game.name} — ${SITE_NAME}`,
-        description: article.summary || game.description || DEFAULT_DESCRIPTION,
+        description,
         image,
         url,
         type: 'article',
@@ -424,7 +468,7 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           '@context': 'https://schema.org',
           '@type': 'Article',
           headline: article.title,
-          description: article.summary || game.description || DEFAULT_DESCRIPTION,
+          description,
           image,
           url,
           datePublished: article.publishedAt || article.createdAt,
@@ -439,6 +483,11 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
             game: toPublicGame(game),
             article: toPublicGameArticle(article),
           },
+        },
+        preview: {
+          title: article.title,
+          summary: description,
+          body: article.content,
         },
       }));
     } catch (err) {
@@ -466,9 +515,15 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       const canonical = `${siteOrigin}/play/${game.slug}`;
       const image = publicImageUrl(game.thumbnailUrl, siteOrigin);
       const reviewSeo = getGameReviewSeoData(game.reviewInfo);
+      const description = game.description || DEFAULT_DESCRIPTION;
+      const previewBody = [
+        game.ownerId?.name ? `개발자: ${game.ownerId.name}` : '',
+        build.version ? `버전: ${build.version}` : '',
+        '브라우저에서 게임을 플레이하고 버그 또는 제안을 제출할 수 있습니다.',
+      ].filter(Boolean).join('\n\n');
       sendHtml(res, injectSeoHtml(shell, {
         title: `${game.name} — ${SITE_NAME}`,
-        description: game.description || DEFAULT_DESCRIPTION,
+        description,
         image,
         url: canonical,
         robots: isPublic ? 'index,follow' : 'noindex,follow',
@@ -476,7 +531,7 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           '@context': 'https://schema.org',
           '@type': 'VideoGame',
           name: game.name,
-          description: game.description || DEFAULT_DESCRIPTION,
+          description,
           image,
           url: canonical,
           gamePlatform: 'Web browser',
@@ -503,6 +558,16 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
             build: toPublicBuild(build),
             articles: articles.map(toPublicGameArticleSummary),
           },
+        },
+        preview: {
+          title: game.name,
+          summary: description,
+          body: previewBody,
+          items: articles.map((article) => ({
+            title: article.title,
+            summary: article.summary,
+            href: `/play/${game.slug}/articles/${article.slug}`,
+          })),
         },
       }), isPublic ? undefined : 'private, no-store');
     } catch (err) {

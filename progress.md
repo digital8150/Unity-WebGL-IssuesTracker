@@ -133,3 +133,9 @@ implementation details. Entries are written in English for agent readability.
 - Added route HTML bootstrap contract, sensitive-field, injection, and client-reader tests. Commit: `4e0f003`.
 - Verification: `cd server; npm test` (33 passing), server `node --check`, `cd web; npm run build`, and `git diff --check` passed.
 - Manual JS-on/API-blocked browser verification is pending because no browser session was available in this environment; run it before deployment, then verify rendered content in GSC.
+
+## 2026-08-10 (visible SEO preview follow-up)
+
+- Restored a small visible `#seo-preview` inside `#root` for every public SEO response: H1, summary, plain-text body/list content; no `aria-hidden`, transparent color, or hidden media.
+- Kept `__SSR_DATA__` unchanged and made the preview replace the inline shell skeleton until `createRoot` mounts; server preview uses plain-text Markdown cleanup, not a second Markdown HTML renderer.
+- Added route/injection assertions that raw public HTML contains non-empty visible text; server tests: 34 passing; web build passed.

@@ -149,6 +149,11 @@ function parseBootstrap(html) {
   return match ? JSON.parse(match[1]) : null;
 }
 
+function parseVisiblePreview(html) {
+  const match = html.match(/<div id="seo-preview">([\s\S]*?<\/article><\/main><\/div>)/);
+  return match?.[1] ?? '';
+}
+
 function collectKeys(value, keys = []) {
   if (!value || typeof value !== 'object') return keys;
   if (Array.isArray(value)) {
@@ -181,7 +186,16 @@ for (const testCase of cases) {
     const response = await getAppResponse(testCase.url);
     assert.equal(response.status, 200);
     const html = await response.text();
+    const preview = parseVisiblePreview(html);
     const payload = parseBootstrap(html);
+
+    assert.ok(preview, 'expected visible SEO preview HTML in the response');
+    assert.match(preview, /<h1>[^<]+<\/h1>/);
+    assert.doesNotMatch(preview, /aria-hidden|color:\s*transparent|opacity:\s*0/);
+    assert.ok(
+      preview.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().length > 0,
+      'visible SEO preview must contain text outside the bootstrap JSON',
+    );
 
     if (!testCase.route) {
       assert.equal(payload, null);
@@ -209,4 +223,3 @@ test('public route bootstrap payloads contain no private or administrative field
     assert.deepEqual(leakedKeys, [], `${testCase.url} leaked private bootstrap fields`);
   }
 });
-

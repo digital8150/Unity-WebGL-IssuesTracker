@@ -100,6 +100,27 @@ test('bootstrap JSON is injected before #root and cannot break out of its script
   );
 });
 
+test('visible SEO preview is injected inside #root without hiding its text', async () => {
+  const result = injectSeoHtml(
+    await readShell(),
+    baseOptions({
+      preview: {
+        title: 'Preview title',
+        summary: 'Preview summary',
+        body: '# Body heading\n\nBody **text**',
+      },
+    }),
+  );
+  const match = result.match(/<div id="seo-preview">([\s\S]*?<\/article><\/main><\/div>)/);
+
+  assert.ok(match, 'injectSeoHtml must emit a visible preview when preview data is provided');
+  assert.match(match[1], /<h1>Preview title<\/h1>/);
+  assert.match(match[1], /Preview summary/);
+  assert.match(match[1], /Body text/);
+  assert.doesNotMatch(match[1], /aria-hidden|color:\s*transparent|opacity:\s*0/);
+  assert.match(result, /<div id="root" data-seo-preview="true">/);
+});
+
 test('omitting bootstrap leaves no bootstrap script in the shell', async () => {
   const result = injectSeoHtml(await readShell(), baseOptions());
 
