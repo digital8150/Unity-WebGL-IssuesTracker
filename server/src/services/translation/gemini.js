@@ -1,6 +1,6 @@
 import { fetchJson } from './http.js';
 import { log, warn } from './log.js';
-import { withoutThinkingConfig } from './prompt.js';
+import { withThinkingVariant, wantsThinkingOff } from './prompt.js';
 
 const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -18,19 +18,32 @@ export async function listModels(apiKey, { fetcher = fetchJson } = {}) {
   }));
 }
 
-// Models that rejected `thinkingConfig`. Populated at runtime so one 400 per
-// model is the entire cost of discovering it, instead of a dead-lettered queue.
-const noThinkingConfigSupport = new Set();
+// How to switch reasoning off, in the order we try it.
+//
+// The parameter is generation-specific and Gemini never names the field it
+// rejected — gemini-3.6-flash answers a bare "400 Request contains an invalid
+// argument." to `thinkingBudget`. Probed directly against the API:
+//   thinkingLevel: 'low'  -> 200, thoughtsTokenCount 0   (Gemini 3.x)
+//   thinkingBudget: 0     -> 400                          (Gemini 3.x)
+//   thinkingBudget: 0     -> 200                          (Gemini 2.5.x)
+//   omitted entirely      -> 200, but reasoning stays ON
+// Sending the wrong one used to strip thinking control altogether, so the model
+// spent most of its output budget thinking and the answer came back truncated.
+const THINKING_OFF_VARIANTS = [
+  { label: "thinkingLevel:'low'", config: { thinkingLevel: 'low' } },
+  { label: 'thinkingBudget:0', config: { thinkingConfig: { thinkingBudget: 0 } } },
+  { label: 'none', config: null },
+];
 
-// Gemini does not name the offending field when it refuses `thinkingConfig`:
-// gemini-3.5-flash-lite answers a bare `400 Request contains an invalid
-// argument.` with no `fieldViolations` and no mention of thinking anywhere in
-// the body. Matching on the message therefore never fired, and every row in the
-// queue dead-lettered. Treat any 400 as a candidate: `thinkingConfig` is the
-// only optional field we add, a 400 is deterministic so retrying costs exactly
-// one request, and if the argument was actually invalid for some other reason
-// the retry surfaces that error instead.
-function rejectsThinkingConfig(error) {
+// model -> index into THINKING_OFF_VARIANTS that the model accepted.
+const thinkingVariantByModel = new Map();
+
+function normalizeVariant(entry) {
+  if (!entry.config) return null;
+  return entry.config.thinkingConfig ? entry.config.thinkingConfig : entry.config;
+}
+
+function rejectsRequest(error) {
   return error?.status === 400;
 }
 
@@ -46,20 +59,33 @@ export async function generateContent(model, payload, apiKey, { fetcher = fetchJ
     body: JSON.stringify(sent),
   });
 
-  const effective = noThinkingConfigSupport.has(modelPath) ? withoutThinkingConfig(payload) : payload;
   let body;
-  try {
-    body = await request(effective);
-  } catch (error) {
-    if (!rejectsThinkingConfig(error) || !effective?.generationConfig?.thinkingConfig) {
-      if (error?.status === 400) {
-        warn(`    ${modelPath} HTTP 400 body: ${JSON.stringify(error.body?.error?.details || error.body?.error?.message || error.body || {}).slice(0, 400)}`);
+  if (!wantsThinkingOff(payload)) {
+    body = await request(withThinkingVariant(payload, null));
+  } else {
+    // Start from whatever this model accepted last time, then walk the list.
+    let index = thinkingVariantByModel.get(modelPath) ?? 0;
+    for (;;) {
+      const entry = THINKING_OFF_VARIANTS[index];
+      try {
+        body = await request(withThinkingVariant(payload, normalizeVariant(entry)));
+        if (thinkingVariantByModel.get(modelPath) !== index) {
+          thinkingVariantByModel.set(modelPath, index);
+          log(`    ${modelPath} disables reasoning with ${entry.label}`);
+        }
+        break;
+      } catch (error) {
+        const next = index + 1;
+        if (!rejectsRequest(error) || next >= THINKING_OFF_VARIANTS.length) {
+          if (error?.status === 400) {
+            warn(`    ${modelPath} HTTP 400 body: ${JSON.stringify(error.body?.error?.details || error.body?.error?.message || error.body || {}).slice(0, 400)}`);
+          }
+          throw error;
+        }
+        warn(`    ${modelPath} rejected ${entry.label} — trying ${THINKING_OFF_VARIANTS[next].label}`);
+        index = next;
       }
-      throw error;
     }
-    warn(`    ${modelPath} rejected thinkingConfig (HTTP 400) — retrying without it and remembering for this process`);
-    noThinkingConfigSupport.add(modelPath);
-    body = await request(withoutThinkingConfig(effective));
   }
   const candidate = body?.candidates?.[0];
   const text = candidate?.content?.parts
@@ -75,6 +101,12 @@ export async function generateContent(model, payload, apiKey, { fetcher = fetchJ
   log(`    gemini ${model} · finish=${finish} · text=${text.length}ch · tokens in=${usage.promptTokenCount ?? '?'} out=${usage.candidatesTokenCount ?? '?'} thoughts=${usage.thoughtsTokenCount ?? 0} total=${usage.totalTokenCount ?? '?'}`);
   if (finish !== 'STOP' && finish !== 'none') {
     warn(`    gemini stopped early: finishReason=${finish}${candidate?.finishMessage ? ` (${candidate.finishMessage})` : ''}`);
+    const thoughts = Number(usage.thoughtsTokenCount) || 0;
+    const written = Number(usage.candidatesTokenCount) || 0;
+    if (finish === 'MAX_TOKENS' && thoughts > written) {
+      warn(`    the output budget went mostly to reasoning (${thoughts} thought vs ${written} written)`
+        + ` — raise maxOutputTokens or use a model whose thinking can be disabled`);
+    }
   }
 
   if (!text) {
