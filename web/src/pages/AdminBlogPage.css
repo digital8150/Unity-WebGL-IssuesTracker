@@ -98,6 +98,30 @@
   color: var(--color-mute);
 }
 
+.ablog-translation-status {
+  display: inline-flex;
+  margin-left: 6px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.ablog-translation-status.ready {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.ablog-translation-status.stale,
+.ablog-translation-status.failed {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .ablog-tags-cell {
   display: flex;
   flex-wrap: wrap;

@@ -5,13 +5,12 @@ import PageLink from '../components/PageLink.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { listGames, createGame } from '../api.js';
 import StorageBar from '../components/StorageBar.jsx';
-import BrandLogo from '../components/BrandLogo.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import DashSidebar from '../components/DashSidebar.jsx';
 import './DashboardPage.css';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { t } = useI18n();
   const navigate = usePageNavigate();
 
   const [games, setGames] = useState([]);
@@ -53,34 +52,7 @@ export default function DashboardPage() {
   return (
     <div className="dash-layout">
       {/* Sidebar */}
-      <aside className="dash-sidebar">
-        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
-        <nav className="dash-nav">
-          <span className="dash-nav-item active">{t.dash.title}</span>
-          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
-          <PageLink className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
-          {user?.role === 'admin' && (
-            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
-          )}
-        </nav>
-        <div className="dash-sidebar-footer">
-          <StorageBar label={t.storage.label} />
-          <div className="dash-user">
-            <div className="dash-avatar">{user?.name?.[0]?.toUpperCase()}</div>
-            <div className="dash-user-info">
-              <div className="dash-user-name">{user?.name}</div>
-              <div className="dash-user-email">{user?.email}</div>
-            </div>
-          </div>
-          <div className="dash-footer-row">
-            <button className="dash-footer-btn" onClick={toggleLang}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-            <DarkModeToggle />
-          </div>
-          <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
-        </div>
-      </aside>
+      <DashSidebar user={user} active="dashboard" backLabel={t.dash.title} storage={<StorageBar label={t.storage.label} />} onLogout={handleLogout} />
 
       {/* Main */}
       <main className="dash-main">

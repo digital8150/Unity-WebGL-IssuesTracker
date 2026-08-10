@@ -12,6 +12,8 @@ import { assetUrl } from '../utils/gameVisuals.js';
 import { gameTransitionName } from '../utils/gameTransitions.js';
 import { readSsrData } from '../utils/ssrData.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { withLocale } from '../i18n/localePath.js';
+import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
 import './PlayPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -59,6 +61,7 @@ export default function PlayPage() {
   const initialArticles = Array.isArray(bootstrap?.articles) ? bootstrap.articles : [];
   const hasBootstrap = Boolean(initialBuildInfo);
   const [buildInfo, setBuildInfo] = useState(initialBuildInfo);
+  const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const [loadError, setLoadError] = useState('');
   const [articles, setArticles] = useState(initialArticles);
   const [articlesLoading, setArticlesLoading] = useState(!hasBootstrap);
@@ -84,10 +87,13 @@ export default function PlayPage() {
     }
     setBuildInfo(null);
     setLoadError('');
-    getPlayInfo(gameSlug, buildId || null)
-      .then(setBuildInfo)
+    getPlayInfo(gameSlug, buildId || null, lang)
+      .then((response) => {
+        setTranslation(response.translation ?? null);
+        setBuildInfo(response);
+      })
       .catch((err) => setLoadError(err.message));
-  }, [gameSlug, buildId]);
+  }, [gameSlug, buildId, lang]);
 
   useEffect(() => {
     if (bootstrapArticlesPendingRef.current) {
@@ -102,11 +108,11 @@ export default function PlayPage() {
     }
     setArticles([]);
     setArticlesLoading(true);
-    listPublicGameArticles(gameSlug)
+    listPublicGameArticles(gameSlug, lang)
       .then(({ articles: loadedArticles }) => setArticles(loadedArticles ?? []))
       .catch(() => setArticles([]))
       .finally(() => setArticlesLoading(false));
-  }, [gameSlug, buildInfo]);
+  }, [gameSlug, buildInfo, lang]);
 
   useEffect(() => {
     if (!gameSlug) {
@@ -114,13 +120,13 @@ export default function PlayPage() {
       return undefined;
     }
     setRelatedGames([]);
-    getArcadeGames()
+    getArcadeGames(lang)
       .then(({ games }) => {
         setRelatedGames((games ?? []).filter((game) => game.slug !== gameSlug).slice(0, 3));
       })
       .catch(() => setRelatedGames([]));
     return undefined;
-  }, [gameSlug]);
+  }, [gameSlug, lang]);
 
   useEffect(() => {
     window.__issueTrackerReceive = (payloadJson) => {
@@ -155,7 +161,16 @@ export default function PlayPage() {
 
   const SITE = 'BCSDLab. Arcade';
   const isRealBuild = Boolean(gameSlug && buildInfo);
-  const canonicalUrl = gameSlug ? `${window.location.origin}/play/${gameSlug}` : window.location.href;
+  const canonicalPath = gameSlug ? `/play/${gameSlug}${buildId ? `/${buildId}` : ''}` : '/play';
+  const canonicalUrl = gameSlug ? `${window.location.origin}${withLocale(canonicalPath, lang)}` : window.location.href;
+    const metaCanonicalUrl = lang === 'en' && (!translation || translation.noindex)
+    ? `${window.location.origin}${withLocale(canonicalPath, 'ko')}`
+    : canonicalUrl;
+  const alternateLinks = translation && !translation.noindex ? [
+    { hreflang: 'ko', href: `${window.location.origin}${withLocale(canonicalPath, 'ko')}` },
+    { hreflang: 'en', href: `${window.location.origin}${withLocale(canonicalPath, 'en')}` },
+    { hreflang: 'x-default', href: `${window.location.origin}${withLocale(canonicalPath, 'ko')}` },
+  ] : null;
   const seoReviewInfo = isRealBuild && buildInfo.reviewInfo?.enabled ? buildInfo.reviewInfo : null;
   const seoRatingLabel = seoReviewInfo?.rating
     ? (t.gameDetail.reviewRatings[seoReviewInfo.rating] ?? seoReviewInfo.rating)
@@ -179,7 +194,7 @@ export default function PlayPage() {
     '@type': 'Article',
     headline: article.title,
     description: article.summary || undefined,
-    url: `${window.location.origin}/play/${gameSlug}/articles/${article.slug}`,
+    url: `${window.location.origin}${withLocale(`/play/${gameSlug}/articles/${article.slug}`, lang)}`,
     datePublished: article.publishedAt || article.createdAt,
     dateModified: article.updatedAt || article.publishedAt || article.createdAt,
   }));
@@ -187,16 +202,17 @@ export default function PlayPage() {
     title: `${buildInfo.gameName} — ${SITE}`,
     description: buildInfo.description || undefined,
     image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
-    url: canonicalUrl,
+    url: metaCanonicalUrl,
     type: 'website',
-    robots: buildInfo.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+      robots: lang === 'en' && (!translation || translation.noindex) ? 'noindex,follow' : (buildInfo.visibility === 'public' ? 'index,follow' : 'noindex,follow'),
+    alternates: alternateLinks,
     jsonLd: buildInfo.visibility === 'public' ? {
       '@context': 'https://schema.org',
       '@type': 'VideoGame',
       name: buildInfo.gameName,
       description: buildInfo.description || undefined,
       image: buildInfo.thumbnailUrl ? `${API_BASE}${buildInfo.thumbnailUrl}` : undefined,
-      url: canonicalUrl,
+      url: metaCanonicalUrl,
       gamePlatform: 'Web browser',
       applicationCategory: 'Game',
       author: buildInfo.developerName ? { '@type': 'Person', name: buildInfo.developerName } : undefined,
@@ -343,6 +359,7 @@ export default function PlayPage() {
               <span>{buildVersion ? `${t.home.versionPrefix}${buildVersion}` : t.play.noVersion}</span>
             </div>
             <p className="play-description">{description || t.play.descriptionEmpty}</p>
+            <MachineTranslationNotice translation={translation} path={canonicalPath} />
 
             {!articlesLoading && articles.length > 0 && (
               <section className="play-articles-section">

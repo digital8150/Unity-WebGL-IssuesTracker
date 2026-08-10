@@ -6,14 +6,16 @@ import GameCard from '../components/GameCard.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { readSsrData } from '../utils/ssrData.js';
+import { withLocale } from '../i18n/localePath.js';
 import './ArcadePage.css';
 
 export default function ArcadePage() {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const bootstrap = readSsrData('/arcade');
   const initialGames = Array.isArray(bootstrap?.games) ? bootstrap.games : [];
   const hasBootstrap = Array.isArray(bootstrap?.games);
   const [games, setGames] = useState(initialGames);
+  const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const [activeTransitionId, setActiveTransitionId] = useState(null);
   const [loading, setLoading] = useState(!hasBootstrap);
   const bootstrapPendingRef = useRef(hasBootstrap);
@@ -21,7 +23,7 @@ export default function ArcadePage() {
   useDocumentMeta({
     title: `${t.arcade.title} — BCSDLab. Arcade`,
     description: t.arcade.sub,
-    url: `${window.location.origin}/arcade`,
+    url: `${window.location.origin}${withLocale('/arcade', lang)}`,
     type: 'website',
   });
 
@@ -32,9 +34,16 @@ export default function ArcadePage() {
     }
 
     let cancelled = false;
-    getArcadeGames()
-      .then(({ games: loadedGames }) => {
-        if (!cancelled) setGames(loadedGames ?? []);
+    getArcadeGames(lang)
+      .then(({ games: loadedGames, translation: translationInfo }) => {
+        if (!cancelled) {
+          setGames(loadedGames ?? []);
+          if (lang === 'en' && translationInfo && Object.values(translationInfo).some((row) => row?.origin === 'machine')) {
+            setTranslation({ origin: 'machine' });
+          } else if (lang === 'en') {
+            setTranslation(null);
+          }
+        }
       })
       .catch(() => {
         if (!cancelled) setGames([]);
@@ -43,7 +52,7 @@ export default function ArcadePage() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [lang]);
 
   return (
     <div className="arcade-page">

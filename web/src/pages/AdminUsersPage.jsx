@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import PageLink from '../components/PageLink.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { listAllUsers, updateUser, deleteUser } from '../api.js';
-import BrandLogo from '../components/BrandLogo.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import DashSidebar from '../components/DashSidebar.jsx';
 import './DashboardPage.css';
 import './AdminUsersPage.css';
 
@@ -13,7 +11,7 @@ const FILTERS = ['all', 'pending', 'approved', 'rejected'];
 
 export default function AdminUsersPage() {
   const { user: me, logout } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { t } = useI18n();
   const navigate = usePageNavigate();
 
   const [users, setUsers] = useState([]);
@@ -79,31 +77,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="dash-layout">
-      <aside className="dash-sidebar">
-        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
-        <nav className="dash-nav">
-          <PageLink className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</PageLink>
-          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
-          <PageLink className="dash-nav-item" to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
-          <span className="dash-nav-item active">{t.nav.admin}</span>
-        </nav>
-        <div className="dash-sidebar-footer">
-          <div className="dash-user">
-            <div className="dash-avatar">{me?.name?.[0]?.toUpperCase()}</div>
-            <div className="dash-user-info">
-              <div className="dash-user-name">{me?.name}</div>
-              <div className="dash-user-email">{me?.email}</div>
-            </div>
-          </div>
-          <div className="dash-footer-row">
-            <button className="dash-footer-btn" onClick={toggleLang}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-            <DarkModeToggle />
-          </div>
-          <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
-        </div>
-      </aside>
+      <DashSidebar user={me} active="admin" onLogout={handleLogout} />
 
       <main className="dash-main">
         <header className="dash-header">

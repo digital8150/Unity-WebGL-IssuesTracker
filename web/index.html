@@ -46,6 +46,12 @@
         // localStorage cannot cost us the correct skeleton variant too.
         try {
           var path = window.location.pathname;
+          if (path === '/en' || path.indexOf('/en/') === 0) {
+            root.setAttribute('lang', 'en');
+            path = path.slice(3) || '/';
+          } else {
+            root.setAttribute('lang', 'ko');
+          }
           if (path.length > 1 && path.charAt(path.length - 1) === '/') {
             path = path.slice(0, -1); // React Router treats /login/ as /login.
           }
@@ -58,6 +64,8 @@
             shell = 'dash';
           }
           root.setAttribute('data-shell', shell);
+          document.querySelector('link[rel="canonical"]')?.setAttribute('href', window.location.href);
+          document.querySelector('meta[property="og:url"]')?.setAttribute('content', window.location.href);
         } catch (e) {
           root.setAttribute('data-shell', 'public');
         }
@@ -132,6 +140,30 @@
         font-size: clamp(32px, 5vw, 56px);
         line-height: 1.08;
         letter-spacing: -0.04em;
+      }
+
+      .seo-preview-notice {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-xxs, 4px) var(--space-xs, 8px);
+        align-items: baseline;
+        margin: 0 0 var(--space-md, 16px);
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        color: var(--color-mute, rgba(255, 255, 255, 0.56));
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .seo-preview-notice a {
+        color: inherit;
+        text-underline-offset: 2px;
+      }
+
+      :root[data-theme="light"] .seo-preview-notice {
+        color: var(--color-mute, rgba(23, 23, 23, 0.58));
       }
 
       .seo-preview-summary,

@@ -6,6 +6,10 @@ import BlogPost from '../models/BlogPost.js';
 import { requireAuth, requireApproved, requireAdmin, optionalAuth } from '../middleware/auth.js';
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { BLOG_IMAGE_MAX_BYTES, convertGifToMp4 } from '../services/blogMedia.js';
+import Translation from '../models/Translation.js';
+import SiteSettings from '../models/SiteSettings.js';
+import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
+import { enqueue } from '../services/translation/queue.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
@@ -57,7 +61,11 @@ router.get('/', async (req, res, next) => {
       BlogPost.countDocuments(filter),
     ]);
 
-    res.json({ posts, total, page, limit, pages: Math.ceil(total / limit) });
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const rows = await loadTranslations('BlogPost', posts.map((post) => post._id), req.query.locale, Translation);
+    const translatedPosts = posts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), req.query.locale, publishEnabled), 'BlogPost'));
+    const translations = Object.fromEntries(posts.map((post) => [String(post._id), publicTranslationMeta(rows.get(String(post._id)), req.query.locale, publishEnabled)]));
+    res.json({ posts: translatedPosts, translation: translations, translations, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     next(err);
   }
@@ -70,7 +78,9 @@ router.get('/:slug', async (req, res, next) => {
       .populate('author', 'name')
       .lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
-    res.json({ post });
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const row = (await loadTranslations('BlogPost', [post._id], req.query.locale, Translation)).get(String(post._id));
+    res.json({ post: mergeTranslation(post, publicTranslation(row, req.query.locale, publishEnabled), 'BlogPost'), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }
@@ -187,7 +197,18 @@ router.get(
         .populate('author', 'name')
         .select('-content')
         .lean();
-      res.json({ posts });
+      const rows = await Translation.find({
+        refType: 'BlogPost',
+        refId: { $in: posts.map((post) => post._id) },
+        locale: 'en',
+      }).select('refId status origin noindex').lean();
+      const byRefId = new Map(rows.map((row) => [String(row.refId), row]));
+      res.json({
+        posts: posts.map((post) => ({
+          ...post,
+          translationStatus: byRefId.get(String(post._id)) ?? null,
+        })),
+      });
     } catch (err) {
       next(err);
     }
@@ -244,6 +265,7 @@ router.post(
         author: req.user.sub,
       });
       await post.save();
+      enqueue({ refType: 'BlogPost', refId: post._id, source: post.toObject(), priority: post.published ? 10 : 0 }).catch((error) => console.error('[translation enqueue]', error));
       res.status(201).json({ post });
     } catch (err) {
       if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
@@ -277,6 +299,7 @@ router.patch(
       const post = await BlogPost.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true })
         .populate('author', 'name')
         .lean();
+      enqueue({ refType: 'BlogPost', refId: post._id, source: post }).catch((error) => console.error('[translation enqueue]', error));
       res.json({ post });
     } catch (err) {
       if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
@@ -297,6 +320,7 @@ router.delete(
         return res.status(403).json({ error: 'Forbidden' });
       }
       await post.deleteOne();
+      Translation.deleteOne({ refType: 'BlogPost', refId: post._id, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
       res.json({ ok: true });
     } catch (err) {
       next(err);

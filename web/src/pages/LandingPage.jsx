@@ -9,6 +9,7 @@ import { BlogMedia } from '../components/BlogMedia.jsx';
 import { assetUrl, gradientFor } from '../utils/gameVisuals.js';
 import { activateGameTransitionSource, gameTransitionName } from '../utils/gameTransitions.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { withLocale } from '../i18n/localePath.js';
 import './LandingPage.css';
 
 function formatArticleDate(dateStr, lang) {
@@ -60,7 +61,7 @@ export default function LandingPage() {
   useDocumentMeta({
     title: t.home.seoTitle,
     description: t.home.seoDescription,
-    url: window.location.origin,
+    url: `${window.location.origin}${withLocale('/', lang)}`,
     type: 'website',
   });
 
@@ -70,8 +71,8 @@ export default function LandingPage() {
     setArticlesLoading(true);
 
     Promise.allSettled([
-      getArcadeGames(),
-      listBlogPosts({ page: 1, limit: 3 }),
+      getArcadeGames(lang),
+      listBlogPosts({ page: 1, limit: 3, locale: lang }),
     ]).then(([gamesResult, postsResult]) => {
       if (cancelled) return;
       if (gamesResult.status === 'fulfilled') {
@@ -88,7 +89,7 @@ export default function LandingPage() {
     });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [lang]);
 
   const featuredGame = games.find((game) => game.id === selectedGameId) ?? games[0] ?? null;
   const featuredTransitionName = featuredGame ? gameTransitionName(featuredGame.slug) : undefined;

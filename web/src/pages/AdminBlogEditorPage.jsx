@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
@@ -15,10 +13,11 @@ import {
   createGameArticle,
   updateGameArticle,
 } from '../api.js';
-import BrandLogo from '../components/BrandLogo.jsx';
+import DashSidebar from '../components/DashSidebar.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
-import { createBlogMarkdownRenderer, isVideoMediaUrl } from '../utils/blogMedia.js';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { isVideoMediaUrl } from '../utils/blogMedia.js';
+import { renderMarkdown } from '../utils/renderMarkdown.js';
+import TranslationEditorPanel, { useTranslationEditor } from '../components/TranslationEditorPanel.jsx';
 import PageLink from '../components/PageLink.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './DashboardPage.css';
@@ -26,16 +25,6 @@ import './BlogPostPage.css';
 import './AdminBlogEditorPage.css';
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
-marked.setOptions({ breaks: true, gfm: true });
-
-function renderMarkdown(raw) {
-  const html = marked.parse(raw || '', { renderer: createBlogMarkdownRenderer(marked.Renderer) });
-  return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['source', 'video'],
-    ADD_ATTR: ['aria-label', 'autoplay', 'height', 'loop', 'muted', 'playsinline', 'preload', 'src', 'type', 'width'],
-  });
-}
-
 // ── Unsplash Presets ──────────────────────────────────────────────────────────
 const UNSPLASH_PRESETS = [
   {
@@ -228,11 +217,15 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
   const isEdit = Boolean(id);
   const navigate = usePageNavigate();
   const { user: me, logout } = useAuth();
-  const { lang, toggleLang, t: baseT } = useI18n();
+  const { lang, t: baseT } = useI18n();
   // The same markdown editor powers the global blog and each game's article CMS.
   const t = isGameScope
     ? { ...baseT, blog: { ...baseT.blog, ...baseT.gameArticles } }
     : baseT;
+  const isEnglish = lang === 'en';
+  const translationRefType = isGameScope ? 'GameArticle' : 'BlogPost';
+  const translation = useTranslationEditor(translationRefType, isEdit ? id : null);
+  const translationReady = Boolean(translation.row && ['ready', 'stale'].includes(translation.row.status));
 
   // Form state
   const [title, setTitle] = useState('');
@@ -243,6 +236,10 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [tags, setTags] = useState('');
   const [published, setPublished] = useState(false);
+  const [sourceTitle, setSourceTitle] = useState('');
+  const [sourceSummary, setSourceSummary] = useState('');
+  const [sourceContent, setSourceContent] = useState('');
+  const [sourceTags, setSourceTags] = useState('');
 
   // UI state
   const [viewMode, setViewMode] = useState('split');
@@ -283,13 +280,21 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     loadArticle
       .then(({ post, article }) => {
         const entry = post ?? article;
-        setTitle(entry.title || '');
+        const nextTitle = entry.title || '';
+        const nextSummary = entry.summary || '';
+        const nextContent = entry.content || '';
+        const nextTags = (entry.tags || []).join(', ');
+        setSourceTitle(nextTitle);
+        setSourceSummary(nextSummary);
+        setSourceContent(nextContent);
+        setSourceTags(nextTags);
+        setTitle(nextTitle);
         setSlug(entry.slug || '');
         setSlugManual(true);
-        setSummary(entry.summary || '');
-        setContent(entry.content || '');
+        setSummary(nextSummary);
+        setContent(nextContent);
         setCoverImageUrl(entry.coverImageUrl || '');
-        setTags((entry.tags || []).join(', '));
+        setTags(nextTags);
         setPublished(entry.published || false);
       })
       .catch(err => setError(err.message))
@@ -300,10 +305,55 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     if (embeddedGame) setGame(embeddedGame);
   }, [embeddedGame]);
 
+  useEffect(() => {
+    if (!isEnglish) {
+      setTitle(sourceTitle);
+      setSummary(sourceSummary);
+      setContent(sourceContent);
+      setTags(sourceTags);
+      return;
+    }
+    if (translationReady) {
+      const fields = translation.row.fields || {};
+      setTitle(fields.title || '');
+      setSummary(fields.summary || '');
+      setContent(fields.content || '');
+      setTags(Array.isArray(fields.tags) ? fields.tags.join(', ') : '');
+    }
+  }, [
+    isEnglish,
+    sourceTitle,
+    sourceSummary,
+    sourceContent,
+    sourceTags,
+    translationReady,
+    translation.row,
+  ]);
+
+  function updateTitle(value) {
+    setTitle(value);
+    if (!isEnglish) setSourceTitle(value);
+  }
+
+  function updateSummary(value) {
+    setSummary(value);
+    if (!isEnglish) setSourceSummary(value);
+  }
+
+  function updateTags(value) {
+    setTags(value);
+    if (!isEnglish) setSourceTags(value);
+  }
+
+  function updateContent(value) {
+    setContent(value);
+    if (!isEnglish) setSourceContent(value);
+  }
+
   // Auto-slug from title
   useEffect(() => {
-    if (!slugManual) setSlug(slugify(title));
-  }, [title, slugManual]);
+    if (!isEnglish && !slugManual) setSlug(slugify(title));
+  }, [title, slugManual, isEnglish]);
 
   // Apply highlight.js to preview
   useEffect(() => {
@@ -319,17 +369,17 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     const ta = textareaRef.current;
     if (!ta) return;
     const { newText, newCursorStart, newCursorEnd } = applyToolbarAction(ta, action);
-    setContent(newText);
+    updateContent(newText);
     // Restore cursor after state update
     requestAnimationFrame(() => {
       ta.focus();
       ta.setSelectionRange(newCursorStart, newCursorEnd);
     });
-  }, []);
+  }, [updateContent]);
 
   // ── Cover Upload Logics ───────────────────────────────────────────────────────
   const uploadCoverImage = async (file) => {
-    if (!file) return;
+    if (!file || isEnglish) return;
     setError('');
     setCoverUploading(true);
     try {
@@ -348,6 +398,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
   };
 
   const handleCoverRemove = () => {
+    if (isEnglish) return;
     setCoverImageUrl('');
   };
 
@@ -362,7 +413,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     
     // Insert placeholder at cursor
     const textWithPlaceholder = value.slice(0, s) + placeholder + value.slice(e);
-    setContent(textWithPlaceholder);
+    updateContent(textWithPlaceholder);
 
     const placeholderPos = s;
 
@@ -373,7 +424,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
       const finalImgMd = `![${file.name.replace(/[\[\]]/g, '')}](${imageUrl})`;
       
       // Read fresh value in case content changed while uploading
-      setContent((prevContent) => {
+      updateContent((prevContent) => {
         return prevContent.replace(placeholder, finalImgMd);
       });
       
@@ -386,7 +437,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     } catch (err) {
       setError(`${t.blog.uploadFailed} (${err.message})`);
       // Rollback placeholder
-      setContent((prevContent) => {
+      updateContent((prevContent) => {
         return prevContent.replace(placeholder, '');
       });
     }
@@ -444,7 +495,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
     
     const { selectionStart: s, selectionEnd: e, value } = ta;
     const newText = value.slice(0, s) + imgMd + value.slice(e);
-    setContent(newText);
+    updateContent(newText);
     
     setShowImgModal(false);
     setManualImgUrl('');
@@ -469,7 +520,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
         const imgMd = `![${file.name.replace(/[\[\]]/g, '')}](${imageUrl})`;
         const { selectionStart: s, selectionEnd: e, value } = ta;
         const newText = value.slice(0, s) + imgMd + value.slice(e);
-        setContent(newText);
+        updateContent(newText);
         
         requestAnimationFrame(() => {
           ta.focus();
@@ -534,12 +585,31 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
       const ta = e.target;
       const { selectionStart: s, selectionEnd: end, value } = ta;
       const newVal = value.slice(0, s) + '  ' + value.slice(end);
-      setContent(newVal);
+      updateContent(newVal);
       requestAnimationFrame(() => ta.setSelectionRange(s + 2, s + 2));
     }
   };
 
   async function handleSave(publishOverride) {
+    if (isEnglish) {
+      if (!translationReady) return;
+      setError('');
+      setSaving(true);
+      try {
+        await translation.save({
+          title: title.trim(),
+          summary: summary.trim(),
+          content,
+          tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+        });
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const willPublish = publishOverride !== undefined ? publishOverride : published;
     setError('');
     setSaving(true);
@@ -574,39 +644,26 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
   }
 
   const previewHtml = renderMarkdown(content);
+  const coverDropzoneClassName = [
+    'abe-cover-dropzone',
+    coverDragOver ? 'dragover' : '',
+    coverUploading ? 'uploading' : '',
+    isEnglish ? 'source-only' : '',
+  ].filter(Boolean).join(' ');
 
   return (
     <div className={embedded ? 'abe-embedded' : 'dash-layout abe-layout'}>
       {/* Sidebar */}
       {!embedded && (
-        <aside className="dash-sidebar">
-        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
-        <nav className="dash-nav">
-          <PageLink className="dash-nav-item" to="/dashboard">{t.nav.dashboard}</PageLink>
-          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
-          <PageLink className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
-          {isGameScope && <span className="dash-nav-item active">{t.gameArticles.adminTitle}</span>}
-          {me?.role === 'admin' && (
-            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
-          )}
-        </nav>
-        <div className="dash-sidebar-footer">
-          <div className="dash-user">
-            <div className="dash-avatar">{me?.name?.[0]?.toUpperCase()}</div>
-            <div className="dash-user-info">
-              <div className="dash-user-name">{me?.name}</div>
-              <div className="dash-user-email">{me?.email}</div>
-            </div>
-          </div>
-          <div className="dash-footer-row">
-            <button className="dash-footer-btn" onClick={toggleLang}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-            <DarkModeToggle />
-          </div>
-          <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
-        </div>
-        </aside>
+        <DashSidebar
+          user={me}
+          active={isGameScope ? "game-articles" : "blog"}
+          backHref={isGameScope ? `/dashboard/games/${gameId}` : "/dashboard"}
+          backLabel={isGameScope ? t.gameDetail.back : t.nav.dashboard}
+          gameScope={isGameScope}
+          gameArticleLabel={t.gameArticles.adminTitle}
+          onLogout={handleLogout}
+        />
       )}
 
       {/* Editor main */}
@@ -639,31 +696,33 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
             </div>
 
             {/* Publish toggle */}
-            <label className="abe-publish-toggle">
+            <label className={`abe-publish-toggle${isEnglish ? ' abe-source-only' : ''}`}>
               <input
                 type="checkbox"
                 checked={published}
                 onChange={e => setPublished(e.target.checked)}
+                disabled={isEnglish}
               />
               <span className="abe-toggle-track">
                 <span className="abe-toggle-thumb" />
               </span>
               <span className="abe-toggle-label">
                 {published ? t.blog.published : t.blog.draft}
+                {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
               </span>
             </label>
 
             {/* Save buttons */}
             <button
               className="btn btn-ghost abe-save-btn"
-              disabled={saving}
+              disabled={saving || (isEnglish && !translationReady)}
               onClick={() => handleSave(false)}
             >
               {saving ? t.blog.saving : t.blog.saveDraft}
             </button>
             <button
               className="btn btn-primary btn-sm abe-publish-btn"
-              disabled={saving}
+              disabled={saving || isEnglish}
               onClick={() => handleSave(true)}
             >
               {saving ? t.blog.saving : t.blog.publish}
@@ -677,20 +736,38 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
           <div className="abe-loading">{t.blog.loading}</div>
         ) : (
           <div className="abe-body">
-            {/* Meta fields */}
-            <div className="abe-meta-row">
+            <TranslationEditorPanel
+              refType={translationRefType}
+              refId={id}
+              lang={lang}
+              sourceFields={{
+                title: sourceTitle,
+                summary: sourceSummary,
+                content: sourceContent,
+                tags: sourceTags,
+              }}
+              translation={translation}
+              onRetranslate={() => translation.retranslate().catch(() => {})}
+            />
+            {(!isEnglish || translationReady) && (
+              <>
+                {/* Meta fields */}
+                <div className="abe-meta-row">
               <div className="abe-meta-field abe-field-title">
                 <input
                   id="abe-title"
                   className="abe-title-input"
                   placeholder={t.blog.fieldTitle + '…'}
                   value={title}
-                  onChange={e => setTitle(e.target.value)}
+                  onChange={e => updateTitle(e.target.value)}
                 />
               </div>
               <div className="abe-meta-side">
                 <div className="abe-meta-group">
-                  <label className="abe-label">{t.blog.fieldSlug}</label>
+                  <label className="abe-label">
+                    {t.blog.fieldSlug}
+                    {isEnglish && <span className="abe-source-only"> · {t.blog.editorLocale.source}</span>}
+                  </label>
                   <div className="abe-slug-row">
                     <input
                       id="abe-slug"
@@ -699,6 +776,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                       onChange={e => { setSlug(e.target.value); setSlugManual(true); }}
                       onBlur={() => { if (!slug.trim()) setSlugManual(false); }}
                       placeholder="my-post-slug"
+                      disabled={isEnglish}
                     />
                     {!slugManual && (
                       <span className="abe-slug-hint">{t.blog.autoSlugHint}</span>
@@ -706,13 +784,13 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                   </div>
                 </div>
                 <div className="abe-meta-group">
-                  <label className="abe-label">{t.blog.fieldSummary}</label>
+                    <label className="abe-label">{t.blog.fieldSummary}</label>
                   <textarea
                     id="abe-summary"
                     className="form-input abe-input abe-summary-input"
                     placeholder={t.blog.fieldSummary + '…'}
                     value={summary}
-                    onChange={e => setSummary(e.target.value)}
+                    onChange={e => updateSummary(e.target.value)}
                     rows={2}
                   />
                 </div>
@@ -724,17 +802,21 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                       className="form-input abe-input"
                       placeholder="unity, devlog, update"
                       value={tags}
-                      onChange={e => setTags(e.target.value)}
+                      onChange={e => updateTags(e.target.value)}
                     />
                   </div>
                   <div className="abe-meta-group abe-cover-group">
-                    <label className="abe-label">{t.blog.fieldCover}</label>
+                    <label className="abe-label">
+                      {t.blog.fieldCover}
+                      {isEnglish && <span className="abe-source-only"> · {t.blog.editorLocale.source}</span>}
+                    </label>
                     <input
                       type="file"
                       ref={coverInputRef}
                       onChange={handleCoverSelect}
                       accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
                       style={{ display: 'none' }}
+                      disabled={isEnglish}
                     />
                     
                     {coverImageUrl ? (
@@ -753,7 +835,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                             type="button" 
                             className="btn btn-sm btn-ghost abe-cover-action-btn"
                             onClick={() => coverInputRef.current?.click()}
-                            disabled={coverUploading}
+                            disabled={coverUploading || isEnglish}
                           >
                             {coverUploading ? t.blog.uploading : t.gameDetail.replaceThumbnail}
                           </button>
@@ -761,7 +843,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                             type="button" 
                             className="btn btn-sm btn-ghost abe-cover-action-btn"
                             onClick={() => setShowUnsplashModal(true)}
-                            disabled={coverUploading}
+                            disabled={coverUploading || isEnglish}
                           >
                             🌌 Unsplash
                           </button>
@@ -769,7 +851,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                             type="button" 
                             className="btn btn-sm btn-danger-soft abe-cover-action-btn"
                             onClick={handleCoverRemove}
-                            disabled={coverUploading}
+                            disabled={coverUploading || isEnglish}
                           >
                             {t.blog.removeCover}
                           </button>
@@ -777,12 +859,16 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                       </div>
                     ) : (
                       <div 
-                        className={`abe-cover-dropzone${coverDragOver ? ' dragover' : ''}${coverUploading ? ' uploading' : ''}`}
-                        onDragOver={(e) => { e.preventDefault(); setCoverDragOver(true); }}
+                        className={coverDropzoneClassName}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (!isEnglish) setCoverDragOver(true);
+                        }}
                         onDragLeave={() => setCoverDragOver(false)}
                         onDrop={(e) => {
                           e.preventDefault();
                           setCoverDragOver(false);
+                          if (isEnglish) return;
                           const file = e.dataTransfer.files?.[0];
                           if (file && file.type.startsWith('image/')) {
                             uploadCoverImage(file);
@@ -801,7 +887,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                               type="button"
                               className="btn btn-sm btn-ghost"
                               onClick={() => coverInputRef.current?.click()}
-                              disabled={coverUploading}
+                              disabled={coverUploading || isEnglish}
                               style={{ border: '1px solid var(--color-hairline)', background: 'var(--color-canvas)' }}
                             >
                               {t.gameDetail.chooseFiles}
@@ -810,7 +896,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                               type="button"
                               className="btn btn-sm btn-ghost"
                               onClick={() => setShowUnsplashModal(true)}
-                              disabled={coverUploading}
+                              disabled={coverUploading || isEnglish}
                               style={{ border: '1px solid var(--color-hairline)', background: 'var(--color-canvas)' }}
                             >
                               🌌 {t.blog.selectUnsplash}
@@ -824,7 +910,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
               </div>
             </div>
 
-            {/* Toolbar */}
+                {/* Toolbar */}
             {viewMode !== 'preview' && (
               <div className="abe-toolbar" role="toolbar" aria-label="Markdown toolbar">
                 {TOOLBAR_ACTIONS.map(action => (
@@ -870,7 +956,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                     className="abe-textarea"
                     placeholder={t.blog.editorPlaceholder}
                     value={content}
-                    onChange={e => setContent(e.target.value)}
+                    onChange={e => updateContent(e.target.value)}
                     onKeyDown={handleKeyDown}
                     onPaste={handleContentPaste}
                     spellCheck={false}
@@ -888,7 +974,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
               )}
             </div>
 
-            {/* Image Insertion Modal */}
+                {/* Image Insertion Modal */}
             {showImgModal && (
               <div className="abe-image-modal-overlay" onClick={() => setShowImgModal(false)}>
                 <div className="abe-image-modal" onClick={e => e.stopPropagation()}>
@@ -956,7 +1042,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
               </div>
             )}
 
-            {/* Unsplash Gallery Modal */}
+                {/* Unsplash Gallery Modal */}
             {showUnsplashModal && (
               <div className="abe-image-modal-overlay" onClick={() => setShowUnsplashModal(false)}>
                 <div className="abe-image-modal unsplash-modal" onClick={e => e.stopPropagation()}>
@@ -995,6 +1081,7 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                               key={img.id} 
                               className="unsplash-card"
                               onClick={() => {
+                                if (isEnglish) return;
                                 setCoverImageUrl(img.urls.regular);
                                 setShowUnsplashModal(false);
                                 setUnsplashQuery('');
@@ -1017,6 +1104,8 @@ export default function AdminBlogEditorPage({ embedded = false, gameId: embedded
                   </div>
                 </div>
               </div>
+                )}
+              </>
             )}
           </div>
         )}

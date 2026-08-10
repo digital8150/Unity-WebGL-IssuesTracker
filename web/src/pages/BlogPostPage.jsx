@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
@@ -14,32 +12,19 @@ import {
   deleteGameArticleComment,
 } from '../api.js';
 import { BlogMedia } from '../components/BlogMedia.jsx';
-import { createBlogMarkdownRenderer } from '../utils/blogMedia.js';
+import { renderMarkdown } from '../utils/renderMarkdown.js';
 import { assetUrl } from '../utils/gameVisuals.js';
 import { readSsrData } from '../utils/ssrData.js';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import PageLink from '../components/PageLink.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
+import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
+import { withLocale } from '../i18n/localePath.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
-
-// Highlighting is applied post-render via hljs.highlightElement (see effect below).
-marked.setOptions({ breaks: true, gfm: true });
-
-function renderMarkdown(raw) {
-  const html = marked.parse(raw || '', { renderer: createBlogMarkdownRenderer(marked.Renderer) });
-  return DOMPurify.sanitize(html, {
-    ADD_TAGS: ['iframe', 'source', 'video'],
-    ADD_ATTR: [
-      'allow', 'allowfullscreen', 'aria-hidden', 'aria-label', 'autoplay',
-      'frameborder', 'height', 'loop', 'muted', 'playsinline', 'preload',
-      'scrolling', 'src', 'type', 'width',
-    ],
-  });
-}
 
 function formatDate(dateStr, lang) {
   if (!dateStr) return '';
@@ -64,6 +49,7 @@ export default function BlogPostPage() {
   const { lang, t } = useI18n();
   const [post, setPost] = useState(initialPost);
   const [game, setGame] = useState(initialGame);
+  const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const [loading, setLoading] = useState(!hasBootstrap);
   const [notFound, setNotFound] = useState(false);
   const contentRef = useRef(null);
@@ -116,9 +102,16 @@ export default function BlogPostPage() {
   }
 
   const SITE = 'BCSDLab. Arcade';
-  const canonicalUrl = isGameArticle
-    ? `${window.location.origin}/play/${gameSlug}/articles/${contentSlug}`
-    : `${window.location.origin}/blog/${contentSlug}`;
+  const sourcePath = isGameArticle ? `/play/${gameSlug}/articles/${contentSlug}` : `/blog/${contentSlug}`;
+  const canonicalUrl = `${window.location.origin}${withLocale(sourcePath, lang)}`;
+  const metaCanonicalUrl = lang === 'en' && (!translation || translation.noindex)
+    ? `${window.location.origin}${withLocale(sourcePath, 'ko')}`
+    : canonicalUrl;
+  const alternateLinks = translation && !translation.noindex ? [
+    { hreflang: 'ko', href: `${window.location.origin}${withLocale(sourcePath, 'ko')}` },
+    { hreflang: 'en', href: `${window.location.origin}${withLocale(sourcePath, 'en')}` },
+    { hreflang: 'x-default', href: `${window.location.origin}${withLocale(sourcePath, 'ko')}` },
+  ] : null;
   const articleImage = post?.coverImageUrl
     ? assetUrl(post.coverImageUrl)
     : game?.thumbnailUrl
@@ -128,7 +121,9 @@ export default function BlogPostPage() {
     title: `${post.title} — ${game?.name ? `${game.name} · ` : ''}${SITE}`,
     description: post.summary || undefined,
     image: articleImage,
-    url: canonicalUrl,
+      url: metaCanonicalUrl,
+      robots: lang === 'en' && (!translation || translation.noindex) ? 'noindex,follow' : 'index,follow',
+      alternates: alternateLinks,
     type: 'article',
     jsonLd: {
       '@context': 'https://schema.org',
@@ -139,9 +134,9 @@ export default function BlogPostPage() {
       datePublished: post.publishedAt || post.createdAt,
       dateModified: post.updatedAt || post.publishedAt || post.createdAt,
       author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
-      mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': metaCanonicalUrl },
       ...(isGameArticle && game ? {
-        isPartOf: { '@type': 'VideoGame', name: game.name, url: `${window.location.origin}/play/${gameSlug}` },
+        isPartOf: { '@type': 'VideoGame', name: game.name, url: `${window.location.origin}${withLocale(`/play/${gameSlug}`, lang)}` },
       } : {}),
     },
   } : {});
@@ -158,13 +153,14 @@ export default function BlogPostPage() {
     setPost(null);
     setGame(null);
     const loadArticle = isGameArticle
-      ? getPublicGameArticle(gameSlug, contentSlug)
-      : getBlogPost(contentSlug);
+      ? getPublicGameArticle(gameSlug, contentSlug, lang)
+      : getBlogPost(contentSlug, lang);
     loadArticle
-      .then(({ post: blogPost, article, game: gameInfo }) => {
+      .then(({ post: blogPost, article, game: gameInfo, translation: translationInfo }) => {
         if (!active) return;
         setPost(blogPost ?? article);
         setGame(gameInfo ?? null);
+        setTranslation(translationInfo ?? null);
       })
       .catch(() => {
         if (active) setNotFound(true);
@@ -173,7 +169,7 @@ export default function BlogPostPage() {
         if (active) setLoading(false);
       });
     return () => { active = false; };
-  }, [contentSlug, gameSlug, isGameArticle]);
+  }, [contentSlug, gameSlug, isGameArticle, lang]);
 
   // Apply highlight.js after render
   useEffect(() => {
@@ -245,6 +241,11 @@ export default function BlogPostPage() {
               ref={contentRef}
               className="bpost-content markdown-body"
               dangerouslySetInnerHTML={{ __html: renderMarkdown(post.content) }}
+            />
+
+            <MachineTranslationNotice
+              translation={translation}
+              path={isGameArticle ? `/play/${gameSlug}/articles/${contentSlug}` : `/blog/${contentSlug}`}
             />
 
             {/* ── Comments ── */}

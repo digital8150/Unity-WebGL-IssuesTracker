@@ -2,8 +2,12 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Game from '../models/Game.js';
 import GameArticle, { MAX_GAME_ARTICLE_COMMENTS, slugify } from '../models/GameArticle.js';
+import Translation from '../models/Translation.js';
+import SiteSettings from '../models/SiteSettings.js';
 import { optionalAuth, requireAuth, requireApproved } from '../middleware/auth.js';
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
+import { isPublishedTranslation, loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
+import { enqueue } from '../services/translation/queue.js';
 
 const router = express.Router();
 
@@ -60,7 +64,7 @@ async function uniqueSlug(gameId, requestedSlug, title, excludeId = null) {
 
 router.get('/play/:gameSlug/articles', async (req, res, next) => {
   try {
-    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug visibility');
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug description visibility');
     if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
 
     const articles = await GameArticle.find({ gameId: game._id, published: true })
@@ -68,7 +72,18 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
       .populate('author', 'name')
       .select('-content')
       .lean();
-    res.json({ game: { id: game._id, name: game.name, slug: game.slug }, articles });
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const gameRow = (await loadTranslations('Game', [game._id], req.query.locale, Translation)).get(String(game._id));
+    const articleRows = await loadTranslations('GameArticle', articles.map((article) => article._id), req.query.locale, Translation);
+    const publicGameRow = publicTranslation(gameRow, req.query.locale, publishEnabled);
+    const publicArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), req.query.locale, publishEnabled), 'GameArticle'));
+    const publishedArticleRows = articles
+      .map((article) => articleRows.get(String(article._id)))
+      .filter((row) => isPublishedTranslation(row, publishEnabled));
+    const listTranslation = req.query.locale === 'en' && publishedArticleRows.length
+      ? { origin: publishedArticleRows.some((row) => row.origin === 'machine') ? 'machine' : 'human', translatedAt: null, noindex: false }
+      : null;
+    res.json({ game: { id: game._id, name: game.name, slug: game.slug, description: mergeTranslation(game.toObject(), publicGameRow, 'Game').description }, articles: publicArticles, translation: listTranslation, gameTranslation: publicTranslationMeta(gameRow, req.query.locale, publishEnabled), translations: Object.fromEntries(articles.map((article) => [String(article._id), publicTranslationMeta(articleRows.get(String(article._id)), req.query.locale, publishEnabled)])) });
   } catch (err) {
     next(err);
   }
@@ -76,7 +91,7 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
 
 router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
   try {
-    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug visibility');
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug description visibility');
     if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
 
     const article = await GameArticle.findOne({
@@ -85,7 +100,16 @@ router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
       published: true,
     }).populate('author', 'name').lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
-    res.json({ article, game: { id: game._id, name: game.name, slug: game.slug } });
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const [gameRow, articleRow] = await Promise.all([
+      loadTranslations('Game', [game._id], req.query.locale, Translation),
+      loadTranslations('GameArticle', [article._id], req.query.locale, Translation),
+    ]);
+    const gameTranslation = gameRow.get(String(game._id));
+    const articleTranslation = articleRow.get(String(article._id));
+    const translatedGame = mergeTranslation(game.toObject(), publicTranslation(gameTranslation, req.query.locale, publishEnabled), 'Game');
+    const translatedArticle = mergeTranslation(article, publicTranslation(articleTranslation, req.query.locale, publishEnabled), 'GameArticle');
+    res.json({ article: translatedArticle, game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description }, translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }
@@ -170,7 +194,19 @@ router.get('/:gameId/articles', requireAuth, requireApproved, async (req, res, n
       .populate('author', 'name')
       .select('-content')
       .lean();
-    res.json({ game: { ...game.toObject() }, articles });
+    const rows = await Translation.find({
+      refType: 'GameArticle',
+      refId: { $in: articles.map((article) => article._id) },
+      locale: 'en',
+    }).select('refId status origin noindex').lean();
+    const byRefId = new Map(rows.map((row) => [String(row.refId), row]));
+    res.json({
+      game: { ...game.toObject() },
+      articles: articles.map((article) => ({
+        ...article,
+        translationStatus: byRefId.get(String(article._id)) ?? null,
+      })),
+    });
   } catch (err) {
     next(err);
   }
@@ -208,6 +244,7 @@ router.post('/:gameId/articles', requireAuth, requireApproved, async (req, res, 
       author: req.user.sub,
     });
     await post.populate('author', 'name');
+    enqueue({ refType: 'GameArticle', refId: post._id, source: post.toObject(), priority: post.published ? 10 : 0 }).catch((error) => console.error('[translation enqueue]', error));
     res.status(201).json({ article: post });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
@@ -236,6 +273,7 @@ router.patch('/:gameId/articles/:articleId', requireAuth, requireApproved, async
     const article = await GameArticle.findByIdAndUpdate(existing._id, updates, { new: true, runValidators: true })
       .populate('author', 'name')
       .lean();
+    enqueue({ refType: 'GameArticle', refId: article._id, source: article }).catch((error) => console.error('[translation enqueue]', error));
     res.json({ article });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
@@ -254,6 +292,7 @@ router.delete('/:gameId/articles/:articleId', requireAuth, requireApproved, asyn
     if (!article) return res.status(404).json({ error: 'Article not found' });
     if (!canManageArticle(game, article, req.user)) return res.status(403).json({ error: 'Forbidden' });
     await article.deleteOne();
+    Translation.deleteOne({ refType: 'GameArticle', refId: article._id, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
     res.json({ ok: true });
   } catch (err) {
     next(err);

@@ -11,7 +11,11 @@ import gamesRouter from './routes/games.js';
 import gameArticlesRouter from './routes/gameArticles.js';
 import backendRouter from './routes/backend.js';
 import blogRouter from './routes/blog.js';
+import translationsRouter from './routes/translations.js';
 import seoRouter from './routes/seo.js';
+import { startTranslationWorker } from './services/translation/worker.js';
+import Translation from './models/Translation.js';
+import SiteSettings from './models/SiteSettings.js';
 
 const {
   PORT = 4000,
@@ -47,6 +51,7 @@ app.use('/api/games', gameArticlesRouter);
 app.use('/api/games', gamesRouter);
 app.use('/api/games', backendRouter);
 app.use('/api/blog', blogRouter);
+app.use('/api/admin/translations', translationsRouter);
 
 function baseMime(filename) {
   if (filename.endsWith('.wasm')) return 'application/wasm';
@@ -109,7 +114,11 @@ app.get('/blog-images/:filename', async (req, res, next) => {
 });
 
 // Public SEO pages must be mounted before Apache's static SPA fallback.
-app.use(seoRouter({ distRoot: DIST_ROOT, siteOrigin: SITE_ORIGIN }));
+app.use(seoRouter({
+  distRoot: DIST_ROOT,
+  siteOrigin: SITE_ORIGIN,
+  models: { Translation, SiteSettings },
+}));
 
 app.use((err, _req, res, _next) => {
   console.error(err);
@@ -118,5 +127,10 @@ app.use((err, _req, res, _next) => {
 
 await mongoose.connect(MONGO_URI);
 console.log(`[mongo] connected: ${MONGO_URI}`);
+
+const translationWorker = startTranslationWorker();
+const stopTranslationWorker = () => translationWorker?.stop?.();
+process.once('SIGTERM', stopTranslationWorker);
+process.once('SIGINT', stopTranslationWorker);
 
 app.listen(PORT, () => console.log(`[server] listening on http://localhost:${PORT}`));

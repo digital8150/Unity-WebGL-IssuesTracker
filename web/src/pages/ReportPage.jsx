@@ -10,7 +10,7 @@ import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
 import PageLink from '../components/PageLink.jsx';
-import { usePageNavigate } from '../hooks/usePageTransition.js';
+import { useLocaleNavigate } from '../hooks/useLocaleNavigate.js';
 import './LandingPage.css';
 
 // ── UA helpers ────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ const PRESET_TAGS = ['bug', 'suggestion'];
 
 export default function ReportPage() {
   const { gameSlug, buildId } = useParams();
-  const navigate = usePageNavigate();
+  const navigate = useLocaleNavigate();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
   const { theme } = useTheme();
@@ -82,7 +82,7 @@ export default function ReportPage() {
 
   useEffect(() => {
     if (gameSlug) {
-      getPlayInfo(gameSlug, buildId || null)
+      getPlayInfo(gameSlug, buildId || null, lang)
         .then(setBuildInfo)
         .catch(console.error);
     }
@@ -91,7 +91,7 @@ export default function ReportPage() {
     if (stored) {
       try { unityData.current = JSON.parse(stored); } catch {}
     }
-  }, [gameSlug, buildId]);
+  }, [gameSlug, buildId, lang]);
 
   useEffect(() => {
     function onScroll() {

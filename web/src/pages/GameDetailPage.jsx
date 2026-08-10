@@ -7,13 +7,13 @@ import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 import Modal from '../components/Modal.jsx';
+import TranslationEditorPanel, { useTranslationEditor } from '../components/TranslationEditorPanel.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
-import BrandLogo from '../components/BrandLogo.jsx';
 import PageLink from '../components/PageLink.jsx';
-import { usePageNavigate } from '../hooks/usePageTransition.js';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import { useLocaleNavigate } from '../hooks/useLocaleNavigate.js';
+import DashSidebar from '../components/DashSidebar.jsx';
 import { GRAC_CONTENT_DESCRIPTOR_KEYS, GRAC_RATING_KEYS } from '../constants/gracAssets.js';
 import hljs from 'highlight.js/lib/core';
 import hljsCsharp from 'highlight.js/lib/languages/csharp';
@@ -380,8 +380,21 @@ void EndGame()
     Application.Quit(); // no-op in WebGL; keeps desktop builds clean
 }`;
 
-const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame, builds, t, onDirtyChange }, ref) {
+const ArcadeSection = forwardRef(function ArcadeSection({
+  gameId,
+  game,
+  setGame,
+  builds,
+  t,
+  lang,
+  onDirtyChange,
+}, ref) {
   const td = t.gameDetail;
+  const isEnglish = lang === 'en';
+  const translation = useTranslationEditor('Game', gameId);
+  const translationReady = Boolean(
+    translation.row && ['ready', 'stale'].includes(translation.row.status),
+  );
   const hasActiveBuild = builds.some((b) => b.isActive);
   const initialSettings = useMemo(() => ({
     visibility: game.visibility || 'private',
@@ -392,6 +405,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
   const [savedSettings, setSavedSettings] = useState(initialSettings);
   const [visibility, setVisibility] = useState(initialSettings.visibility);
   const [description, setDescription] = useState(initialSettings.description);
+  const [sourceDescription, setSourceDescription] = useState(initialSettings.description);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailRemoved, setThumbnailRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -407,14 +421,39 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
     if (thumbnailPreviewUrl) URL.revokeObjectURL(thumbnailPreviewUrl);
   }, [thumbnailPreviewUrl]);
 
+  useEffect(() => {
+    setSourceDescription(initialSettings.description);
+    if (!isEnglish) setDescription(initialSettings.description);
+  }, [initialSettings.description, isEnglish]);
+
+  useEffect(() => {
+    if (!isEnglish) {
+      setDescription(sourceDescription);
+      return;
+    }
+    if (translationReady) {
+      setDescription(translation.row.fields?.description || '');
+    }
+  }, [isEnglish, sourceDescription, translationReady, translation.row]);
+
+  function updateDescription(value) {
+    setDescription(value);
+    if (!isEnglish) setSourceDescription(value);
+  }
+
   const draftThumbnailKey = thumbnailFile
     ? `file:${thumbnailFile.name}:${thumbnailFile.size}:${thumbnailFile.lastModified}`
     : thumbnailRemoved ? '' : savedSettings.thumbnailUrl;
-  const hasUnsavedChanges = (
-    visibility !== savedSettings.visibility
-    || description !== savedSettings.description
-    || draftThumbnailKey !== savedSettings.thumbnailUrl
-  );
+  const savedDescription = isEnglish
+    ? translation.row?.fields?.description || ''
+    : savedSettings.description;
+  const hasUnsavedChanges = isEnglish
+    ? translationReady && description !== savedDescription
+    : (
+      visibility !== savedSettings.visibility
+      || description !== savedSettings.description
+      || draftThumbnailKey !== savedSettings.thumbnailUrl
+    );
   const thumbnailImageSrc = thumbnailFile
     ? thumbnailPreviewUrl
     : savedSettings.thumbnailUrl && !thumbnailRemoved
@@ -432,6 +471,11 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
     setError('');
     setSaving(true);
     try {
+      if (isEnglish) {
+        await translation.save({ description });
+        return true;
+      }
+
       const settingsChanged = (
         visibility !== savedSettings.visibility
         || description !== savedSettings.description
@@ -469,6 +513,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
   }
 
   function handleThumbnailPick(e) {
+    if (isEnglish) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
@@ -478,6 +523,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
   }
 
   function handleRemoveThumbnail() {
+    if (isEnglish) return;
     if (!thumbnailFile && !savedSettings.thumbnailUrl) return;
     setError('');
     setThumbnailFile(null);
@@ -487,7 +533,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
   function handleRevert() {
     setError('');
     setVisibility(savedSettings.visibility);
-    setDescription(savedSettings.description);
+    setDescription(isEnglish ? savedDescription : savedSettings.description);
     setThumbnailFile(null);
     setThumbnailRemoved(false);
   }
@@ -499,6 +545,14 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
 
   return (
     <div className="gd-arcade-settings">
+      <TranslationEditorPanel
+        refType="Game"
+        refId={gameId}
+        lang={lang}
+        sourceFields={{ description: sourceDescription }}
+        translation={translation}
+        onRetranslate={() => translation.retranslate().catch(() => {})}
+      />
       <div className="gd-settings-section-heading">
         <div>
           <h2 className="gd-section-title">{td.arcadeTitle}</h2>
@@ -521,9 +575,13 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
             name="visibility"
             value="private"
             checked={visibility === 'private'}
+            disabled={isEnglish}
             onChange={() => setVisibility('private')}
           />
-          <span className="gd-vis-card-h"><span aria-hidden="true">🔒</span> Private</span>
+          <span className="gd-vis-card-h">
+            <span aria-hidden="true">🔒</span> Private
+            {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
+          </span>
           <span className="gd-vis-card-d">{td.visibilityPrivate}</span>
         </label>
         <label className={`gd-vis-card${visibility === 'public' ? ' active' : ''} ${!hasActiveBuild ? 'disabled' : ''}`}>
@@ -532,29 +590,37 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
             name="visibility"
             value="public"
             checked={visibility === 'public'}
-            disabled={!hasActiveBuild}
+            disabled={!hasActiveBuild || isEnglish}
             onChange={() => setVisibility('public')}
           />
-          <span className="gd-vis-card-h"><span aria-hidden="true">🌐</span> Public</span>
+          <span className="gd-vis-card-h">
+            <span aria-hidden="true">🌐</span> Public
+            {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
+          </span>
           <span className="gd-vis-card-d">{td.visibilityPublic}</span>
         </label>
       </div>
 
-      <div className="gd-arcade-block">
-        <label className="form-label">{td.arcadeDescription}</label>
-        <textarea
-          className="form-input gd-arcade-desc-input"
-          rows={3}
-          maxLength={500}
-          placeholder={td.arcadeDescPlaceholder}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <div className="gd-arcade-counter">{description.length} / 500</div>
-      </div>
+      {(!isEnglish || translationReady) && (
+        <div className="gd-arcade-block">
+          <label className="form-label">{td.arcadeDescription}</label>
+          <textarea
+            className="form-input gd-arcade-desc-input"
+            rows={3}
+            maxLength={500}
+            placeholder={td.arcadeDescPlaceholder}
+            value={description}
+            onChange={(e) => updateDescription(e.target.value)}
+          />
+          <div className="gd-arcade-counter">{description.length} / 500</div>
+        </div>
+      )}
 
       <div className="gd-arcade-block">
-        <label className="form-label">{td.arcadeThumbnail}</label>
+        <label className="form-label">
+          {td.arcadeThumbnail}
+          {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
+        </label>
         <p className="gd-section-desc gd-arcade-hint">{td.arcadeThumbnailHint}</p>
         <div className="gd-thumb-row">
           {thumbnailImageSrc ? (
@@ -575,7 +641,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
                 accept="image/png,image/jpeg,image/webp,image/gif"
                 style={{ display: 'none' }}
                 onChange={handleThumbnailPick}
-                disabled={saving}
+                disabled={saving || isEnglish}
               />
             </label>
             {(savedSettings.thumbnailUrl || thumbnailFile) && (
@@ -583,7 +649,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({ gameId, game, setGame,
                 type="button"
                 className="btn btn-ghost"
                 onClick={handleRemoveThumbnail}
-                disabled={saving}
+                disabled={saving || isEnglish}
               >
                 {td.removeThumbnail}
               </button>
@@ -1085,9 +1151,9 @@ export function CodeBlock({ filename, code }) {
 
 export default function GameDetailPage() {
   const { gameId, id: articleId } = useParams();
-  const navigate = usePageNavigate();
+  const navigate = useLocaleNavigate();
   const location = useLocation();
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, t } = useI18n();
   const { user } = useAuth();
 
   const [game, setGame] = useState(null);
@@ -1305,9 +1371,7 @@ export default function GameDetailPage() {
   if (loading) {
     return (
       <div className="dash-layout">
-        <aside className="dash-sidebar">
-          <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
-        </aside>
+        <DashSidebar user={user} active="dashboard" />
         <main className="dash-main">
           <p className="dash-loading">{t.loading}</p>
         </main>
@@ -1320,25 +1384,7 @@ export default function GameDetailPage() {
   return (
     <>
     <div className="dash-layout">
-      <aside className="dash-sidebar">
-        <PageLink to="/" className="dash-logo" onClick={handleDashboardNavigate}><BrandLogo /></PageLink>
-        <nav className="dash-nav">
-          <PageLink className="dash-nav-item" to="/dashboard" onClick={handleDashboardNavigate}>{td.back}</PageLink>
-          <PageLink className="dash-nav-item" to="/arcade" onClick={handleDashboardNavigate}>{t.nav.arcade}</PageLink>
-          {user?.role === 'admin' && (
-            <PageLink className="dash-nav-item" to="/admin/users" onClick={handleDashboardNavigate}>{t.nav.admin}</PageLink>
-          )}
-        </nav>
-        <div className="dash-sidebar-footer">
-          <StorageBar label={td.totalStorage} />
-          <div className="dash-footer-row">
-            <button className="dash-footer-btn" onClick={toggleLang}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-            <DarkModeToggle />
-          </div>
-        </div>
-      </aside>
+      <DashSidebar user={user} backLabel={td.back} storage={<StorageBar label={td.totalStorage} />} onNavigate={handleDashboardNavigate} />
 
       <main className={`dash-main${settingsDirty ? ' has-settings-bar' : ''}`}>
         <header className="dash-header">
@@ -1594,6 +1640,7 @@ export default function GameDetailPage() {
                   setGame={setGame}
                   builds={builds}
                   t={t}
+                  lang={lang}
                   onDirtyChange={handleArcadeDirtyChange}
                 />
                 <div style={{ marginTop: 40 }} />

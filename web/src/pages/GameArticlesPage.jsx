@@ -9,6 +9,8 @@ import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { assetUrl } from '../utils/gameVisuals.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { readSsrData } from '../utils/ssrData.js';
+import { withLocale } from '../i18n/localePath.js';
+import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
 import './GameArticlesPage.css';
 
 export default function GameArticlesPage() {
@@ -17,6 +19,7 @@ export default function GameArticlesPage() {
   const bootstrap = readSsrData('/play/:gameSlug/articles');
   const initialGame = bootstrap?.game ?? null;
   const initialArticles = Array.isArray(bootstrap?.articles) ? bootstrap.articles : [];
+  const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const hasBootstrap = Boolean(initialGame && Array.isArray(bootstrap?.articles));
   const [game, setGame] = useState(initialGame);
   const [articles, setArticles] = useState(initialArticles);
@@ -24,17 +27,26 @@ export default function GameArticlesPage() {
   const [notFound, setNotFound] = useState(false);
   const bootstrapPendingRef = useRef(hasBootstrap);
 
-  const canonicalUrl = `${window.location.origin}/play/${gameSlug}/articles`;
+  const sourcePath = `/play/${gameSlug}/articles`;
+  const canonicalUrl = `${window.location.origin}${withLocale(sourcePath, lang)}`;
+  const metaCanonicalUrl = lang === 'en' && (!translation || translation.noindex)
+    ? `${window.location.origin}${withLocale(sourcePath, 'ko')}`
+    : canonicalUrl;
+  const alternateLinks = translation && !translation.noindex ? [
+    { hreflang: 'ko', href: `${window.location.origin}${withLocale(sourcePath, 'ko')}` },
+    { hreflang: 'en', href: `${window.location.origin}${withLocale(sourcePath, 'en')}` },
+    { hreflang: 'x-default', href: `${window.location.origin}${withLocale(sourcePath, 'ko')}` },
+  ] : null;
   const articleListJsonLd = game ? {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `${game.name} — ${t.gameArticles.publicTitle}`,
     description: game.description || t.gameArticles.publicSub,
-    url: canonicalUrl,
+    url: metaCanonicalUrl,
     isPartOf: {
       '@type': 'VideoGame',
       name: game.name,
-      url: `${window.location.origin}/play/${gameSlug}`,
+      url: `${window.location.origin}${withLocale(`/play/${gameSlug}`, lang)}`,
     },
     mainEntity: {
       '@type': 'ItemList',
@@ -42,7 +54,7 @@ export default function GameArticlesPage() {
         '@type': 'ListItem',
         position: index + 1,
         name: article.title,
-        url: `${window.location.origin}/play/${gameSlug}/articles/${article.slug}`,
+        url: `${window.location.origin}${withLocale(`/play/${gameSlug}/articles/${article.slug}`, lang)}`,
       })),
     },
   } : undefined;
@@ -53,9 +65,12 @@ export default function GameArticlesPage() {
       : `${t.gameArticles.publicTitle} — BCSDLab. Arcade`,
     description: game?.description || t.gameArticles.publicSub,
     image: game?.thumbnailUrl ? assetUrl(game.thumbnailUrl) : undefined,
-    url: canonicalUrl,
+    url: metaCanonicalUrl,
     type: 'website',
-    robots: game && !notFound && articles.length > 0 ? 'index,follow' : 'noindex,follow',
+    robots: lang === 'en' && (!translation || translation.noindex)
+      ? 'noindex,follow'
+      : (game && !notFound && articles.length > 0 ? 'index,follow' : 'noindex,follow'),
+    alternates: alternateLinks,
     jsonLd: articleListJsonLd,
   });
 
@@ -71,11 +86,12 @@ export default function GameArticlesPage() {
     setGame(null);
     setArticles([]);
 
-    listPublicGameArticles(gameSlug)
-      .then(({ game: gameInfo, articles: loadedArticles }) => {
+    listPublicGameArticles(gameSlug, lang)
+      .then(({ game: gameInfo, articles: loadedArticles, translation: translationInfo }) => {
         if (!active) return;
         setGame(gameInfo ?? null);
         setArticles(loadedArticles ?? []);
+        setTranslation(translationInfo ?? null);
       })
       .catch(() => {
         if (active) setNotFound(true);
@@ -85,7 +101,7 @@ export default function GameArticlesPage() {
       });
 
     return () => { active = false; };
-  }, [gameSlug]);
+  }, [gameSlug, lang]);
 
   return (
     <div className="game-articles-page">
@@ -135,6 +151,7 @@ export default function GameArticlesPage() {
                 </div>
               )}
             </section>
+            <MachineTranslationNotice translation={translation} path={`/play/${gameSlug}/articles`} />
           </>
         )}
       </main>
