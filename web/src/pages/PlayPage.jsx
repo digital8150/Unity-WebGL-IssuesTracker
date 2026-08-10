@@ -94,9 +94,24 @@ export default function PlayPage() {
   }, [gameSlug, buildId]);
 
   useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    const handler = () => {
+      const active = Boolean(document.fullscreenElement);
+      setIsFullscreen(active);
+
+      if (active) {
+        // Chrome/Edge: let the game receive a short Escape press while the
+        // browser keeps a long press as the fullscreen escape hatch.
+        const keyboard = navigator.keyboard;
+        if (keyboard?.lock) keyboard.lock(['Escape']).catch(() => {});
+      } else {
+        navigator.keyboard?.unlock?.();
+      }
+    };
     document.addEventListener('fullscreenchange', handler);
-    return () => document.removeEventListener('fullscreenchange', handler);
+    return () => {
+      document.removeEventListener('fullscreenchange', handler);
+      navigator.keyboard?.unlock?.();
+    };
   }, []);
 
   const SITE = 'BCSDLab. Arcade';
@@ -177,7 +192,6 @@ export default function PlayPage() {
       document.exitFullscreen();
     } else {
       await gameWrapRef.current.requestFullscreen?.();
-      await navigator.keyboard?.lock?.(['Escape']).catch(() => {});
     }
   };
 

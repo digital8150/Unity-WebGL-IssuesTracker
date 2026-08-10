@@ -73,3 +73,8 @@ implementation details. Entries are written in English for agent readability.
 - Changed the public article label to Blog/블로그 and made Games/게임 always link to `/arcade`.
 - Removed duplicate auth actions from the report-page public nav as well.
 - Verification: `npm run build` and `git diff --check` passed; no removed public-nav props/classes or auth links remain.
+
+## 2026-08-10 (fullscreen Escape handling)
+
+- Restored Chrome/Edge keyboard-lock timing for the play-page fullscreen control by locking `Escape` from `fullscreenchange` instead of immediately after `requestFullscreen()`.
+- Unlock the keyboard on fullscreen exit and component cleanup so short `Escape` reaches the Unity game while a long press remains the browser escape hatch.
