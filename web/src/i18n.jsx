@@ -15,7 +15,7 @@ const translations = {
       arcade: 'Arcade',
       blog: 'Blog',
       games: 'Games',
-      articles: 'Articles',
+      articles: 'Blog',
       toggleLanguage: 'Switch language',
       switchToKo: '한국어',
       switchToEn: 'English',
@@ -28,7 +28,6 @@ const translations = {
     home: {
       seoTitle: 'Unity WebGL games and bug reports — BCSDLab. Arcade',
       seoDescription: 'Play Unity WebGL games in the browser and collect tester bug reports with a session snapshot.',
-      allGamesButton: 'All games',
       featuredEyebrow: 'FEATURED',
       featuredInstallNote: 'Runs in the browser — no install required',
       featuredDescriptionFallback: 'The developer has not added a description yet.',
@@ -538,7 +537,7 @@ const translations = {
       arcade: '아케이드',
       blog: '블로그',
       games: '게임',
-      articles: '아티클',
+      articles: '블로그',
       toggleLanguage: '언어 전환',
       switchToKo: '한국어',
       switchToEn: 'English',
@@ -551,7 +550,6 @@ const translations = {
     home: {
       seoTitle: 'Unity WebGL 게임과 버그 리포트 — BCSDLab. Arcade',
       seoDescription: 'Unity WebGL 게임을 브라우저에서 플레이하고 세션 스냅샷과 함께 테스터 버그 리포트를 수집하세요.',
-      allGamesButton: '전체 게임',
       featuredEyebrow: 'FEATURED',
       featuredInstallNote: '설치 없이 브라우저에서 바로 실행',
       featuredDescriptionFallback: '아직 게임 설명이 등록되지 않았습니다.',

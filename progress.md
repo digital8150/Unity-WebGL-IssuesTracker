@@ -65,3 +65,11 @@ implementation details. Entries are written in English for agent readability.
 - Added `/play/:gameSlug/articles` for game-scoped article lists; play-page updates now link there while `/blog` remains site-wide.
 - Added SSR metadata/JSON-LD/sitemap coverage for game article lists; aligned home SSR copy and client canonical handling for blog pagination.
 - Verification: `npm run build`, SEO render assertions, route/link assertions, `node --check` for SEO modules, and `git diff --check` passed.
+
+## 2026-08-10 (public navigation cleanup)
+
+- Unified home, Arcade, blog list, and blog detail on the reusable `PublicNav`; only the active item emphasis differs.
+- Removed public-nav login, access-request, dashboard, and home-only all-games entry points; footer remains the developer dashboard entry.
+- Changed the public article label to Blog/블로그 and made Games/게임 always link to `/arcade`.
+- Removed duplicate auth actions from the report-page public nav as well.
+- Verification: `npm run build` and `git diff --check` passed; no removed public-nav props/classes or auth links remain.

@@ -91,7 +91,7 @@ export default function LandingPage() {
 
   return (
     <div className="landing">
-      <PublicNav active="games" showAllGames />
+      <PublicNav />
 
       {gamesLoading ? (
         <section className="l-featured-hero l-featured-empty" aria-label={t.home.featuredEyebrow}>
@@ -164,7 +164,7 @@ export default function LandingPage() {
             <span className="l-featured-pill">{t.home.featuredEyebrow}</span>
             <h1 className="l-hero-title">{t.home.featuredEmptyTitle}</h1>
             <p className="l-hero-description">{t.home.featuredEmptyDescription}</p>
-            <Link to="/arcade" className="l-hero-secondary">{t.home.allGamesButton}</Link>
+            <Link to="/arcade" className="l-hero-secondary">{t.nav.games}</Link>
           </div>
         </section>
       )}
