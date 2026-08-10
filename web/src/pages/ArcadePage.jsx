@@ -14,6 +14,7 @@ export default function ArcadePage() {
   const initialGames = Array.isArray(bootstrap?.games) ? bootstrap.games : [];
   const hasBootstrap = Array.isArray(bootstrap?.games);
   const [games, setGames] = useState(initialGames);
+  const [activeTransitionId, setActiveTransitionId] = useState(null);
   const [loading, setLoading] = useState(!hasBootstrap);
   const bootstrapPendingRef = useRef(hasBootstrap);
 
@@ -61,7 +62,15 @@ export default function ArcadePage() {
           <div className="arcade-empty"><p>{t.arcade.empty}</p></div>
         ) : (
           <div className="arcade-grid">
-            {games.map((game, index) => <GameCard key={game.id} game={game} index={index} />)}
+            {games.map((game, index) => (
+              <GameCard
+                key={game.id}
+                game={game}
+                index={index}
+                isTransitionSource={activeTransitionId === game.id}
+                onTransitionIntent={setActiveTransitionId}
+              />
+            ))}
           </div>
         )}
       </main>

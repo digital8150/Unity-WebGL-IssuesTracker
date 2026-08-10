@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { getMe } from '../api.js';
 import BrandLogo from '../components/BrandLogo.jsx';
+import PageLink from '../components/PageLink.jsx';
 import './AuthPage.css';
 
 export default function PendingPage() {
   const { user, login, logout } = useAuth();
   const { lang, toggleLang, t } = useI18n();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const [checking, setChecking] = useState(false);
 
   if (!user) {
@@ -46,7 +47,7 @@ export default function PendingPage() {
   return (
     <div className="auth-page">
       <nav className="auth-topbar">
-        <Link to="/" className="auth-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="auth-logo"><BrandLogo /></PageLink>
         <button className="l-lang-toggle auth-lang-toggle" onClick={toggleLang}>
           {lang === 'en' ? '한국어' : 'English'}
         </button>
@@ -80,7 +81,7 @@ export default function PendingPage() {
 }
 
 function RedirectToLogin() {
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   React.useEffect(() => {
     navigate('/login', { replace: true });
   }, [navigate]);

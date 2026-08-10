@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
@@ -19,8 +19,10 @@ import { assetUrl } from '../utils/gameVisuals.js';
 import { readSsrData } from '../utils/ssrData.js';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
+import PageLink from '../components/PageLink.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
 
@@ -57,7 +59,7 @@ export default function BlogPostPage() {
   const initialPost = bootstrap?.post ?? bootstrap?.article ?? null;
   const initialGame = bootstrap?.game ?? null;
   const hasBootstrap = Boolean(initialPost && typeof initialPost === 'object' && initialPost.title);
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const { user } = useAuth();
   const { lang, t } = useI18n();
   const [post, setPost] = useState(initialPost);
@@ -192,16 +194,16 @@ export default function BlogPostPage() {
         ) : notFound || !post ? (
           <div className="bpost-notfound">
             <h2>404 — Post not found</h2>
-            <Link to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="btn btn-ghost">
+            <PageLink to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="btn btn-ghost">
               {isGameArticle ? t.gameArticles.articleBack : t.blog.back}
-            </Link>
+            </PageLink>
           </div>
         ) : (
           <article className="bpost-article">
             {/* Back link */}
-            <Link to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="bpost-back">
+            <PageLink to={isGameArticle ? `/play/${gameSlug}` : '/blog'} className="bpost-back">
               {isGameArticle ? t.gameArticles.articleBack : t.blog.back}
-            </Link>
+            </PageLink>
 
             {/* Cover image */}
             {post.coverImageUrl && (

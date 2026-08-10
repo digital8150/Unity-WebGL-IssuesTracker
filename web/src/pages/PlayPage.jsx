@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import UnityGame from '../components/UnityGame.jsx';
+import PageLink from '../components/PageLink.jsx';
 import { getArcadeGames, getPlayInfo, listPublicGameArticles } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
@@ -8,6 +9,7 @@ import Footer from '../components/Footer.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { GRAC_CONTENT_MARKS, GRAC_RATING_MARKS } from '../constants/gracAssets.js';
 import { assetUrl } from '../utils/gameVisuals.js';
+import { gameTransitionName } from '../utils/gameTransitions.js';
 import { readSsrData } from '../utils/ssrData.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './PlayPage.css';
@@ -232,20 +234,22 @@ export default function PlayPage() {
     }
   };
 
+  const transitionName = gameTransitionName(gameSlug);
+
   if (!gameSlug) return (
-    <div className="play-state">
+    <div className="play-state" style={{ viewTransitionName: transitionName }}>
       <p className="play-state-title">{t.play.noGameTitle}</p>
       <p className="play-state-sub">{t.play.noGameDescription}</p>
     </div>
   );
   if (loadError) return (
-    <div className="play-state">
+    <div className="play-state" style={{ viewTransitionName: transitionName }}>
       <p className="play-state-title">{t.play.loadError}</p>
       <p className="play-state-sub">{loadError}</p>
     </div>
   );
   if (!buildInfo) return (
-    <div className="play-state">
+    <div className="play-state" style={{ viewTransitionName: transitionName }}>
       <p className="play-state-sub">{t.loading}</p>
     </div>
   );
@@ -289,12 +293,12 @@ export default function PlayPage() {
       <section className="play-player" aria-label={gameName}>
         <div className="play-player-bar">
           <div className="play-player-left">
-            <Link to="/" className="play-back" aria-label={t.play.backToArcade}>
+            <PageLink to="/" className="play-back" aria-label={t.play.backToArcade}>
               ←
-            </Link>
-            <Link to="/" className="play-player-brand" aria-label={t.nav.home}>
+            </PageLink>
+            <PageLink to="/" className="play-player-brand" aria-label={t.nav.home}>
               <BrandLogo size="sm" />
-            </Link>
+            </PageLink>
             <span className="play-player-divider" aria-hidden="true" />
             <strong className="play-player-name">{gameName}</strong>
             <span className="play-player-version">
@@ -312,7 +316,11 @@ export default function PlayPage() {
           </div>
         </div>
         <div className="play-canvas-stage">
-          <div ref={gameWrapRef} className="play-canvas-frame" style={gameContainerStyle}>
+          <div
+            ref={gameWrapRef}
+            className="play-canvas-frame"
+            style={{ ...gameContainerStyle, viewTransitionName: transitionName }}
+          >
             <UnityGame
               {...urls}
               onReady={(fn) => { sendMessageFn.current = fn; }}
@@ -343,13 +351,13 @@ export default function PlayPage() {
                     <p className="play-section-eyebrow">{t.play.devlogEyebrow}</p>
                     <h2>{t.play.updatesTitle}</h2>
                   </div>
-                  <Link to={`/play/${gameSlug}/articles`} className="play-view-all">{t.play.viewAllArticles}</Link>
+                  <PageLink to={`/play/${gameSlug}/articles`} className="play-view-all">{t.play.viewAllArticles}</PageLink>
                 </div>
                 <div className="play-article-list">
                   {articles.map((article) => {
                     const articleDate = article.publishedAt || article.createdAt;
                     return (
-                      <Link
+                      <PageLink
                         key={article._id || article.slug}
                         to={`/play/${gameSlug}/articles/${article.slug}`}
                         className="play-article-row"
@@ -371,7 +379,7 @@ export default function PlayPage() {
                           <h3>{article.title}</h3>
                           {article.summary && <p>{article.summary}</p>}
                         </div>
-                      </Link>
+                      </PageLink>
                     );
                   })}
                 </div>
@@ -423,7 +431,7 @@ export default function PlayPage() {
                 <h2 className="play-rail-eyebrow">{t.play.continuePlaying}</h2>
                 <div className="play-related-list">
                   {relatedGames.map((game) => (
-                    <Link key={game.id} to={`/play/${game.slug}`} className="play-related-card">
+                    <PageLink key={game.id} to={`/play/${game.slug}`} className="play-related-card">
                       <div className="play-related-thumb">
                         {game.thumbnailUrl ? (
                           <img src={assetUrl(game.thumbnailUrl)} alt="" loading="lazy" />
@@ -435,7 +443,7 @@ export default function PlayPage() {
                         <strong>{game.name}</strong>
                         <small>{game.developerName || t.arcade.trackName}</small>
                       </span>
-                    </Link>
+                    </PageLink>
                   ))}
                 </div>
               </section>

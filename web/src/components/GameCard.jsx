@@ -1,21 +1,36 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
+import PageLink from './PageLink.jsx';
 import { artworkFor, assetUrl } from '../utils/gameVisuals.js';
+import { activateGameTransitionSource, gameTransitionName } from '../utils/gameTransitions.js';
 import './GameCard.css';
 
-export default function GameCard({ game, index = 0 }) {
+export default function GameCard({ game, index = 0, isTransitionSource = false, onTransitionIntent }) {
   const { t } = useI18n();
   const title = game.name || t.arcade.untitled;
   const artwork = artworkFor(game);
+  const transitionName = gameTransitionName(game.slug);
+  const mediaRef = React.useRef(null);
+
+  const activateSource = () => {
+    onTransitionIntent?.(game.id);
+    activateGameTransitionSource(mediaRef.current, transitionName);
+  };
 
   return (
-    <Link
+    <PageLink
       to={`/play/${game.slug}`}
       className="game-card"
       style={{ animationDelay: `${index * 0.06}s` }}
+      onMouseEnter={activateSource}
+      onFocus={activateSource}
+      onClick={activateSource}
     >
-      <div className="game-card-media">
+      <div
+        ref={mediaRef}
+        className="game-card-media"
+        style={isTransitionSource ? { viewTransitionName: transitionName } : undefined}
+      >
         {game.thumbnailUrl ? (
           <img src={assetUrl(game.thumbnailUrl)} alt={title} loading="lazy" />
         ) : (
@@ -41,6 +56,6 @@ export default function GameCard({ game, index = 0 }) {
           <span className="game-card-play">{t.arcade.play} <span aria-hidden="true">▸</span></span>
         </div>
       </div>
-    </Link>
+    </PageLink>
   );
 }

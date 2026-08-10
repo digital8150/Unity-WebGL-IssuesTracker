@@ -1,9 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
+import PageLink from '../components/PageLink.jsx';
 import './AuthPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -37,7 +38,7 @@ export default function LoginPage() {
   return (
     <div className="auth-page">
       <nav className="auth-topbar">
-        <Link to="/" className="auth-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="auth-logo"><BrandLogo /></PageLink>
         <div className="auth-topbar-right">
           <button className="l-lang-toggle auth-lang-toggle" onClick={toggleLang}>
             {lang === 'en' ? '한국어' : 'English'}

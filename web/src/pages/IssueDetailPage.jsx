@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { getIssue, updateIssue, addComment, deleteComment, voteIssue } from '../api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
+import PageLink from '../components/PageLink.jsx';
+import { usePageNavigate } from '../hooks/usePageTransition.js';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import './DashboardPage.css';
 import './IssueDetailPage.css';
@@ -29,7 +31,7 @@ const PRIORITY_LIST = ['none', 'low', 'medium', 'high'];
 
 export default function IssueDetailPage() {
   const { gameId, issueId } = useParams();
-  const navigate = useNavigate();
+  const navigate = usePageNavigate();
   const { lang, toggleLang, t } = useI18n();
   const { user } = useAuth();
   const [issue, setIssue] = useState(null);
@@ -145,7 +147,7 @@ export default function IssueDetailPage() {
   if (loading) {
     return (
       <div className="dash-layout">
-        <aside className="dash-sidebar"><Link to="/" className="dash-logo"><BrandLogo /></Link></aside>
+        <aside className="dash-sidebar"><PageLink to="/" className="dash-logo"><BrandLogo /></PageLink></aside>
         <main className="dash-main"><p className="dash-loading">{t.loading}</p></main>
       </div>
     );
@@ -168,9 +170,9 @@ export default function IssueDetailPage() {
   return (
     <div className="dash-layout">
       <aside className="dash-sidebar">
-        <Link to="/" className="dash-logo"><BrandLogo /></Link>
+        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
         <nav className="dash-nav">
-          <Link className="dash-nav-item" to={`/dashboard/games/${gameId}`}>{t.gameDetail.backReports}</Link>
+          <PageLink className="dash-nav-item" to={`/dashboard/games/${gameId}`}>{t.gameDetail.backReports}</PageLink>
         </nav>
         <div className="dash-sidebar-footer">
           <div className="dash-footer-row">
