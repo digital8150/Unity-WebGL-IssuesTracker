@@ -105,6 +105,34 @@ test('JSON-LD is injected and cannot break out of its script tag', async () => {
   );
 });
 
+test('bootstrap JSON is injected before #root and cannot break out of its script tag', async () => {
+  const result = injectSeoHtml(
+    await readShell(),
+    baseOptions({
+      bootstrap: {
+        route: '/blog/:slug',
+        url: '/blog/example',
+        data: { post: { title: '</script><img src=x>' } },
+      },
+    }),
+  );
+  const match = result.match(/<script type="application\/json" id="__SSR_DATA__">([\s\S]*?)<\/script>/);
+
+  assert.ok(match, 'injectSeoHtml must emit the bootstrap script when bootstrap data is provided');
+  assert.doesNotMatch(match[1], /</, 'Bootstrap JSON must escape < before it enters an HTML script tag');
+  assert.deepEqual(JSON.parse(match[1]).data.post, { title: '</script><img src=x>' });
+  assert.ok(
+    result.indexOf(match[0]) < result.indexOf('id="root"'),
+    'Bootstrap data must be outside #root so createRoot does not remove it before the page reads it',
+  );
+});
+
+test('omitting bootstrap leaves no bootstrap script in the shell', async () => {
+  const result = injectSeoHtml(await readShell(), baseOptions());
+
+  assert.doesNotMatch(result, /id="__SSR_DATA__"/);
+});
+
 test('the JSON-LD placeholder is consumed even when a page has no structured data', async () => {
   const result = injectSeoHtml(await readShell(), baseOptions({ content: CONTENT }));
 

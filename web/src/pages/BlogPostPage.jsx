@@ -16,6 +16,7 @@ import {
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { createBlogMarkdownRenderer } from '../utils/blogMedia.js';
 import { assetUrl } from '../utils/gameVisuals.js';
+import { readSsrData } from '../utils/ssrData.js';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
@@ -52,14 +53,19 @@ export default function BlogPostPage() {
   const { slug, gameSlug, articleSlug } = useParams();
   const isGameArticle = Boolean(gameSlug && articleSlug);
   const contentSlug = isGameArticle ? articleSlug : slug;
+  const bootstrap = readSsrData(isGameArticle ? '/play/:gameSlug/articles/:articleSlug' : '/blog/:slug');
+  const initialPost = bootstrap?.post ?? bootstrap?.article ?? null;
+  const initialGame = bootstrap?.game ?? null;
+  const hasBootstrap = Boolean(initialPost && typeof initialPost === 'object' && initialPost.title);
   const navigate = useNavigate();
   const { user } = useAuth();
   const { lang, t } = useI18n();
-  const [post, setPost] = useState(null);
-  const [game, setGame] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [post, setPost] = useState(initialPost);
+  const [game, setGame] = useState(initialGame);
+  const [loading, setLoading] = useState(!hasBootstrap);
   const [notFound, setNotFound] = useState(false);
   const contentRef = useRef(null);
+  const bootstrapPendingRef = useRef(hasBootstrap);
 
   // Comment form state
   const [commentBody, setCommentBody]     = useState('');
@@ -139,6 +145,11 @@ export default function BlogPostPage() {
   } : {});
 
   useEffect(() => {
+    if (bootstrapPendingRef.current) {
+      bootstrapPendingRef.current = false;
+      return undefined;
+    }
+
     let active = true;
     setLoading(true);
     setNotFound(false);

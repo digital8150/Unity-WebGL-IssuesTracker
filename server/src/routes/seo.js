@@ -29,6 +29,7 @@ import {
   renderPrivacyContent,
   resolvePrivacyVersion,
 } from '../services/seo.js';
+import { toPublicBlogPost } from '../services/publicData.js';
 
 function seoRouter({ distRoot, siteOrigin }) {
   const router = express.Router();
@@ -313,6 +314,11 @@ function seoRouter({ distRoot, siteOrigin }) {
           author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
           publisher: { '@type': 'Organization', name: 'BCSDLab.' },
           mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+        },
+        bootstrap: {
+          route: '/blog/:slug',
+          url: req.originalUrl,
+          data: { post: toPublicBlogPost(post) },
         },
         content: renderBlogPostContent(post, siteOrigin),
       }));

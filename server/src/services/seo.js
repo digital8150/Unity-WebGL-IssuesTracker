@@ -338,7 +338,17 @@ function replaceCanonical(html, url) {
   return pattern.test(html) ? html.replace(pattern, tag) : html.replace('</head>', `  ${tag}\n  </head>`);
 }
 
-export function injectSeoHtml(html, { title, description, image, url, type = 'website', robots = 'index,follow', jsonLd = null, content = '' }) {
+export function injectSeoHtml(html, {
+  title,
+  description,
+  image,
+  url,
+  type = 'website',
+  robots = 'index,follow',
+  jsonLd = null,
+  content = '',
+  bootstrap = null,
+}) {
   let result = html.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(title)}</title>`);
   result = replaceMeta(result, 'name', 'description', description);
   result = replaceMeta(result, 'name', 'robots', robots);
@@ -356,6 +366,14 @@ export function injectSeoHtml(html, { title, description, image, url, type = 'we
     ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>`
     : '';
   result = result.replace('<!-- SEO_JSON_LD -->', jsonLdTag);
+  if (bootstrap !== null && bootstrap !== undefined) {
+    const serialized = JSON.stringify(bootstrap);
+    if (serialized) {
+      const bootstrapTag = `<script type="application/json" id="__SSR_DATA__">${serialized.replace(/</g, '\\u003c')}</script>`;
+      const rootOpenTag = /<div\s+id=(['"])root\1[^>]*>/i;
+      result = result.replace(rootOpenTag, (openingTag) => `${bootstrapTag}${openingTag}`);
+    }
+  }
   if (content) {
     const rootOpenTag = /<div\s+id=(['"])root\1[^>]*>/i;
     const seoPrerender = `<div id="seo-prerender" aria-hidden="true">${content}</div>`;
