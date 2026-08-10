@@ -105,7 +105,17 @@ function seoRouter({ distRoot, siteOrigin }) {
         .select('gameId slug publishedAt updatedAt')
         .lean();
       const gameSlugs = new Map(games.map((game) => [String(game._id), game.slug]));
-      const gameLastModified = new Map(games.map((game) => [String(game._id), game.updatedAt]));
+      const gameLastModified = new Map();
+      gameArticles.forEach((article) => {
+        const articleDate = article.updatedAt || article.publishedAt;
+        const articleTime = articleDate ? new Date(articleDate).getTime() : NaN;
+        if (!Number.isFinite(articleTime)) return;
+        const gameId = String(article.gameId);
+        const currentDate = gameLastModified.get(gameId);
+        if (!currentDate || articleTime > new Date(currentDate).getTime()) {
+          gameLastModified.set(gameId, articleDate);
+        }
+      });
       urls.push(...[...new Set(gameArticles.map((article) => String(article.gameId)))]
         .map((gameId) => {
           const gameSlug = gameSlugs.get(gameId);

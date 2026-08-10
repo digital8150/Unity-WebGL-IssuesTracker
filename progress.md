@@ -109,3 +109,17 @@ implementation details. Entries are written in English for agent readability.
 
 - Revalidated the SEO shell, privacy SSR, and route-coverage changes before commit.
 - Verification: `server/npm test` (20 passing), `web/npm run build`, and `git diff --check`.
+
+## 2026-08-10 (production SEO audit)
+
+- Production `sitemap.xml` exposes 15 URLs; all return HTTP 200.
+- 14 sitemap URLs return page-specific SSR `<main>` content, H1, canonical/OG metadata, and valid JSON-LD.
+- Production `/privacy` is an exception: shell-only HTML with no H1/body/JSON-LD, `noindex,follow`, and home canonical while listed in the sitemap; redeploy/fix is pending.
+- `/blog/what-is-webgl-pros-and-cons` has a 201-character meta description; consider shortening it for search snippets.
+- Browser DOM/visual inspection was unavailable because no browser instance was connected; audit used direct production HTTP responses.
+
+## 2026-08-10 (sitemap lastmod fix, /privacy root cause)
+
+- `sitemap.xml` article-list entries (`/play/:gameSlug/articles`) took `lastmod` from `Game.updatedAt`; now derived from the newest `updatedAt || publishedAt` across that game's published articles. URL shape, slug lookup, and `null` fallback unchanged; no extra query.
+- Production `/privacy` shell-only regression is **not** a deploy failure: the privacy SSR handler lives only in `67075f6` on `feat/polish-hero-and-ssr-flash`, never merged to `main`. The sitemap entry shipped earlier via `a409d6d` (on `main`), so the sitemap advertises a route production cannot render. Fix is to merge the branch and redeploy.
+- Verification: `node --check src/routes/seo.js`, `cd server; npm test` (20 passing), `git diff --check`.
