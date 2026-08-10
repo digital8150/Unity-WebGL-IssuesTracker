@@ -166,3 +166,14 @@ implementation details. Entries are written in English for agent readability.
 - SEO regression check for the data-router refactor: `server/` untouched; every path the SEO router serves (`/`, `/privacy`, `/privacy/:date`, `/arcade`, `/blog`, `/blog/:slug`, `/play/:gameSlug/articles`, `/play/:gameSlug/articles/:articleSlug`, `/play/:gameSlug`, `/play/:gameSlug/:buildId`) still exists client-side with the same pattern; `readSsrData` call sites unchanged.
 - Measured cold load of `/arcade` frame-by-frame: inline skeleton 136-225 ms, a 2 ms textless frame at mount, content from 244 ms — `trulyBlankTotalMs: 0`, so route-level `lazy` did not introduce a blank-screen gap. Caveat: measured against a warm local dev server; there is no root `HydrateFallback`, so a cold cache on a slow network could still expose a gap between `createRoot` clearing `#root` and the route chunk resolving.
 - Still open: the "최근 아티클" section still renders a plain `{t.blog.loading}` text line (`LandingPage.jsx:251`) while everything around it is a skeleton.
+
+## 2026-08-10 (SEO default copy)
+
+- Replaced legacy bug-report/tester wording in default, home, and Arcade metadata with the approved BCSDLab. Game Track web-game description.
+- Aligned `web/index.html`, client metadata fallbacks, server SSR constants/Arcade JSON-LD, and Korean/English home/Arcade copy.
+- Verification: `web/npm run build`, `git diff --check`, and relevant SEO bootstrap tests passed; `server/npm test` has 31 passing and 3 pre-existing `seo-route-coverage` parser failures because the test still expects `<Route>` while `App.jsx` uses `createBrowserRouter`.
+
+## 2026-08-10 (SEO route coverage test update)
+
+- Updated `seo-route-coverage.test.js` to read the current `main.jsx` data-router route table (`pageRoute`, `protectedPageRoute`, and literal route entries) instead of the removed `<Route>` syntax in `App.jsx`.
+- Verification: `server/npm test` passes all 34 tests; `git diff --check` passed.

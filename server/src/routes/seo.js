@@ -231,7 +231,7 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       const shell = await readShell(next);
       if (!shell) return;
       const url = `${siteOrigin}/arcade`;
-      const description = 'BCSDLab. Game Track이 공개한 Unity WebGL 게임을 브라우저에서 바로 플레이하세요.';
+      const description = 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.';
       sendHtml(res, injectSeoHtml(shell, {
         title: `Arcade — ${SITE_NAME}`,
         description,
@@ -241,7 +241,7 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
           '@context': 'https://schema.org',
           '@type': 'CollectionPage',
           name: 'BCSDLab. Arcade',
-          description: '브라우저에서 바로 플레이할 수 있는 Unity WebGL 게임 갤러리',
+          description,
           url,
           mainEntity: {
             '@type': 'ItemList',

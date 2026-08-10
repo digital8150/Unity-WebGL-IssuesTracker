@@ -26,8 +26,8 @@ const translations = {
       signOut: 'Sign out',
     },
     home: {
-      seoTitle: 'Unity WebGL games and bug reports — BCSDLab. Arcade',
-      seoDescription: 'Play Unity WebGL games in the browser and collect tester bug reports with a session snapshot.',
+      seoTitle: 'BCSDLab. Game Track web games | BCSDLab. Arcade',
+      seoDescription: 'A collection of web games made by the BCSDLab. Game Track. Play them instantly in your browser with no installation.',
       featuredEyebrow: 'FEATURED',
       featuredInstallNote: 'Runs in the browser — no install required',
       featuredDescriptionFallback: 'The developer has not added a description yet.',
@@ -94,7 +94,7 @@ const translations = {
     },
     arcade: {
       title: 'BCSDLab. Arcade',
-      sub: 'Games published by the Game track. Pick one and play in the browser — no install required.',
+      sub: 'A collection of web games made by the BCSDLab. Game Track. Play them instantly in your browser with no installation.',
       empty: 'No games have been published yet.',
       play: 'Play',
       by: 'by',
@@ -548,8 +548,8 @@ const translations = {
       signOut: '로그아웃',
     },
     home: {
-      seoTitle: 'Unity WebGL 게임과 버그 리포트 — BCSDLab. Arcade',
-      seoDescription: 'Unity WebGL 게임을 브라우저에서 플레이하고 세션 스냅샷과 함께 테스터 버그 리포트를 수집하세요.',
+      seoTitle: 'BCSDLab. Game Track 웹 게임 | BCSDLab. Arcade',
+      seoDescription: 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.',
       featuredEyebrow: 'FEATURED',
       featuredInstallNote: '설치 없이 브라우저에서 바로 실행',
       featuredDescriptionFallback: '아직 게임 설명이 등록되지 않았습니다.',
@@ -616,7 +616,7 @@ const translations = {
     },
     arcade: {
       title: 'BCSDLab. Arcade',
-      sub: 'Game 트랙이 공개한 게임 모음. 브라우저에서 바로 플레이하세요.',
+      sub: 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.',
       empty: '아직 공개된 게임이 없습니다.',
       play: '플레이',
       by: 'by',

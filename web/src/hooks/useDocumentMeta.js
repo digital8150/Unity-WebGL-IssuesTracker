@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 
 const DEFAULTS = {
-  title: 'BCSDLab. Arcade',
-  description: '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.',
+  title: 'BCSDLab. Game Track 웹 게임 | BCSDLab. Arcade',
+  description: 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.',
   image: '/bcsd_main_page_image.webp',
   url: typeof window === 'undefined' ? 'https://arcade.codingbot.kr' : window.location.origin,
   type: 'website',
