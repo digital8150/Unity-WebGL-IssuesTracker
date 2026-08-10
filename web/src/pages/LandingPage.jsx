@@ -126,9 +126,6 @@ export default function LandingPage() {
                 <Link to={`/play/${featuredGame.slug}`} className="l-hero-primary">
                   <span aria-hidden="true">▶</span> {t.home.playNow}
                 </Link>
-                <Link to={`/play/${featuredGame.slug}`} className="l-hero-secondary">
-                  {t.home.gameInfo}
-                </Link>
                 <span className="l-hero-note">{t.home.featuredInstallNote}</span>
               </div>
             </div>

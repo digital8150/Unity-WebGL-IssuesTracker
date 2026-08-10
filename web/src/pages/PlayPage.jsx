@@ -292,7 +292,7 @@ export default function PlayPage() {
                     <p className="play-section-eyebrow">{t.play.devlogEyebrow}</p>
                     <h2>{t.play.updatesTitle}</h2>
                   </div>
-                  <Link to="/blog" className="play-view-all">{t.play.viewAllArticles}</Link>
+                  <Link to={`/play/${gameSlug}/articles`} className="play-view-all">{t.play.viewAllArticles}</Link>
                 </div>
                 <div className="play-article-list">
                   {articles.map((article) => {

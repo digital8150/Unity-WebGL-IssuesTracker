@@ -15,18 +15,42 @@ export default function BlogListPage() {
   const [search, setSearch] = useState('');
   const [tag, setTag] = useState('');
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => {
+    const requestedPage = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
+    return Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  });
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
 
   const LIMIT = 9;
+  const canonicalUrl = page > 1
+    ? `${window.location.origin}/blog?page=${page}`
+    : `${window.location.origin}/blog`;
 
   useDocumentMeta({
     title: `${t.blog.listTitle} — BCSDLab. Arcade`,
     description: t.blog.listSub,
-    url: `${window.location.origin}/blog`,
+    url: canonicalUrl,
     type: 'website',
+    jsonLd: {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: `BCSDLab. Arcade ${t.blog.listTitle}`,
+      url: canonicalUrl,
+      inLanguage: lang === 'ko' ? 'ko-KR' : 'en-US',
+    },
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (page > 1) params.set('page', page);
+    else params.delete('page');
+    const nextSearch = params.toString();
+    const currentSearch = window.location.search.slice(1);
+    if (nextSearch === currentSearch) return;
+    const query = nextSearch ? `?${nextSearch}` : '';
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query}${window.location.hash}`);
+  }, [page]);
 
   useEffect(() => {
     let cancelled = false;

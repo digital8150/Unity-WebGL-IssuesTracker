@@ -57,3 +57,11 @@ implementation details. Entries are written in English for agent readability.
 - Added server-side blog `q` filtering with escaped case-insensitive title/summary matching and threaded it through the web API.
 - Preserved Unity report bridge, canvas sizing, play SEO/JSON-LD, and all six GRAC review detail fields; omitted mockup-only genre/category/status/club links.
 - Verification: `npm run build`, `node --check src/routes/blog.js`, and `git diff --check` passed; redesign CSS has no direct hex color literals.
+
+## 2026-08-10 (public navigation and game articles)
+
+- Removed the duplicate landing hero game-info CTA; kept the direct play CTA only.
+- Reduced the full footer developer links to the dashboard entry; removed build/report and access-request duplicates.
+- Added `/play/:gameSlug/articles` for game-scoped article lists; play-page updates now link there while `/blog` remains site-wide.
+- Added SSR metadata/JSON-LD/sitemap coverage for game article lists; aligned home SSR copy and client canonical handling for blog pagination.
+- Verification: `npm run build`, SEO render assertions, route/link assertions, `node --check` for SEO modules, and `git diff --check` passed.

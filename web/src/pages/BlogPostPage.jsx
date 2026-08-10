@@ -16,6 +16,7 @@ import {
 import BrandLogo from '../components/BrandLogo.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { createBlogMarkdownRenderer } from '../utils/blogMedia.js';
+import { assetUrl } from '../utils/gameVisuals.js';
 import Footer from '../components/Footer.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
@@ -108,22 +109,33 @@ export default function BlogPostPage() {
   }
 
   const SITE = 'BCSDLab. Arcade';
+  const canonicalUrl = isGameArticle
+    ? `${window.location.origin}/play/${gameSlug}/articles/${contentSlug}`
+    : `${window.location.origin}/blog/${contentSlug}`;
+  const articleImage = post?.coverImageUrl
+    ? assetUrl(post.coverImageUrl)
+    : game?.thumbnailUrl
+      ? assetUrl(game.thumbnailUrl)
+      : undefined;
   useDocumentMeta(post ? {
     title: `${post.title} — ${game?.name ? `${game.name} · ` : ''}${SITE}`,
     description: post.summary || undefined,
-    image: post.coverImageUrl || undefined,
-    url: window.location.href,
+    image: articleImage,
+    url: canonicalUrl,
     type: 'article',
     jsonLd: {
       '@context': 'https://schema.org',
-      '@type': 'BlogPosting',
+      '@type': isGameArticle ? 'Article' : 'BlogPosting',
       headline: post.title,
       description: post.summary || undefined,
-      image: post.coverImageUrl || undefined,
+      image: articleImage,
       datePublished: post.publishedAt || post.createdAt,
       dateModified: post.updatedAt || post.publishedAt || post.createdAt,
       author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
-      mainEntityOfPage: { '@type': 'WebPage', '@id': window.location.href },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+      ...(isGameArticle && game ? {
+        isPartOf: { '@type': 'VideoGame', name: game.name, url: `${window.location.origin}/play/${gameSlug}` },
+      } : {}),
     },
   } : {});
 

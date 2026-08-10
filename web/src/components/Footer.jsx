@@ -40,8 +40,6 @@ export default function Footer({ variant = 'full' }) {
           <nav className="site-footer-column" aria-label={t.footer.trackHeading}>
             <span className="site-footer-heading">{t.footer.trackHeading}</span>
             <Link to="/dashboard" className="site-footer-link">{t.footer.trackDashboard}</Link>
-            <Link to="/dashboard" className="site-footer-link">{t.footer.trackBuildsReports}</Link>
-            <Link to="/register" className="site-footer-link">{t.footer.trackRegister}</Link>
           </nav>
         </div>
       </div>
