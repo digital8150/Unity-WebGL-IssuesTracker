@@ -230,6 +230,43 @@ export function renderHomeContent() {
   </main>${footerHtml()}`;
 }
 
+// Effective dates of every published privacy-policy revision, most recent first.
+// The rendered bodies live in `web/src/data/privacyPolicyVersions.jsx` as JSX and
+// cannot be imported here; `server/test/seo-privacy.test.js` asserts this list
+// stays in sync with that file.
+export const PRIVACY_POLICY_DATES = ['2026-07-08'];
+
+export const PRIVACY_TITLE = `개인정보처리방침 — ${SITE_NAME}`;
+export const PRIVACY_DESCRIPTION =
+  'BCSDLab. Arcade의 개인정보 수집 항목, 처리 목적, 보유 기간, 정보주체의 권리와 파기 절차를 안내합니다.';
+
+/** Resolves a `/privacy/:date` param to a published revision, or null when unknown. */
+export function resolvePrivacyVersion(date) {
+  if (!date) return { effectiveDate: PRIVACY_POLICY_DATES[0], isLatest: true };
+  if (!PRIVACY_POLICY_DATES.includes(date)) return null;
+  return { effectiveDate: date, isLatest: date === PRIVACY_POLICY_DATES[0] };
+}
+
+export function renderPrivacyContent({ effectiveDate, isLatest }) {
+  const history = PRIVACY_POLICY_DATES.filter((date) => date !== effectiveDate);
+  const supersededNotice = isLatest
+    ? ''
+    : `<p>이 문서는 과거에 시행되었던 버전입니다. <a href="/privacy">최신 개인정보처리방침 보기</a></p>`;
+  const historyList = history.length
+    ? `<section aria-labelledby="privacy-history-title"><h2 id="privacy-history-title">이전 버전</h2><ul>${history
+      .map((date) => `<li><a href="/privacy/${escapeHtml(date)}">${escapeHtml(date)} 시행본</a></li>`)
+      .join('')}</ul></section>`
+    : '';
+
+  return `${navHtml()}<main>
+    <header><h1>개인정보처리방침</h1><p>시행일자: ${escapeHtml(effectiveDate)}</p></header>
+    ${supersededNotice}
+    <section aria-labelledby="privacy-summary-title"><h2 id="privacy-summary-title">처리 항목 요약</h2><ul><li>소셜 로그인(GitHub·Discord)으로 이메일 주소, 표시 이름, 연동 계정 고유 ID를 수집합니다.</li><li>버그 리포트는 익명으로 제출되며 브라우저·기기 환경 정보와 게임 진행 상태를 포함합니다.</li><li>접속 로그와 인증 토큰 발급·만료 기록이 자동 생성됩니다.</li><li>비밀번호는 수집·저장하지 않습니다.</li></ul></section>
+    <section aria-labelledby="privacy-rights-title"><h2 id="privacy-rights-title">정보주체의 권리</h2><p>정보주체는 개인정보의 열람, 정정·삭제, 처리정지를 언제든지 요구할 수 있으며, 회원 탈퇴 시 수집된 개인정보는 지체 없이 파기됩니다.</p></section>
+    ${historyList}
+  </main>${footerHtml()}`;
+}
+
 export function renderArcadeContent(games, siteOrigin) {
   const cards = games.length
     ? games.map((game) => {
@@ -319,7 +356,11 @@ export function injectSeoHtml(html, { title, description, image, url, type = 'we
     ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>`
     : '';
   result = result.replace('<!-- SEO_JSON_LD -->', jsonLdTag);
-  if (content) result = result.replace('<div id="root"></div>', `<div id="root">${content}</div>`);
+  if (content) {
+    const rootOpenTag = /<div\s+id=(['"])root\1[^>]*>/i;
+    const seoPrerender = `<div id="seo-prerender" aria-hidden="true">${content}</div>`;
+    result = result.replace(rootOpenTag, (openingTag) => `${openingTag}${seoPrerender}`);
+  }
   return result;
 }
 

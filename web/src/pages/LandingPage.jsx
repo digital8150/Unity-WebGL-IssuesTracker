@@ -107,7 +107,6 @@ export default function LandingPage() {
             style={{ backgroundImage: gameBackground(featuredGame) }}
             aria-hidden="true"
           />
-          <div className="l-featured-texture" aria-hidden="true" />
           <div className="l-featured-scrim" aria-hidden="true" />
           <div className="l-featured-inner">
             <div className="l-hero-copy">

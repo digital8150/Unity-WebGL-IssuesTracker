@@ -15,11 +15,13 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById('root')).render(
-  <ThemeProvider>
-    <GrowlProvider>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </GrowlProvider>
-  </ThemeProvider>,
+  <div className="app-shell">
+    <ThemeProvider>
+      <GrowlProvider>
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
+      </GrowlProvider>
+    </ThemeProvider>
+  </div>,
 );

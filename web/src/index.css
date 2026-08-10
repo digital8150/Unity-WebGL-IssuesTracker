@@ -178,6 +178,20 @@ html, body, #root {
   height: 100%;
 }
 
+.app-shell {
+  min-height: 100%;
+  animation: app-shell-enter 200ms ease-out both;
+}
+
+@keyframes app-shell-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell { animation: none; }
+}
+
 body {
   font-family: var(--font-sans);
   background: var(--color-canvas);

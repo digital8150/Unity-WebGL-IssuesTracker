@@ -32,9 +32,609 @@
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    <!--
+      Resolve the theme before first paint. ThemeProvider only sets data-theme in
+      an effect, so without this the loading skeleton (and the app itself) paints
+      with the OS preference and then snaps to the user's saved choice.
+      Keep the resolution order identical to web/src/context/ThemeContext.jsx.
+    -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+
+        // Classify the route first: it needs no storage access, so a blocked
+        // localStorage cannot cost us the correct skeleton variant too.
+        try {
+          var path = window.location.pathname;
+          if (path.length > 1 && path.charAt(path.length - 1) === '/') {
+            path = path.slice(0, -1); // React Router treats /login/ as /login.
+          }
+          var shell = 'public';
+          if (path === '/login' || path === '/register' || path === '/consent'
+            || path === '/pending' || path === '/auth/callback') {
+            shell = 'auth';
+          } else if (path === '/dashboard' || path.indexOf('/dashboard/') === 0
+            || path.indexOf('/admin/') === 0) {
+            shell = 'dash';
+          }
+          root.setAttribute('data-shell', shell);
+        } catch (e) {
+          root.setAttribute('data-shell', 'public');
+        }
+
+        try {
+          var saved = localStorage.getItem('theme');
+          var theme = saved === 'dark' || saved === 'light'
+            ? saved
+            : (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+          root.setAttribute('data-theme', theme);
+        } catch (e) {
+          root.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+
+    <style>
+      /* Paint the page ground before the bundled CSS lands, so the shell does
+         not flash white on its way to the dark theme. */
+      html, body { background: #080808; }
+      :root[data-theme="light"],
+      :root[data-theme="light"] body { background: #ffffff; }
+
+      #root {
+        position: relative;
+        min-height: 100%;
+      }
+
+      #seo-prerender {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+        user-select: none;
+        color: transparent;
+        background: transparent;
+        text-shadow: none;
+        z-index: 0;
+      }
+
+      #seo-prerender * {
+        color: transparent !important;
+        background-color: transparent !important;
+        border-color: transparent !important;
+        text-shadow: none !important;
+      }
+
+      #seo-prerender img,
+      #seo-prerender video {
+        opacity: 0;
+      }
+
+      #app-shell-skeleton {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        overflow: hidden;
+        background: #080808;
+        color: #ffffff;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .shell-skeleton-public {
+        min-height: 100vh;
+        padding: 0 clamp(20px, 5vw, 64px) 56px;
+      }
+
+      .shell-skeleton-auth,
+      .shell-skeleton-dash { display: none; }
+
+      :root[data-shell="auth"] .shell-skeleton-public,
+      :root[data-shell="dash"] .shell-skeleton-public { display: none; }
+      :root[data-shell="auth"] .shell-skeleton-auth { display: block; }
+      :root[data-shell="dash"] .shell-skeleton-dash { display: flex; }
+
+      .shell-skeleton-nav {
+        display: flex;
+        height: 64px;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .shell-skeleton-logo,
+      .shell-skeleton-nav-actions span,
+      .shell-skeleton-bar,
+      .shell-skeleton-card-copy span {
+        display: block;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        animation: shell-skeleton-pulse 1.8s ease-in-out infinite;
+      }
+
+      .shell-skeleton-logo {
+        width: 142px;
+        height: 12px;
+      }
+
+      .shell-skeleton-nav-actions {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+      }
+
+      .shell-skeleton-nav-actions span:nth-child(1) { width: 46px; }
+      .shell-skeleton-nav-actions span:nth-child(2) { width: 54px; }
+      .shell-skeleton-nav-actions span:nth-child(3) { width: 32px; height: 32px; }
+
+      .shell-skeleton-main {
+        width: min(100%, 1240px);
+        margin: 0 auto;
+      }
+
+      .shell-skeleton-hero,
+      .shell-skeleton-card {
+        position: relative;
+        overflow: hidden;
+        background: #171717;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      .shell-skeleton-hero {
+        display: flex;
+        min-height: 360px;
+        height: min(52vh, 520px);
+        margin-top: clamp(36px, 8vw, 104px);
+        align-items: flex-end;
+        padding: clamp(28px, 5vw, 64px);
+        border-radius: 18px;
+      }
+
+      .shell-skeleton-hero::after,
+      .shell-skeleton-card::after {
+        position: absolute;
+        inset: 0 auto 0 -45%;
+        width: 36%;
+        content: "";
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+        animation: shell-skeleton-shimmer 2.4s ease-in-out infinite;
+      }
+
+      .shell-skeleton-hero-copy {
+        display: grid;
+        width: min(100%, 540px);
+        gap: 14px;
+      }
+
+      .shell-skeleton-hero-copy > .shell-skeleton-bar:nth-child(1) { width: 92px; height: 18px; }
+      .shell-skeleton-hero-copy > .shell-skeleton-bar:nth-child(2) { width: min(84%, 430px); height: 42px; border-radius: 10px; }
+      .shell-skeleton-hero-copy > .shell-skeleton-bar:nth-child(3) { width: min(100%, 520px); height: 14px; }
+      .shell-skeleton-hero-copy > .shell-skeleton-bar:nth-child(4) { width: min(74%, 380px); height: 14px; }
+      .shell-skeleton-hero-copy > .shell-skeleton-bar:nth-child(5) { width: 128px; height: 42px; margin-top: 8px; border-radius: 999px; }
+
+      .shell-skeleton-cards {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 18px;
+        margin-top: 32px;
+      }
+
+      .shell-skeleton-card {
+        min-height: 176px;
+        padding: 14px;
+        border-radius: 14px;
+      }
+
+      .shell-skeleton-card-media {
+        height: 92px;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.09);
+      }
+
+      .shell-skeleton-card-copy {
+        display: grid;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .shell-skeleton-card-copy > span:nth-child(1) { width: 72%; height: 11px; }
+      .shell-skeleton-card-copy > span:nth-child(2) { width: 42%; height: 9px; animation-delay: 120ms; }
+
+      /* Auth shell: fixed topbar and the same centered card rhythm as auth pages. */
+      .shell-skeleton-auth {
+        min-height: 100vh;
+        background: #111111;
+        color: #ffffff;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .shell-skeleton-auth-page {
+        display: flex;
+        min-height: 100vh;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .shell-skeleton-auth-topbar {
+        position: fixed;
+        z-index: 2;
+        top: 0;
+        right: 0;
+        left: 0;
+        display: flex;
+        height: 64px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        background: rgba(10, 10, 10, 0.85);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .shell-skeleton-auth-logo { width: 142px; height: 12px; }
+      .shell-skeleton-auth-action { width: 70px; height: 28px; }
+
+      .shell-skeleton-auth-card {
+        position: relative;
+        width: 100%;
+        max-width: 420px;
+        margin-top: 64px;
+        padding: 48px 32px;
+        overflow: hidden;
+        background: #0a0a0a;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.28), 0 24px 32px -8px rgba(0, 0, 0, 0.24);
+      }
+
+      .shell-skeleton-auth-card::after,
+      .shell-skeleton-dash-card::after {
+        position: absolute;
+        inset: 0 auto 0 -45%;
+        width: 36%;
+        content: "";
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+        animation: shell-skeleton-shimmer 2.4s ease-in-out infinite;
+      }
+
+      .shell-skeleton-auth-title { width: 208px; height: 30px; border-radius: 8px; }
+      .shell-skeleton-auth-subtitle { width: min(100%, 286px); height: 14px; margin-top: 14px; }
+      .shell-skeleton-auth-oauth-stack { display: grid; gap: 8px; margin-top: 32px; }
+      .shell-skeleton-auth-oauth-stack span {
+        display: block;
+        height: 40px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      /* Dashboard shell: 220px desktop rail, then the real dashboard's mobile rows. */
+      .shell-skeleton-dash {
+        min-height: 100vh;
+        overflow: hidden;
+        background: #0a0a0a;
+        color: #ffffff;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .shell-skeleton-dash-sidebar {
+        display: flex;
+        width: 220px;
+        flex-shrink: 0;
+        flex-direction: column;
+        padding: 24px 8px;
+        background: #111111;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .shell-skeleton-dash-logo { width: 142px; height: 12px; margin: 0 8px 32px; }
+      .shell-skeleton-dash-nav { display: flex; flex: 1; flex-direction: column; gap: 2px; }
+      .shell-skeleton-dash-nav-item { height: 32px; border-radius: 6px; }
+      .shell-skeleton-dash-nav-item:nth-child(1) { width: 78%; }
+      .shell-skeleton-dash-nav-item:nth-child(2) { width: 58%; animation-delay: 100ms; }
+      .shell-skeleton-dash-nav-item:nth-child(3) { width: 72%; animation-delay: 180ms; }
+      .shell-skeleton-dash-nav-item:nth-child(4) { width: 64%; animation-delay: 260ms; }
+
+      .shell-skeleton-dash-sidebar-footer {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .shell-skeleton-dash-user { display: flex; align-items: center; gap: 8px; }
+      .shell-skeleton-dash-avatar {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.16);
+      }
+
+      .shell-skeleton-dash-user-copy { display: grid; min-width: 0; gap: 6px; }
+      .shell-skeleton-dash-user-copy span { display: block; height: 9px; border-radius: 999px; }
+      .shell-skeleton-dash-user-copy span:first-child { width: 82px; }
+      .shell-skeleton-dash-user-copy span:last-child { width: 112px; height: 7px; animation-delay: 120ms; }
+
+      .shell-skeleton-dash-main {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 48px 96px;
+      }
+
+      .shell-skeleton-dash-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 48px;
+      }
+
+      .shell-skeleton-dash-header-copy { display: grid; gap: 8px; }
+      .shell-skeleton-dash-title { width: 190px; height: 32px; border-radius: 8px; }
+      .shell-skeleton-dash-subtitle { width: 264px; height: 14px; }
+      .shell-skeleton-dash-button { width: 108px; height: 36px; border-radius: 6px; }
+
+      .shell-skeleton-dash-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 16px;
+      }
+
+      .shell-skeleton-dash-card {
+        position: relative;
+        display: flex;
+        min-height: 84px;
+        align-items: center;
+        gap: 16px;
+        padding: 20px;
+        overflow: hidden;
+        background: #0a0a0a;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+      }
+
+      .shell-skeleton-dash-card-icon { width: 36px; height: 36px; flex-shrink: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.09); }
+      .shell-skeleton-dash-card-copy { display: grid; min-width: 0; flex: 1; gap: 9px; }
+      .shell-skeleton-dash-card-copy span { display: block; height: 11px; border-radius: 999px; }
+      .shell-skeleton-dash-card-copy span:first-child { width: min(74%, 150px); }
+      .shell-skeleton-dash-card-copy span:last-child { width: min(44%, 92px); height: 8px; animation-delay: 120ms; }
+
+      .shell-skeleton-dash-card:nth-child(2) .shell-skeleton-dash-card-copy span:first-child { width: min(62%, 128px); }
+      .shell-skeleton-dash-card:nth-child(3) .shell-skeleton-dash-card-copy span:first-child { width: min(82%, 168px); }
+
+      @keyframes shell-skeleton-shimmer {
+        from { transform: translateX(0); }
+        to { transform: translateX(390%); }
+      }
+
+      @keyframes shell-skeleton-pulse {
+        0%, 100% { opacity: 0.58; }
+        50% { opacity: 1; }
+      }
+
+      /*
+        Keyed off data-theme (set by the inline script above), not
+        prefers-color-scheme: the app's theme comes from localStorage, so a user
+        who picked dark on a light OS would otherwise get a white skeleton
+        followed by a dark app.
+      */
+      :root[data-theme="light"] #app-shell-skeleton {
+        background: #ffffff;
+        color: #171717;
+      }
+
+      :root[data-theme="light"] .shell-skeleton-auth {
+        background: #fafafa;
+        color: #171717;
+      }
+
+      :root[data-theme="light"] .shell-skeleton-dash {
+        background: #ffffff;
+        color: #171717;
+      }
+
+      :root[data-theme="light"] .shell-skeleton-auth-topbar {
+        background: rgba(255, 255, 255, 0.85);
+        border-bottom-color: rgba(23, 23, 23, 0.1);
+      }
+
+      :root[data-theme="light"] .shell-skeleton-auth-card,
+      :root[data-theme="light"] .shell-skeleton-dash-card {
+        background: #ffffff;
+        border-color: rgba(23, 23, 23, 0.08);
+        box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.06), 0 24px 32px -8px rgba(0, 0, 0, 0.05);
+      }
+
+      :root[data-theme="light"] .shell-skeleton-dash-sidebar {
+        background: #fafafa;
+        border-right-color: rgba(23, 23, 23, 0.1);
+      }
+
+      :root[data-theme="light"] .shell-skeleton-dash-sidebar-footer { border-top-color: rgba(23, 23, 23, 0.1); }
+      :root[data-theme="light"] .shell-skeleton-auth-oauth-stack span { background: rgba(23, 23, 23, 0.1); }
+      :root[data-theme="light"] .shell-skeleton-dash-avatar,
+      :root[data-theme="light"] .shell-skeleton-dash-card-icon { background: rgba(23, 23, 23, 0.08); }
+      :root[data-theme="light"] .shell-skeleton-auth-card::after,
+      :root[data-theme="light"] .shell-skeleton-dash-card::after { background: linear-gradient(90deg, transparent, rgba(23, 23, 23, 0.06), transparent); }
+      :root[data-theme="light"] .shell-skeleton-dash-nav-item { background: rgba(23, 23, 23, 0.08); }
+      :root[data-theme="light"] .shell-skeleton-dash-user-copy span { background: rgba(23, 23, 23, 0.12); }
+
+      :root[data-theme="light"] .shell-skeleton-nav { border-bottom-color: rgba(23, 23, 23, 0.1); }
+      :root[data-theme="light"] .shell-skeleton-logo,
+      :root[data-theme="light"] .shell-skeleton-nav-actions span,
+      :root[data-theme="light"] .shell-skeleton-bar,
+      :root[data-theme="light"] .shell-skeleton-card-copy span { background: rgba(23, 23, 23, 0.12); }
+      :root[data-theme="light"] .shell-skeleton-hero,
+      :root[data-theme="light"] .shell-skeleton-card { background: #f5f5f5; border-color: rgba(23, 23, 23, 0.08); }
+      :root[data-theme="light"] .shell-skeleton-card-media { background: rgba(23, 23, 23, 0.07); }
+      :root[data-theme="light"] .shell-skeleton-hero::after,
+      :root[data-theme="light"] .shell-skeleton-card::after { background: linear-gradient(90deg, transparent, rgba(23, 23, 23, 0.06), transparent); }
+
+      @media (max-width: 720px) {
+        .shell-skeleton-cards { grid-template-columns: 1fr; }
+        .shell-skeleton-card { min-height: 132px; }
+        .shell-skeleton-card-media { height: 58px; }
+      }
+
+      @media (max-width: 768px) {
+        .shell-skeleton-dash { flex-direction: column; height: auto; }
+        .shell-skeleton-dash-sidebar {
+          width: 100%;
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: center;
+          padding: 0;
+          border-right: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .shell-skeleton-dash-logo { flex: 1; min-width: 0; margin: 0; padding: 12px 16px; }
+        .shell-skeleton-dash-sidebar-footer {
+          order: 1;
+          flex-direction: row;
+          align-items: center;
+          padding: 12px 16px;
+          border-top: 0;
+        }
+        .shell-skeleton-dash-nav {
+          order: 2;
+          width: 100%;
+          flex: none;
+          flex-direction: row;
+          gap: 2px;
+          overflow-x: auto;
+          scrollbar-width: none;
+          padding: 0 16px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .shell-skeleton-dash-nav::-webkit-scrollbar { display: none; }
+        .shell-skeleton-dash-nav-item { flex-shrink: 0; padding: 8px 12px; }
+        .shell-skeleton-dash-nav-item:nth-child(1) { width: 88px; }
+        .shell-skeleton-dash-nav-item:nth-child(2) { width: 72px; }
+        .shell-skeleton-dash-nav-item:nth-child(3) { width: 100px; }
+        .shell-skeleton-dash-nav-item:nth-child(4) { width: 76px; }
+        .shell-skeleton-dash-main { padding: 24px 16px; }
+        .shell-skeleton-dash-header { margin-bottom: 32px; }
+        .shell-skeleton-dash-list { grid-template-columns: 1fr; }
+        :root[data-theme="light"] .shell-skeleton-dash-sidebar { border-bottom-color: rgba(23, 23, 23, 0.1); }
+        :root[data-theme="light"] .shell-skeleton-dash-nav { border-top-color: rgba(23, 23, 23, 0.1); }
+      }
+
+      @media (max-width: 400px) {
+        .shell-skeleton-dash-user { display: none; }
+        .shell-skeleton-dash-logo { padding: 12px 8px; }
+        .shell-skeleton-dash-sidebar-footer { padding: 12px 8px; gap: 4px; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .shell-skeleton-logo,
+        .shell-skeleton-nav-actions span,
+        .shell-skeleton-bar,
+        .shell-skeleton-card-copy span,
+        .shell-skeleton-auth-action,
+        .shell-skeleton-auth-oauth-stack span,
+        .shell-skeleton-dash-logo,
+        .shell-skeleton-dash-nav-item,
+        .shell-skeleton-dash-user-copy span,
+        .shell-skeleton-dash-card-copy span,
+        .shell-skeleton-hero::after,
+        .shell-skeleton-card::after,
+        .shell-skeleton-auth-card::after,
+        .shell-skeleton-dash-card::after { animation: none; }
+      }
+    </style>
   </head>
   <body style="margin:0">
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-shell-skeleton" aria-hidden="true">
+        <div class="shell-skeleton-public">
+          <div class="shell-skeleton-nav">
+            <div class="shell-skeleton-logo"></div>
+            <div class="shell-skeleton-nav-actions"><span></span><span></span><span></span></div>
+          </div>
+          <main class="shell-skeleton-main">
+            <div class="shell-skeleton-hero">
+              <div class="shell-skeleton-hero-copy">
+                <span class="shell-skeleton-bar"></span>
+                <span class="shell-skeleton-bar"></span>
+                <span class="shell-skeleton-bar"></span>
+                <span class="shell-skeleton-bar"></span>
+                <span class="shell-skeleton-bar"></span>
+              </div>
+            </div>
+            <div class="shell-skeleton-cards">
+              <div class="shell-skeleton-card"><div class="shell-skeleton-card-media"></div><div class="shell-skeleton-card-copy"><span></span><span></span></div></div>
+              <div class="shell-skeleton-card"><div class="shell-skeleton-card-media"></div><div class="shell-skeleton-card-copy"><span></span><span></span></div></div>
+              <div class="shell-skeleton-card"><div class="shell-skeleton-card-media"></div><div class="shell-skeleton-card-copy"><span></span><span></span></div></div>
+            </div>
+          </main>
+        </div>
+
+        <div class="shell-skeleton-auth">
+          <div class="shell-skeleton-auth-page">
+            <div class="shell-skeleton-auth-topbar">
+              <span class="shell-skeleton-logo shell-skeleton-auth-logo"></span>
+              <span class="shell-skeleton-bar shell-skeleton-auth-action"></span>
+            </div>
+            <div class="shell-skeleton-auth-card">
+              <span class="shell-skeleton-bar shell-skeleton-auth-title"></span>
+              <span class="shell-skeleton-bar shell-skeleton-auth-subtitle"></span>
+              <div class="shell-skeleton-auth-oauth-stack">
+                <span class="shell-skeleton-bar"></span>
+                <span class="shell-skeleton-bar"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="shell-skeleton-dash">
+          <aside class="shell-skeleton-dash-sidebar">
+            <span class="shell-skeleton-logo shell-skeleton-dash-logo"></span>
+            <nav class="shell-skeleton-dash-nav">
+              <span class="shell-skeleton-bar shell-skeleton-dash-nav-item"></span>
+              <span class="shell-skeleton-bar shell-skeleton-dash-nav-item"></span>
+              <span class="shell-skeleton-bar shell-skeleton-dash-nav-item"></span>
+              <span class="shell-skeleton-bar shell-skeleton-dash-nav-item"></span>
+            </nav>
+            <div class="shell-skeleton-dash-sidebar-footer">
+              <div class="shell-skeleton-dash-user">
+                <span class="shell-skeleton-dash-avatar"></span>
+                <span class="shell-skeleton-dash-user-copy">
+                  <span class="shell-skeleton-bar"></span>
+                  <span class="shell-skeleton-bar"></span>
+                </span>
+              </div>
+            </div>
+          </aside>
+          <main class="shell-skeleton-dash-main">
+            <header class="shell-skeleton-dash-header">
+              <div class="shell-skeleton-dash-header-copy">
+                <span class="shell-skeleton-bar shell-skeleton-dash-title"></span>
+                <span class="shell-skeleton-bar shell-skeleton-dash-subtitle"></span>
+              </div>
+              <span class="shell-skeleton-bar shell-skeleton-dash-button"></span>
+            </header>
+            <div class="shell-skeleton-dash-list">
+              <div class="shell-skeleton-dash-card">
+                <span class="shell-skeleton-dash-card-icon"></span>
+                <span class="shell-skeleton-dash-card-copy"><span class="shell-skeleton-bar"></span><span class="shell-skeleton-bar"></span></span>
+              </div>
+              <div class="shell-skeleton-dash-card">
+                <span class="shell-skeleton-dash-card-icon"></span>
+                <span class="shell-skeleton-dash-card-copy"><span class="shell-skeleton-bar"></span><span class="shell-skeleton-bar"></span></span>
+              </div>
+              <div class="shell-skeleton-dash-card">
+                <span class="shell-skeleton-dash-card-icon"></span>
+                <span class="shell-skeleton-dash-card-copy"><span class="shell-skeleton-bar"></span><span class="shell-skeleton-bar"></span></span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
