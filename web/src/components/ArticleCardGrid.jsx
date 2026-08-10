@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import '../pages/BlogListPage.css';
 import { BlogMedia } from './BlogMedia.jsx';
+import { assetUrl } from '../utils/gameVisuals.js';
 
 export function formatArticleDate(dateStr, lang) {
   if (!dateStr) return '';
@@ -28,11 +29,11 @@ export default function ArticleCardGrid({
           className="blog-card"
           style={{ animationDelay: `${index * 0.06}s` }}
         >
-          {post.coverImageUrl && (
-            <div className="blog-card-cover">
-              <BlogMedia src={post.coverImageUrl} alt="" loading="lazy" />
-            </div>
-          )}
+          <div className={`blog-card-cover${post.coverImageUrl ? '' : ' blog-card-cover-fallback'}`}>
+            {post.coverImageUrl && (
+              <BlogMedia src={assetUrl(post.coverImageUrl)} alt={post.title} loading="lazy" />
+            )}
+          </div>
           <div className="blog-card-body">
             {post.tags?.length > 0 && (
               <div className="blog-card-tags">
@@ -53,7 +54,6 @@ export default function ArticleCardGrid({
                 </span>
               )}
             </div>
-            <span className="blog-card-readmore">{labels.readMore}</span>
           </div>
         </Link>
       ))}

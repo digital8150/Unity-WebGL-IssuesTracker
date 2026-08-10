@@ -14,6 +14,10 @@ const blogUpload = multer({
   limits: { fileSize: BLOG_IMAGE_MAX_BYTES },
 });
 
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function parseBlogImageUpload(req, res, next) {
   blogUpload.single('file')(req, res, (err) => {
     if (!err) return next();
@@ -33,9 +37,14 @@ router.get('/', async (req, res, next) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
     const skip = (page - 1) * limit;
     const tag = req.query.tag;
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
 
     const filter = { published: true };
     if (tag) filter.tags = tag;
+    if (query) {
+      const safeQuery = new RegExp(escapeRegex(query), 'i');
+      filter.$or = [{ title: safeQuery }, { summary: safeQuery }];
+    }
 
     const [posts, total] = await Promise.all([
       BlogPost.find(filter)

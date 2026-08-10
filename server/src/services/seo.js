@@ -4,6 +4,8 @@ import { isVideoMediaUrl } from './blogMedia.js';
 
 export const SITE_NAME = 'BCSDLab. Arcade';
 export const DEFAULT_DESCRIPTION = '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.';
+export const HOME_TITLE = 'Unity WebGL 게임과 버그 리포트 — BCSDLab. Arcade';
+export const HOME_DESCRIPTION = 'Unity WebGL 게임을 브라우저에서 플레이하고 세션 스냅샷과 함께 테스터 버그 리포트를 수집하세요.';
 export const DEFAULT_IMAGE_PATH = '/bcsd_main_page_image.webp';
 
 marked.setOptions({ breaks: true, gfm: true });
@@ -159,7 +161,15 @@ export function renderGameArticlesContent(game, articles, siteOrigin) {
     return `<article><a href="${escapeHtml(href)}">${image}<h3>${escapeHtml(article.title)}</h3></a>${article.summary ? `<p>${escapeHtml(article.summary)}</p>` : ''}${date ? `<time datetime="${escapeHtml(new Date(article.publishedAt || article.createdAt).toISOString())}">${escapeHtml(date)}</time>` : ''}</article>`;
   }).join('');
 
-  return `<section aria-labelledby="game-articles-title"><h2 id="game-articles-title">\uac8c\uc784 \uc5c5\ub370\uc774\ud2b8 \ubc0f \uc544\ud2f0\ud074</h2>${cards}</section>`;
+  return `<section aria-labelledby="game-articles-title"><h2 id="game-articles-title">\uac8c\uc784 \uc5c5\ub370\uc774\ud2b8 \ubc0f \uc544\ud2f0\ud074</h2><p><a href="/play/${escapeHtml(game.slug)}/articles">\uac8c\uc784 \uc544\ud2f0\ud074 \uc804\uccb4 \ubcf4\uae30</a></p>${cards}</section>`;
+}
+
+export function renderGameArticleListContent(game, articles, siteOrigin) {
+  const description = game.description || '\uac8c\uc784\uc758 \ud328\uce58\ub178\ud2b8, \uac1c\ubc1c \uc5c5\ub370\uc774\ud2b8\uc640 \uc18c\uc2dd\uc744 \ud655\uc778\ud574 \ubcf4\uc138\uc694.';
+  const listing = articles?.length
+    ? renderGameArticlesContent(game, articles, siteOrigin)
+    : '<section aria-labelledby="game-articles-title"><h2 id="game-articles-title">\uac8c\uc784 \uc5c5\ub370\uc774\ud2b8 \ubc0f \uc544\ud2f0\ud074</h2><p>\uc544\uc9c1 \uacf5\uac1c\ub41c \uac8c\uc784 \uc544\ud2f0\ud074\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.</p></section>';
+  return `${navHtml()}<main><article><nav aria-label="\uc774\ub3d9 \uacbd\ub85c"><a href="/play/${escapeHtml(game.slug)}">${escapeHtml(game.name)}</a> / \uc544\ud2f0\ud074</nav><header><p>GAME ARTICLES</p><h1>${escapeHtml(game.name)}</h1><p>${escapeHtml(description)}</p></header>${listing}</article></main>${footerHtml()}`;
 }
 
 export function renderMarkdown(markdown) {
@@ -213,19 +223,10 @@ function footerHtml() {
 }
 
 export function renderHomeContent() {
-  const features = [
-    ['Unity WebGL 배포', 'Unity WebGL 빌드를 업로드하고 별도의 다운로드 없이 브라우저에서 실행하세요.'],
-    ['게임 내 버그 리포트', '테스터가 게임을 플레이하면서 F2로 버그와 제안을 바로 제출할 수 있습니다.'],
-    ['자동 디버그 스냅샷', 'Unity 로그, 브라우저 환경, WebGL 정보와 게임 상태를 리포트에 함께 저장합니다.'],
-    ['협업형 이슈 관리', '상태, 우선순위, 태그, 댓글과 투표로 게임별 이슈를 정리하세요.'],
-    ['Discord 알림', '새 리포트를 게임별 Discord webhook으로 전달할 수 있습니다.'],
-    ['Arcade 공개 갤러리', '공개한 게임을 Arcade에 등록하고 공유 가능한 플레이 URL을 만드세요.'],
-  ];
-
   return `${navHtml()}<main>
-    <header><p>BCSDLab. Game Track</p><h1>게임을 웹에 바로 배포하세요</h1><p>다운로드 없이 Unity WebGL 게임을 플레이하고, 게임 안에서 버그와 제안을 수집하세요.</p><p><a href="/register">가입 신청</a> · <a href="/arcade">아케이드 둘러보기</a></p></header>
-    <section aria-labelledby="features-title"><h2 id="features-title">Unity WebGL 워크플로우에 최적화된 기능</h2><ul>${features.map(([title, description]) => `<li><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></li>`).join('')}</ul></section>
-    <section aria-labelledby="flow-title"><h2 id="flow-title">Unity 빌드부터 리포트까지</h2><ol><li>게임을 만들고 WebGL 빌드를 업로드합니다.</li><li>테스터에게 플레이 URL을 공유합니다.</li><li>테스터가 F2로 버그를 제출합니다.</li><li>대시보드에서 리포트를 확인하고 처리합니다.</li></ol></section>
+    <header><p>BCSDLAB. ARCADE</p><h1>Unity WebGL 게임을 브라우저에서 바로 플레이하세요</h1><p>${HOME_DESCRIPTION}</p><p><a href="/arcade">전체 게임 보기</a> · <a href="/blog">사이트 아티클 읽기</a></p></header>
+    <section aria-labelledby="games-title"><h2 id="games-title">공개 게임을 바로 플레이</h2><p>Game Track이 공개한 게임을 다운로드 없이 브라우저에서 실행하고, 플레이 페이지에서 버그와 제안을 제출할 수 있습니다.</p><p><a href="/arcade">아케이드 둘러보기</a></p></section>
+    <section aria-labelledby="flow-title"><h2 id="flow-title">플레이부터 피드백까지</h2><ol><li>공개 게임의 플레이 URL을 엽니다.</li><li>브라우저에서 Unity WebGL 게임을 플레이합니다.</li><li>플레이 페이지에서 버그 또는 제안을 제출합니다.</li><li>게임별 대시보드에서 리포트를 확인합니다.</li></ol></section>
   </main>${footerHtml()}`;
 }
 

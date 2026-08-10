@@ -13,6 +13,7 @@ export default defineConfig({
       },
       '/builds': 'http://localhost:4000',
       '/blog-images': 'http://localhost:4000',
+      '/thumbnails': 'http://localhost:4000',
     },
   },
 });

@@ -13,11 +13,11 @@ import {
   addGameArticleComment,
   deleteGameArticleComment,
 } from '../api.js';
-import BrandLogo from '../components/BrandLogo.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
 import { createBlogMarkdownRenderer } from '../utils/blogMedia.js';
+import { assetUrl } from '../utils/gameVisuals.js';
 import Footer from '../components/Footer.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import PublicNav from '../components/PublicNav.jsx';
 import TurnstileWidget from '../components/TurnstileWidget.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import './BlogListPage.css';
@@ -54,7 +54,7 @@ export default function BlogPostPage() {
   const contentSlug = isGameArticle ? articleSlug : slug;
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, t } = useI18n();
   const [post, setPost] = useState(null);
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -108,22 +108,33 @@ export default function BlogPostPage() {
   }
 
   const SITE = 'BCSDLab. Arcade';
+  const canonicalUrl = isGameArticle
+    ? `${window.location.origin}/play/${gameSlug}/articles/${contentSlug}`
+    : `${window.location.origin}/blog/${contentSlug}`;
+  const articleImage = post?.coverImageUrl
+    ? assetUrl(post.coverImageUrl)
+    : game?.thumbnailUrl
+      ? assetUrl(game.thumbnailUrl)
+      : undefined;
   useDocumentMeta(post ? {
     title: `${post.title} — ${game?.name ? `${game.name} · ` : ''}${SITE}`,
     description: post.summary || undefined,
-    image: post.coverImageUrl || undefined,
-    url: window.location.href,
+    image: articleImage,
+    url: canonicalUrl,
     type: 'article',
     jsonLd: {
       '@context': 'https://schema.org',
-      '@type': 'BlogPosting',
+      '@type': isGameArticle ? 'Article' : 'BlogPosting',
       headline: post.title,
       description: post.summary || undefined,
-      image: post.coverImageUrl || undefined,
+      image: articleImage,
       datePublished: post.publishedAt || post.createdAt,
       dateModified: post.updatedAt || post.publishedAt || post.createdAt,
       author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
-      mainEntityOfPage: { '@type': 'WebPage', '@id': window.location.href },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+      ...(isGameArticle && game ? {
+        isPartOf: { '@type': 'VideoGame', name: game.name, url: `${window.location.origin}/play/${gameSlug}` },
+      } : {}),
     },
   } : {});
 
@@ -162,31 +173,7 @@ export default function BlogPostPage() {
 
   return (
     <div className="bpost-page">
-      {/* Nav */}
-      <nav className="blog-nav">
-        <Link to="/" className="blog-logo"><BrandLogo size="md" /></Link>
-        <div className="blog-nav-links">
-          <Link to="/arcade" className="l-nav-link">{t.nav.arcade}</Link>
-          <Link to="/blog" className="l-nav-link blog-nav-active">{t.nav.blog}</Link>
-          <button className="l-lang-toggle" onClick={toggleLang}>
-            {lang === 'en' ? '한국어' : 'English'}
-          </button>
-          <DarkModeToggle />
-          {user ? (
-            <Link
-              to={user.status === 'approved' ? '/dashboard' : '/pending'}
-              className="btn btn-primary btn-sm"
-            >
-              {t.nav.dashboard}
-            </Link>
-          ) : (
-            <>
-              <Link to="/login" className="l-nav-link nav-signin">{t.nav.signIn}</Link>
-              <Link to="/register" className="btn btn-primary btn-sm">{t.nav.getStarted}</Link>
-            </>
-          )}
-        </div>
-      </nav>
+      <PublicNav active="articles" />
 
       <main className="bpost-main">
         {loading ? (

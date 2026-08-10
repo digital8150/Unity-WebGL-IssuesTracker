@@ -7,6 +7,8 @@ import Game from '../models/Game.js';
 import {
   DEFAULT_DESCRIPTION,
   DEFAULT_IMAGE_PATH,
+  HOME_DESCRIPTION,
+  HOME_TITLE,
   SITE_NAME,
   absoluteUrl,
   escapeXml,
@@ -16,6 +18,7 @@ import {
   publicImageUrl,
   renderArcadeContent,
   renderBlogListContent,
+  renderGameArticleListContent,
   renderGameArticleContent,
   renderBlogPostContent,
   renderHomeContent,
@@ -95,6 +98,15 @@ function seoRouter({ distRoot, siteOrigin }) {
         .select('gameId slug publishedAt updatedAt')
         .lean();
       const gameSlugs = new Map(games.map((game) => [String(game._id), game.slug]));
+      const gameLastModified = new Map(games.map((game) => [String(game._id), game.updatedAt]));
+      urls.push(...[...new Set(gameArticles.map((article) => String(article.gameId)))]
+        .map((gameId) => {
+          const gameSlug = gameSlugs.get(gameId);
+          return gameSlug
+            ? { loc: `${siteOrigin}/play/${gameSlug}/articles`, lastmod: gameLastModified.get(gameId) || null }
+            : null;
+        })
+        .filter(Boolean));
       urls.push(...gameArticles
         .map((article) => {
           const gameSlug = gameSlugs.get(String(article.gameId));
@@ -116,8 +128,8 @@ function seoRouter({ distRoot, siteOrigin }) {
     if (!shell) return;
     const url = siteOrigin;
     sendHtml(res, injectSeoHtml(shell, {
-      title: SITE_NAME,
-      description: DEFAULT_DESCRIPTION,
+      title: HOME_TITLE,
+      description: HOME_DESCRIPTION,
       image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
       url,
       jsonLd: {
@@ -254,9 +266,58 @@ function seoRouter({ distRoot, siteOrigin }) {
     }
   });
 
+  router.get('/play/:gameSlug/articles', async (req, res, next) => {
+    try {
+      const game = await Game.findOne({ slug: req.params.gameSlug, visibility: 'public' })
+        .populate('ownerId', 'name')
+        .lean();
+      if (!game) return res.status(404).send('Game not found');
+
+      const articles = await GameArticle.find({ gameId: game._id, published: true })
+        .sort({ publishedAt: -1, createdAt: -1 })
+        .populate('author', 'name')
+        .select('-content')
+        .lean();
+      const shell = await readShell(next);
+      if (!shell) return;
+      const url = `${siteOrigin}/play/${game.slug}/articles`;
+      const image = publicImageUrl(game.thumbnailUrl, siteOrigin);
+      const description = game.description || '\uac8c\uc784\uc758 \ud328\uce58\ub178\ud2b8, \uac1c\ubc1c \uc5c5\ub370\uc774\ud2b8\uc640 \uc18c\uc2dd\uc744 \ud655\uc778\ud574 \ubcf4\uc138\uc694.';
+      sendHtml(res, injectSeoHtml(shell, {
+        title: `${game.name} \u00b7 \uac8c\uc784 \uc544\ud2f0\ud074 \u2014 ${SITE_NAME}`,
+        description,
+        image,
+        url,
+        robots: articles.length > 0 ? 'index,follow' : 'noindex,follow',
+        jsonLd: {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: `${game.name} \u00b7 \uac8c\uc784 \uc544\ud2f0\ud074`,
+          description,
+          url,
+          isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
+          mainEntity: {
+            '@type': 'ItemList',
+            itemListElement: articles.map((article, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              name: article.title,
+              url: `${siteOrigin}/play/${game.slug}/articles/${article.slug}`,
+            })),
+          },
+        },
+        content: renderGameArticleListContent(game, articles, siteOrigin),
+      }));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
     try {
-      const game = await Game.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
+      const game = await Game.findOne({ slug: req.params.gameSlug, visibility: 'public' })
+        .populate('ownerId', 'name')
+        .lean();
       if (!game) return res.status(404).send('Game not found');
       const article = await GameArticle.findOne({
         gameId: game._id,
@@ -275,7 +336,7 @@ function seoRouter({ distRoot, siteOrigin }) {
         image,
         url,
         type: 'article',
-        robots: game.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+        robots: 'index,follow',
         jsonLd: {
           '@context': 'https://schema.org',
           '@type': 'Article',
@@ -289,7 +350,7 @@ function seoRouter({ distRoot, siteOrigin }) {
           isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
         },
         content: renderGameArticleContent(article, game, siteOrigin),
-      }), game.visibility === 'public' ? undefined : 'private, no-store');
+      }));
     } catch (err) {
       next(err);
     }

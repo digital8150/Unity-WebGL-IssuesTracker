@@ -18,6 +18,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
 const GameDetailPage = lazy(() => import('./pages/GameDetailPage.jsx'));
 const IssueDetailPage = lazy(() => import('./pages/IssueDetailPage.jsx'));
 const PlayPage = lazy(() => import('./pages/PlayPage.jsx'));
+const GameArticlesPage = lazy(() => import('./pages/GameArticlesPage.jsx'));
 const ReportPage = lazy(() => import('./pages/ReportPage.jsx'));
 const ArcadePage = lazy(() => import('./pages/ArcadePage.jsx'));
 const AdminUsersPage = lazy(() => import('./pages/AdminUsersPage.jsx'));
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="/dashboard/games/:gameId/articles" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
           <Route path="/dashboard/games/:gameId/articles/new" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
           <Route path="/dashboard/games/:gameId/articles/:id/edit" element={<ProtectedRoute><GameDetailPage /></ProtectedRoute>} />
+          <Route path="/play/:gameSlug/articles" element={<GameArticlesPage />} />
           <Route path="/play/:gameSlug/articles/:articleSlug" element={<BlogPostPage />} />
 
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />

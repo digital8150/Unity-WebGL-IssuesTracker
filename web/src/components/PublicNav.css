@@ -1,0 +1,92 @@
+.public-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--nav-height);
+  padding: 0 var(--space-xl);
+  background: rgba(var(--color-canvas-rgb), 0.86);
+  border-bottom: 1px solid var(--color-hairline);
+  backdrop-filter: saturate(1.8) blur(16px);
+  -webkit-backdrop-filter: saturate(1.8) blur(16px);
+}
+
+.public-nav-logo {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+
+.public-nav-links {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
+
+.public-nav-link,
+.public-nav-language {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-sm);
+  color: var(--color-body);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.public-nav-link:hover,
+.public-nav-link.is-active {
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+}
+
+.public-nav-link.is-active {
+  font-weight: 600;
+}
+
+.public-nav-language {
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-body);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.public-nav-language:hover {
+  border-color: var(--color-hairline-strong);
+  color: var(--color-ink);
+  background: var(--color-canvas-soft);
+}
+
+.public-nav-link:focus-visible,
+.public-nav-language:focus-visible,
+.public-nav-logo:focus-visible {
+  outline: 2px solid var(--color-link);
+  outline-offset: 3px;
+}
+
+@media (max-width: 834px) {
+  .public-nav { padding: 0 var(--space-md); }
+  .public-nav-links { gap: var(--space-xxs); }
+  .public-nav-link,
+  .public-nav-language { padding-inline: 9px; }
+}
+
+@media (max-width: 620px) {
+  .public-nav-links { flex-wrap: wrap; }
+}

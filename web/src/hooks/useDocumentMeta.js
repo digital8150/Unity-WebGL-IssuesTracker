@@ -3,8 +3,8 @@ import { useEffect } from 'react';
 const DEFAULTS = {
   title: 'BCSDLab. Arcade',
   description: '브라우저에서 바로 플레이하고, 버그·제안을 제출하세요.',
-  image: 'https://arcade.codingbot.kr/bcsd_main_page_image.webp',
-  url: 'https://arcade.codingbot.kr',
+  image: '/bcsd_main_page_image.webp',
+  url: typeof window === 'undefined' ? 'https://arcade.codingbot.kr' : window.location.origin,
   type: 'website',
   robots: 'noindex,follow',
 };
@@ -45,22 +45,22 @@ function applyMeta({ title, description, image, url, type, robots, jsonLd }) {
     setMetaContent('meta[property="og:title"]', title);
     setMetaContent('meta[name="twitter:title"]', title);
   }
-  if (description) {
-    setMetaContent('meta[name="description"]', description);
-    setMetaContent('meta[property="og:description"]', description);
-    setMetaContent('meta[name="twitter:description"]', description);
-  }
-  if (image) {
-    const absoluteImage = toAbsoluteUrl(image);
+  const resolvedDescription = description || DEFAULTS.description;
+  setMetaContent('meta[name="description"]', resolvedDescription);
+  setMetaContent('meta[property="og:description"]', resolvedDescription);
+  setMetaContent('meta[name="twitter:description"]', resolvedDescription);
+
+  const resolvedImage = image || DEFAULTS.image;
+  if (resolvedImage) {
+    const absoluteImage = toAbsoluteUrl(resolvedImage);
     setMetaContent('meta[property="og:image"]', absoluteImage);
     setMetaContent('meta[name="twitter:image"]', absoluteImage);
   }
-  if (url) {
-    setMetaContent('meta[property="og:url"]', url);
-    setCanonical(url);
-  }
-  if (type) setMetaContent('meta[property="og:type"]', type);
-  if (robots) setMetaContent('meta[name="robots"]', robots);
+  const resolvedUrl = url || window.location.href;
+  setMetaContent('meta[property="og:url"]', resolvedUrl);
+  setCanonical(resolvedUrl);
+  setMetaContent('meta[property="og:type"]', type || DEFAULTS.type);
+  setMetaContent('meta[name="robots"]', robots || DEFAULTS.robots);
   setJsonLd(jsonLd);
 }
 

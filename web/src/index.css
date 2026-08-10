@@ -57,6 +57,7 @@
   --radius-md:      8px;   /* cards, marketing-radius */
   --radius-lg:      12px;  /* large cards, pricing */
   --radius-xl:      16px;
+  --radius-card-sm: 10px;
   --radius-pill-sm: 64px;  /* tab pills */
   --radius-pill:    100px; /* marketing CTAs */
   --radius-full:    9999px;
@@ -75,6 +76,14 @@
   --space-6xl:  128px;
   --space-section: 192px;
 
+  /* Editorial arcade layout values from the public-site redesign */
+  --space-card:           20px;
+  --space-layout-gap:     56px;
+  --space-section-top:    72px;
+  --space-section-bottom: 88px;
+  --space-hero-top:       104px;
+  --space-lg-plus:        28px;
+
   /* Stacked shadows */
   --shadow-0: none;
   --shadow-1: 0 0 0 1px rgba(0,0,0,0.08) inset;
@@ -89,6 +98,23 @@
 
   /* Nav height */
   --nav-height: 64px;
+
+  /* Intentionally dark public surfaces (hero, player, and footer) */
+  --surface-night:             #080808;
+  --surface-night-deep:        #000000;
+  --surface-night-ink:         #ffffff;
+  --surface-night-muted:       rgba(255, 255, 255, 0.72);
+  --surface-night-faint:       rgba(255, 255, 255, 0.45);
+  --surface-night-line:        rgba(255, 255, 255, 0.14);
+  --surface-night-scrim-strong: rgba(6, 6, 8, 0.94);
+  --surface-night-scrim-mid:    rgba(6, 6, 8, 0.72);
+  --surface-night-scrim-soft:   rgba(6, 6, 8, 0.28);
+  --surface-footer:             #171717;
+  --surface-footer-ink:         rgba(255, 255, 255, 0.92);
+  --surface-footer-muted:       rgba(255, 255, 255, 0.62);
+  --surface-footer-faint:       rgba(255, 255, 255, 0.36);
+  --surface-footer-line:        rgba(255, 255, 255, 0.12);
+  --focus-ring-soft:            rgba(23, 23, 23, 0.08);
 }
 
 /* ── Dark mode token overrides ── */
@@ -115,6 +141,22 @@
 
   --color-error-soft:     #3a0f0f;
   --color-warning-soft:   #3a2a00;
+
+  --surface-night:             #080808;
+  --surface-night-deep:        #000000;
+  --surface-night-ink:         #ffffff;
+  --surface-night-muted:       rgba(255, 255, 255, 0.72);
+  --surface-night-faint:       rgba(255, 255, 255, 0.45);
+  --surface-night-line:        rgba(255, 255, 255, 0.14);
+  --surface-night-scrim-strong: rgba(6, 6, 8, 0.94);
+  --surface-night-scrim-mid:    rgba(6, 6, 8, 0.72);
+  --surface-night-scrim-soft:   rgba(6, 6, 8, 0.28);
+  --surface-footer:             #171717;
+  --surface-footer-ink:         rgba(255, 255, 255, 0.92);
+  --surface-footer-muted:       rgba(255, 255, 255, 0.62);
+  --surface-footer-faint:       rgba(255, 255, 255, 0.36);
+  --surface-footer-line:        rgba(255, 255, 255, 0.12);
+  --focus-ring-soft:            rgba(237, 237, 237, 0.12);
 
   --status-open-bg:        #0d2040;
   --status-open-fg:        #8fc4ff;

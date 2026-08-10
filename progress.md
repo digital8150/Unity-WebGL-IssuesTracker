@@ -49,3 +49,32 @@ implementation details. Entries are written in English for agent readability.
 - Discord uses the per-game webhook when present, otherwise `DISCORD_WEBHOOK_URL`; missing configuration is a no-op.
 - Unity custom state stays opaque/schemaless; the hand-rolled C# JSON writer is retained.
 - Server-backend leaderboards are named per game, HMAC-protected, and top-N bounded; current nonce/rate-limit state assumes one process.
+
+## 2026-08-10
+
+- Replaced public home, arcade catalogue, article list, and play layouts with the Arcade redesign; added responsive dark-theme token usage.
+- Added shared public nav, game card/artwork fallback, expanded footer, and play-page slim footer; removed unused landing mockups and ParticleCanvas.
+- Added server-side blog `q` filtering with escaped case-insensitive title/summary matching and threaded it through the web API.
+- Preserved Unity report bridge, canvas sizing, play SEO/JSON-LD, and all six GRAC review detail fields; omitted mockup-only genre/category/status/club links.
+- Verification: `npm run build`, `node --check src/routes/blog.js`, and `git diff --check` passed; redesign CSS has no direct hex color literals.
+
+## 2026-08-10 (public navigation and game articles)
+
+- Removed the duplicate landing hero game-info CTA; kept the direct play CTA only.
+- Reduced the full footer developer links to the dashboard entry; removed build/report and access-request duplicates.
+- Added `/play/:gameSlug/articles` for game-scoped article lists; play-page updates now link there while `/blog` remains site-wide.
+- Added SSR metadata/JSON-LD/sitemap coverage for game article lists; aligned home SSR copy and client canonical handling for blog pagination.
+- Verification: `npm run build`, SEO render assertions, route/link assertions, `node --check` for SEO modules, and `git diff --check` passed.
+
+## 2026-08-10 (public navigation cleanup)
+
+- Unified home, Arcade, blog list, and blog detail on the reusable `PublicNav`; only the active item emphasis differs.
+- Removed public-nav login, access-request, dashboard, and home-only all-games entry points; footer remains the developer dashboard entry.
+- Changed the public article label to Blog/블로그 and made Games/게임 always link to `/arcade`.
+- Removed duplicate auth actions from the report-page public nav as well.
+- Verification: `npm run build` and `git diff --check` passed; no removed public-nav props/classes or auth links remain.
+
+## 2026-08-10 (fullscreen Escape handling)
+
+- Restored Chrome/Edge keyboard-lock timing for the play-page fullscreen control by locking `Escape` from `fullscreenchange` instead of immediately after `requestFullscreen()`.
+- Unlock the keyboard on fullscreen exit and component cleanup so short `Escape` reaches the Unity game while a long press remains the browser escape hatch.
