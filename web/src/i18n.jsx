@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { resolveLang } from './i18n/localePath.js';
 
 const BRAND_PREFIX = 'BCSDLab.';
 const BRAND_SUFFIX = 'Arcade';
@@ -23,6 +25,7 @@ const translations = {
       switchToDark: 'Switch to dark mode',
       admin: 'Admin',
       blogAdmin: 'Blog',
+      translations: 'Translations',
       signOut: 'Sign out',
     },
     home: {
@@ -137,6 +140,82 @@ const translations = {
       quotaSave: 'Save',
       quotaCancel: 'Cancel',
       quotaUnit: 'MB',
+      translations: {
+        kicker: 'OPERATIONS / LOCALIZATION',
+        title: 'Translation engine',
+        subtitle: 'Control the English publishing gate, model fallback chain, and queue.',
+        save: 'Save settings',
+        saving: 'Saving…',
+        loading: 'Loading translation controls…',
+        credentialKicker: '01 / CREDENTIAL',
+        apiKeyTitle: 'Gemini API key',
+        sources: { db: 'database', env: 'environment', missing: 'not configured' },
+        apiKeyHintBefore: 'The key is stored server-side with',
+        selectFalse: 'select:false',
+        apiKeyHintAfter: 'It never appears in this response.',
+        apiKeyPrefix: 'AIza',
+        maskedKey: '••••',
+        apiKeyPlaceholder: 'AIza…',
+        testConnection: 'Test connection',
+        testing: 'Testing…',
+        modelsReturned: '{count} models returned by Gemini.',
+        chainKicker: '02 / FALLBACK ROUTING',
+        modelChainTitle: 'Model chain',
+        addModel: 'Add a live model…',
+        modelChainHint: 'Order matters. RPD and RPM are manual free-tier quota inputs; Gemini does not expose these limits.',
+        modelChainEmpty: 'Test the key to load models, then add a fallback chain.',
+        moveUp: 'Move model up',
+        moveDown: 'Move model down',
+        moveUpIcon: '↑',
+        moveDownIcon: '↓',
+        rpd: 'RPD',
+        rpm: 'RPM',
+        enabled: 'enabled',
+        quotaKicker: '03 / PUBLISH GATE',
+        quotaTitle: 'Quota & publishing',
+        workerEnabled: 'worker enabled',
+        workerPaused: 'worker paused',
+        workerLabel: 'Translation worker',
+        workerHint: 'Drain pending jobs when a worker process is enabled.',
+        publishLabel: 'Publish English pages',
+        publishHint: 'When off, /en remains noindex and emits no hreflang.',
+        dailyCapLabel: 'Daily request cap',
+        dailyCapHint: '0 = no additional cap',
+        chunkCharsLabel: 'Max chunk characters',
+        chunkCharsHint: 'Markdown chunks are never split inside fences.',
+        telemetryKicker: '04 / TELEMETRY',
+        queueStatusTitle: 'Queue status',
+        polling: 'Auto-refresh · 12s',
+        refresh: 'Refresh',
+        refreshing: 'Refreshing…',
+        emptyValue: '—',
+        quotaSeparator: '·',
+        statuses: {
+          pending: 'Pending',
+          translating: 'Translating',
+          ready: 'Ready',
+          stale: 'Stale',
+          failed: 'Failed',
+        },
+        pacificDay: 'Pacific day',
+        backfill: 'Backfill published content',
+        backfillWarning: 'This scans all published content. The queue count is calculated on confirmation, and this consumes Gemini free-tier quota.',
+        confirmBackfill: 'Queue backfill',
+        queueing: 'Queueing…',
+        cancel: 'Cancel',
+        jobsQueued: 'Queued {count} translation jobs.',
+        failedJobsNeedReview: '{count} failed jobs need review.',
+        failedJobsTitle: 'Failed jobs',
+        failedType: 'Type',
+        failedReference: 'Reference',
+        failedAttempts: 'Attempts',
+        failedError: 'Error',
+        failedAction: 'Action',
+        unknownError: 'Unknown error',
+        retry: 'Retry',
+        retrying: 'Retrying…',
+        settingsSaved: 'Settings saved.',
+      },
     },
     gameDetail: {
       back: '← All Games',
@@ -423,6 +502,22 @@ const translations = {
       noPostsAdmin: 'No posts yet. Write your first post.',
       editorTitleNew: 'New Post',
       editorTitleEdit: 'Edit Post',
+      // Locale-aware editor copy for the bilingual CMS follow-up.
+      editorLocale: {
+        label: 'Editing language',
+        source: 'Korean source',
+        translation: 'English translation',
+      },
+      translationState: {
+        pending: 'Pending',
+        translating: 'Translating',
+        ready: 'Ready',
+        stale: 'Stale',
+        failed: 'Failed',
+      },
+      translationStaleExplanation: 'The Korean source changed after a human edited the English translation.',
+      retranslate: 'Retranslate',
+      translationQueueEmpty: 'Not translated yet — waiting in queue.',
       fieldTitle: 'Title',
       fieldSlug: 'Slug',
       fieldSummary: 'Summary',
@@ -545,6 +640,7 @@ const translations = {
       switchToDark: '다크 모드로 전환',
       admin: '관리자',
       blogAdmin: '블로그',
+      translations: '번역',
       signOut: '로그아웃',
     },
     home: {
@@ -659,6 +755,82 @@ const translations = {
       quotaSave: '저장',
       quotaCancel: '취소',
       quotaUnit: 'MB',
+      translations: {
+        kicker: '운영 / 현지화',
+        title: '번역 엔진',
+        subtitle: '영어 공개 게이트, 모델 대체 순서와 번역 대기열을 관리하세요.',
+        save: '설정 저장',
+        saving: '저장 중…',
+        loading: '번역 설정을 불러오는 중…',
+        credentialKicker: '01 / 인증 정보',
+        apiKeyTitle: 'Gemini API 키',
+        sources: { db: '데이터베이스', env: '환경 변수', missing: '설정되지 않음' },
+        apiKeyHintBefore: '키는 서버에',
+        selectFalse: 'select:false',
+        apiKeyHintAfter: '옵션으로 저장되며 이 응답에 포함되지 않습니다.',
+        apiKeyPrefix: 'AIza',
+        maskedKey: '••••',
+        apiKeyPlaceholder: 'AIza…',
+        testConnection: '연결 테스트',
+        testing: '테스트 중…',
+        modelsReturned: 'Gemini에서 모델 {count}개를 반환했습니다.',
+        chainKicker: '02 / 대체 경로',
+        modelChainTitle: '모델 체인',
+        addModel: '사용 가능한 모델 추가…',
+        modelChainHint: '순서가 우선순위가 됩니다. RPD와 RPM은 무료 등급 한도를 직접 입력하는 값이며 Gemini가 한도를 제공하지 않습니다.',
+        modelChainEmpty: '키를 테스트해 모델을 불러온 다음 대체 체인을 추가하세요.',
+        moveUp: '모델을 위로 이동',
+        moveDown: '모델을 아래로 이동',
+        moveUpIcon: '↑',
+        moveDownIcon: '↓',
+        rpd: 'RPD',
+        rpm: 'RPM',
+        enabled: '사용',
+        quotaKicker: '03 / 공개 게이트',
+        quotaTitle: '할당량 및 공개 설정',
+        workerEnabled: '워커 사용 중',
+        workerPaused: '워커 일시 중지',
+        workerLabel: '번역 워커',
+        workerHint: '워커 프로세스가 실행되면 대기 중인 작업을 처리합니다.',
+        publishLabel: '영어 페이지 공개',
+        publishHint: '끄면 /en 페이지가 noindex가 되고 hreflang도 출력하지 않습니다.',
+        dailyCapLabel: '일일 요청 한도',
+        dailyCapHint: '0 = 추가 한도 없음',
+        chunkCharsLabel: '최대 청크 문자 수',
+        chunkCharsHint: 'Markdown 청크는 코드 펜스 안에서 분할되지 않습니다.',
+        telemetryKicker: '04 / 모니터링',
+        queueStatusTitle: '대기열 상태',
+        polling: '자동 새로고침 · 12초',
+        refresh: '새로고침',
+        refreshing: '새로고침 중…',
+        emptyValue: '—',
+        quotaSeparator: '·',
+        statuses: {
+          pending: '대기 중',
+          translating: '번역 중',
+          ready: '준비 완료',
+          stale: '오래됨',
+          failed: '실패',
+        },
+        pacificDay: 'Pacific 기준일',
+        backfill: '공개 콘텐츠 백필',
+        backfillWarning: '모든 공개 콘텐츠를 검사합니다. 확인하는 순간 대기열 수가 계산되며 Gemini 무료 등급 할당량을 사용합니다.',
+        confirmBackfill: '백필 대기열 등록',
+        queueing: '대기열 등록 중…',
+        cancel: '취소',
+        jobsQueued: '번역 작업 {count}개를 대기열에 등록했습니다.',
+        failedJobsNeedReview: '검토가 필요한 실패 작업 {count}개',
+        failedJobsTitle: '실패한 작업',
+        failedType: '유형',
+        failedReference: '참조',
+        failedAttempts: '시도 횟수',
+        failedError: '오류',
+        failedAction: '작업',
+        unknownError: '알 수 없는 오류',
+        retry: '재시도',
+        retrying: '재시도 중…',
+        settingsSaved: '설정을 저장했습니다.',
+      },
     },
     gameDetail: {
       back: '← 전체 게임',
@@ -944,6 +1116,22 @@ const translations = {
       noPostsAdmin: '아직 글이 없습니다. 첫 글을 작성하세요.',
       editorTitleNew: '새 글 작성',
       editorTitleEdit: '글 편집',
+      // Locale-aware editor copy for the bilingual CMS follow-up.
+      editorLocale: {
+        label: '편집 언어',
+        source: '한국어 원문',
+        translation: '영어 번역문',
+      },
+      translationState: {
+        pending: '대기 중',
+        translating: '번역 중',
+        ready: '번역 완료',
+        stale: '업데이트 필요',
+        failed: '번역 실패',
+      },
+      translationStaleExplanation: '한국어 원문이 변경된 뒤 사람이 영어 번역문을 수정한 상태입니다.',
+      retranslate: '다시 번역',
+      translationQueueEmpty: '아직 번역되지 않았습니다. 대기열에서 처리를 기다리고 있습니다.',
       fieldTitle: '제목',
       fieldSlug: '슬러그',
       fieldSummary: '요약',
@@ -1054,22 +1242,40 @@ const LANG_STORAGE_KEY = 'arcade-lang';
 
 export function I18nProvider({ children }) {
   const [lang, setLang] = useState(() => {
-    const saved = localStorage.getItem(LANG_STORAGE_KEY) || localStorage.getItem('bugdrop-lang');
-    if (saved === 'ko' || saved === 'en') return saved;
-    return navigator.language?.startsWith('ko') ? 'ko' : 'en';
+    let saved = null;
+    try {
+      saved = localStorage.getItem(LANG_STORAGE_KEY) || localStorage.getItem('bugdrop-lang');
+    } catch { /* blocked storage should not change the URL-derived locale */ }
+    return resolveLang(window.location.pathname, saved);
   });
+
+  function setLanguage(next) {
+    const normalized = next === 'en' ? 'en' : 'ko';
+    setLang((current) => current === normalized ? current : normalized);
+  }
 
   function toggleLang() {
     const next = lang === 'en' ? 'ko' : 'en';
-    localStorage.setItem(LANG_STORAGE_KEY, next);
-    setLang(next);
+    try { localStorage.setItem(LANG_STORAGE_KEY, next); } catch { /* ignore blocked storage */ }
+    setLanguage(next);
   }
 
   return (
-    <I18nContext.Provider value={{ lang, toggleLang, t: translations[lang] }}>
+    <I18nContext.Provider value={{ lang, toggleLang, setLanguage, t: translations[lang] }}>
       {children}
     </I18nContext.Provider>
   );
+}
+
+export function LocaleSync() {
+  const location = useLocation();
+  const { setLanguage } = useI18n();
+  useEffect(() => {
+    let stored = null;
+    try { stored = localStorage.getItem(LANG_STORAGE_KEY) || localStorage.getItem('bugdrop-lang'); } catch { /* ignore */ }
+    setLanguage(resolveLang(location.pathname, stored));
+  }, [location.pathname, setLanguage]);
+  return null;
 }
 
 export function useI18n() {

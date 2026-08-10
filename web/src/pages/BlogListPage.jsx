@@ -6,7 +6,16 @@ import PublicNav from '../components/PublicNav.jsx';
 import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { readSsrData } from '../utils/ssrData.js';
+import { withLocale } from '../i18n/localePath.js';
 import './BlogListPage.css';
+
+function machineTranslationMeta(value) {
+  if (value?.origin === 'machine') return value;
+  if (value && typeof value === 'object' && Object.values(value).some((row) => row?.origin === 'machine')) {
+    return { origin: 'machine' };
+  }
+  return null;
+}
 
 export default function BlogListPage() {
   const { lang, t } = useI18n();
@@ -14,6 +23,7 @@ export default function BlogListPage() {
   const requestedPage = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
   const fallbackPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const initialPosts = Array.isArray(bootstrap?.posts) ? bootstrap.posts : [];
+  const [translation, setTranslation] = useState(machineTranslationMeta(bootstrap?.translation));
   const hasBootstrap = Array.isArray(bootstrap?.posts)
     && Number.isFinite(bootstrap.page)
     && Number.isFinite(bootstrap.pages);
@@ -30,8 +40,8 @@ export default function BlogListPage() {
 
   const LIMIT = 9;
   const canonicalUrl = page > 1
-    ? `${window.location.origin}/blog?page=${page}`
-    : `${window.location.origin}/blog`;
+    ? `${window.location.origin}${withLocale(`/blog?page=${page}`, lang)}`
+    : `${window.location.origin}${withLocale('/blog', lang)}`;
 
   useDocumentMeta({
     title: `${t.blog.listTitle} — BCSDLab. Arcade`,
@@ -60,17 +70,18 @@ export default function BlogListPage() {
 
   useEffect(() => {
     let cancelled = false;
-    listBlogPosts({ page: 1, limit: 50 })
-      .then(({ posts: loadedPosts }) => {
+    listBlogPosts({ page: 1, limit: 50, locale: lang })
+      .then(({ posts: loadedPosts, translation: translationInfo }) => {
         if (cancelled) return;
         const tags = [...new Set((loadedPosts ?? []).flatMap((post) => post.tags ?? []))];
         setTagOptions(tags);
+        if (lang === 'en') setTranslation(machineTranslationMeta(translationInfo));
       })
       .catch(() => {
         if (!cancelled) setTagOptions([]);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [lang]);
 
   useEffect(() => {
     const nextSearch = searchInput.trim();
@@ -89,12 +100,13 @@ export default function BlogListPage() {
 
     let cancelled = false;
     setLoading(true);
-    listBlogPosts({ page, limit: LIMIT, tag, q: search })
-      .then(({ posts: loadedPosts, total: loadedTotal, pages: loadedPages }) => {
+    listBlogPosts({ page, limit: LIMIT, tag, q: search, locale: lang })
+      .then(({ posts: loadedPosts, total: loadedTotal, pages: loadedPages, translation: translationInfo }) => {
         if (cancelled) return;
         setPosts(loadedPosts ?? []);
         setTotal(loadedTotal ?? 0);
         setPages(loadedPages ?? 1);
+        if (lang === 'en') setTranslation(machineTranslationMeta(translationInfo));
       })
       .catch(() => {
         if (cancelled) return;
@@ -106,7 +118,7 @@ export default function BlogListPage() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [page, tag, search]);
+  }, [page, tag, search, lang]);
 
   const sortedTags = useMemo(
     () => [...tagOptions].sort((a, b) => a.localeCompare(b, lang === 'ko' ? 'ko' : 'en')),

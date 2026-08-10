@@ -9,16 +9,16 @@ import {
   listGameArticles,
   deleteGameArticle,
 } from '../api.js';
-import BrandLogo from '../components/BrandLogo.jsx';
-import DarkModeToggle from '../components/DarkModeToggle.jsx';
+import DashSidebar from '../components/DashSidebar.jsx';
 import PageLink from '../components/PageLink.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
+import { withLocale } from '../i18n/localePath.js';
 import './DashboardPage.css';
 import './AdminBlogPage.css';
 
 export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId, game: embeddedGame }) {
   const { user: me, logout } = useAuth();
-  const { lang, toggleLang, t } = useI18n();
+  const { lang, t } = useI18n();
   const navigate = usePageNavigate();
   const { gameId: routeGameId } = useParams();
   const gameId = embeddedGameId ?? routeGameId;
@@ -87,36 +87,15 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
   return (
     <div className={embedded ? 'gd-articles-view' : 'dash-layout'}>
       {!embedded && (
-        <aside className="dash-sidebar">
-        <PageLink to="/" className="dash-logo"><BrandLogo /></PageLink>
-        <nav className="dash-nav">
-          <PageLink className="dash-nav-item" to={isGameScope ? `/dashboard/games/${gameId}` : '/dashboard'}>
-            {isGameScope ? t.gameDetail.back : t.nav.dashboard}
-          </PageLink>
-          <PageLink className="dash-nav-item" to="/arcade">{t.nav.arcade}</PageLink>
-          <PageLink className={`dash-nav-item${!isGameScope ? ' active' : ''}`} to="/admin/blog">{t.nav.blogAdmin} CMS</PageLink>
-          {isGameScope && <span className="dash-nav-item active">{labels.adminTitle}</span>}
-          {me?.role === 'admin' && (
-            <PageLink className="dash-nav-item" to="/admin/users">{t.nav.admin}</PageLink>
-          )}
-        </nav>
-        <div className="dash-sidebar-footer">
-          <div className="dash-user">
-            <div className="dash-avatar">{me?.name?.[0]?.toUpperCase()}</div>
-            <div className="dash-user-info">
-              <div className="dash-user-name">{me?.name}</div>
-              <div className="dash-user-email">{me?.email}</div>
-            </div>
-          </div>
-          <div className="dash-footer-row">
-            <button className="dash-footer-btn" onClick={toggleLang}>
-              {lang === 'en' ? '한국어' : 'English'}
-            </button>
-            <DarkModeToggle />
-          </div>
-          <button className="dash-footer-btn" onClick={handleLogout}>{t.nav.signOut}</button>
-        </div>
-        </aside>
+        <DashSidebar
+          user={me}
+          active={isGameScope ? "game-articles" : "blog"}
+          backHref={isGameScope ? `/dashboard/games/${gameId}` : "/dashboard"}
+          backLabel={isGameScope ? t.gameDetail.back : t.nav.dashboard}
+          gameScope={isGameScope}
+          gameArticleLabel={labels.adminTitle}
+          onLogout={handleLogout}
+        />
       )}
 
       <Main className={embedded ? 'gd-articles-main' : 'dash-main'}>
@@ -167,6 +146,9 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
                         <span className={`ablog-status${post.published ? ' published' : ' draft'}`}>
                           {post.published ? labels.published : labels.draft}
                         </span>
+                        <span className={`ablog-translation-status ${post.translationStatus?.status || 'missing'}`}>
+                          EN: {post.translationStatus?.status || 'not queued'}
+                        </span>
                       </td>
                       <td>
                         <div className="ablog-tags-cell">
@@ -188,6 +170,7 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
                           </PageLink>
                         )}
                         {post.published && (
+                          <>
                           <a
                             className="btn-ghost ablog-btn view"
                             href={isGameScope ? `/play/${game?.slug}/articles/${post.slug}` : `/blog/${post.slug}`}
@@ -196,6 +179,15 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
                           >
                             View ↗
                           </a>
+                          <a
+                            className="btn-ghost ablog-btn view"
+                            href={withLocale(isGameScope ? `/play/${game?.slug}/articles/${post.slug}` : `/blog/${post.slug}`, 'en')}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            View EN
+                          </a>
+                          </>
                         )}
                         {canEdit && (
                           <button

@@ -1,4 +1,5 @@
 import { routeLoaders } from './routeLoaders.js';
+import { stripLocale } from '../i18n/localePath.js';
 
 const prefetchedRoutes = new Map();
 
@@ -7,7 +8,7 @@ function pathnameFor(to) {
   return to.split(/[?#]/, 1)[0] || '/';
 }
 
-function loaderFor(pathname) {
+export function loaderFor(pathname) {
   if (pathname === '/login') return ['login', routeLoaders.login];
   if (pathname === '/register') return ['register', routeLoaders.register];
   if (pathname === '/auth/callback') return ['authCallback', routeLoaders.authCallback];
@@ -25,6 +26,7 @@ function loaderFor(pathname) {
     return ['adminBlogEditor', routeLoaders.adminBlogEditor];
   }
   if (pathname === '/admin/blog') return ['adminBlog', routeLoaders.adminBlog];
+  if (pathname === '/admin/translations') return ['adminTranslations', routeLoaders.adminTranslations];
   if (pathname.startsWith('/play/') && pathname.endsWith('/articles')) {
     return ['gameArticles', routeLoaders.gameArticles];
   }
@@ -39,7 +41,7 @@ function loaderFor(pathname) {
 }
 
 export function prefetchRoute(to) {
-  const match = loaderFor(pathnameFor(to));
+  const match = loaderFor(stripLocale(pathnameFor(to)).path);
   if (!match) return;
   const [key, loader] = match;
   if (!prefetchedRoutes.has(key)) {

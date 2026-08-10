@@ -177,3 +177,18 @@ implementation details. Entries are written in English for agent readability.
 
 - Updated `seo-route-coverage.test.js` to read the current `main.jsx` data-router route table (`pageRoute`, `protectedPageRoute`, and literal route entries) instead of the removed `<Route>` syntax in `App.jsx`.
 - Verification: `server/npm test` passes all 34 tests; `git diff --check` passed.
+
+## 2026-08-11 (production Apache: /privacy SSR routing fix)
+
+- **Correction to the 2026-08-10 entry**: `/privacy` serving a shell-only page in production was **not** an unmerged-branch problem. Production Node (`main`, `17d885f`) serves `/privacy` correctly — verified by `curl http://127.0.0.1:4000/privacy` on the host: title `개인정보처리방침`, `index,follow`, self-canonical, full JSON-LD. The real cause was that `arcade.codingbot.kr.conf` had **no Apache rule routing `/privacy` to Express**, so it fell through to `FallbackResource /index.html` (the noindex shell with a home-page canonical) while `sitemap.xml` advertised it for crawling.
+- Fix applied to production `/etc/apache2/sites-available/arcade.codingbot.kr.conf`:
+  `RewriteRule ^/?privacy(/.*)?$ http://127.0.0.1:4000/privacy$1 [P,L]`, inserted after the `sitemap.xml` rule. Backup at `arcade.codingbot.kr.conf.bak-privacyfix-20260810172257`. `apache2ctl configtest` -> Syntax OK, `systemctl reload apache2` (graceful).
+- Verified after reload: `/privacy` -> `index,follow` + canonical `https://arcade.codingbot.kr/privacy` + WebPage/WebSite/Organization JSON-LD; `/privacy/2026-07-08` canonicalises to `/privacy`; `/`, `/arcade`, `/blog`, `/play/project-adventure`, `/robots.txt`, `/sitemap.xml`, `/health`, `/login`, `/dashboard`, `/admin/users` all still 200.
+- **Behaviour change**: an unknown revision date (e.g. `/privacy/1999-01-01`) now returns 404 instead of the 200 SPA shell, because Express `next()`s and nothing follows it. This is the better answer — the old 200 was a soft-404 that let crawlers index arbitrary fake revision URLs — but it was not an intended part of the fix.
+- `/en` Apache rules deliberately **not** added yet: production Node returns 404 for `/en` until the translation branch ships, and adding them early only widens the risk surface.
+
+## 2026-08-11 (production deploy-readiness state)
+
+- Production `SiteSettings` document does not exist, so `getPolicy()` fails closed (`publishEnabled: false`, `enabled: false`). Deploying the translation branch is therefore safe on its own: `/en` stays `noindex`, emits no hreflang, and is absent from `sitemap.xml`; the worker does not drain. English exposure requires an admin to flip the toggle in `/admin/translations`.
+- Production data at time of check: 0 `translations` rows, 2 published blog posts, 6 public games.
+- Still open: `/en` Apache routing (must proxy **without stripping the prefix** — a stripped prefix loses `/en` from `req.originalUrl`, which makes `readSsrData` reject the bootstrap and silently degrade every `/en` page to a client fetch with no error anywhere).

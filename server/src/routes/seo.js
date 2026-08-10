@@ -9,7 +9,6 @@ import {
   DEFAULT_IMAGE_PATH,
   HOME_DESCRIPTION,
   HOME_TITLE,
-  PRIVACY_DESCRIPTION,
   PRIVACY_POLICY_DATES,
   PRIVACY_TITLE,
   SITE_NAME,
@@ -20,6 +19,17 @@ import {
   publicImageUrl,
   resolvePrivacyVersion,
 } from '../services/seo.js';
+import { copy } from '../i18n/copy.js';
+import {
+  isPublishedTranslation,
+  loadTranslations,
+  mergeTranslation,
+  publicTranslation,
+  publicTranslationMeta,
+  translationKey,
+} from '../services/localeContent.js';
+import { buildSitemapUrls, renderSitemapXml } from '../services/sitemap.js';
+import { SEO_PAGE_ROUTES, ROBOTS_DISALLOW_WITH_LOCALE, localizedPath } from './seoRoutes.config.js';
 import {
   toPublicArcadeGame,
   toPublicBlogPost,
@@ -31,12 +41,43 @@ import {
   toPublicPlayGame,
 } from '../services/publicData.js';
 
-function seoRouter({ distRoot, siteOrigin, models = {} }) {
+function queryValue(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+export function pageUrl(siteOrigin, path, locale) {
+  const localized = localizedPath(path, locale);
+  // The Korean home page is the one route where `absoluteUrl` would append a
+  // trailing slash while `alternateSet` and the sitemap emit bare `siteOrigin`.
+  // Google treats those as different URLs, and an hreflang cluster that does
+  // not point at each page's own canonical is ignored wholesale — so keep the
+  // canonical byte-identical to the alternate/sitemap form.
+  if (localized === '/') return siteOrigin;
+  return absoluteUrl(localized, siteOrigin);
+}
+
+export function alternateSet(siteOrigin, path, locale, { publishEnabled, dynamic = false, translation = null, listReady = false } = {}) {
+  if (!publishEnabled || (dynamic && !isPublishedTranslation(translation, publishEnabled) && !listReady)) return null;
+  const canonicalPath = path === '/' ? '' : path;
+  return [
+    { hreflang: 'ko', href: `${siteOrigin}${canonicalPath}` },
+    { hreflang: 'en', href: `${siteOrigin}/en${canonicalPath}` },
+    { hreflang: 'x-default', href: `${siteOrigin}${canonicalPath}` },
+  ];
+}
+
+export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy = null } = {}) {
   const router = express.Router();
   const blogPostModel = models.BlogPost ?? BlogPost;
   const gameArticleModel = models.GameArticle ?? GameArticle;
   const buildModel = models.Build ?? Build;
   const gameModel = models.Game ?? Game;
+  // Tests can inject only the content models. Production passes the real
+  // settings/translation models from index.js; absent stores fail closed
+  // instead of buffering a Mongoose query forever in a DB-free test.
+  const translationModel = models.Translation ?? null;
+  const settingsModel = models.SiteSettings ?? null;
+  const emptyTranslationModel = { find: () => ({ lean: async () => [] }) };
 
   async function readShell(next) {
     try {
@@ -53,6 +94,77 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
     res.send(html);
   }
 
+  async function getPolicy(locale) {
+    if (translationPolicy) return { ...translationPolicy.translation, ...translationPolicy };
+    if (!settingsModel) return { publishEnabled: false, enabled: false };
+    try {
+      const row = await settingsModel.findById('site').lean();
+      return row?.translation || { publishEnabled: false, enabled: false };
+    } catch {
+      // SEO must fail closed when settings cannot be read.
+      return { publishEnabled: false, enabled: false };
+    }
+  }
+
+  async function findTranslation(refType, refId, locale) {
+    if (!refId || !translationModel) return null;
+    return translationModel.findOne({ refType, refId, locale: 'en' }).lean();
+  }
+
+  async function loadAlternateRows(refType, ids, policy) {
+    if (!translationModel || !policy.publishEnabled || !ids.length) return new Map();
+    const rows = await translationModel.find({ refType, refId: { $in: ids }, locale: 'en' }).lean();
+    return new Map(rows.map((row) => [String(row.refId), row]));
+  }
+
+  function render({ req, res, next, locale, path, policy, title, description, image, type = 'website', robots = 'index,follow', jsonLd, preview, bootstrap = null, dynamic = false, translation = null, listReady = false }) {
+    return readShell(next).then((shell) => {
+      if (!shell) return;
+      const publishedTranslation = publicTranslation(translation, locale, policy.publishEnabled);
+      const indexableTranslation = locale === 'en' && isPublishedTranslation(translation, policy.publishEnabled);
+      const translated = locale === 'en' && dynamic && !publishedTranslation;
+      const requiresTranslation = locale === 'en' && dynamic;
+      const effectiveRobots = locale === 'en' && (!policy.publishEnabled || (requiresTranslation && !indexableTranslation))
+        ? 'noindex,follow'
+        : robots;
+      // If the English row is missing or forced noindex, the body is byte-for-byte
+      // Korean. Its cross-locale canonical is therefore honest, not a redirect.
+      const canonical = locale === 'en' && policy.publishEnabled && (!requiresTranslation || (indexableTranslation && !translated))
+        ? pageUrl(siteOrigin, path, 'en')
+        : pageUrl(siteOrigin, path, 'ko');
+      const alternates = effectiveRobots.startsWith('noindex') ? null : alternateSet(siteOrigin, path, locale, {
+        publishEnabled: policy.publishEnabled,
+        dynamic,
+        translation,
+        listReady,
+      });
+      const resolvedJsonLd = jsonLd
+        ? { ...jsonLd, url: canonical, inLanguage: locale === 'en' ? 'en-US' : 'ko-KR' }
+        : null;
+      const resolvedPreview = preview
+        ? { ...preview, notice: locale === 'en' && publishedTranslation?.origin === 'machine'
+          ? { text: copy.en.machineNotice, href: pageUrl(siteOrigin, path, 'ko') }
+          : preview.notice }
+        : null;
+      const resolvedBootstrap = bootstrap
+        ? { ...bootstrap, url: req.originalUrl, locale, translation: publicTranslationMeta(translation, locale, policy.publishEnabled) }
+        : null;
+      sendHtml(res, injectSeoHtml(shell, {
+        title,
+        description,
+        image,
+        url: canonical,
+        type,
+        robots: effectiveRobots,
+        lang: locale,
+        alternates,
+        jsonLd: resolvedJsonLd,
+        preview: resolvedPreview,
+        bootstrap: resolvedBootstrap,
+      }));
+    }).catch(next);
+  }
+
   router.get('/robots.txt', (_req, res) => {
     const body = [
       'User-agent: *',
@@ -60,16 +172,7 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
       'Allow: /api/blog/',
       'Allow: /api/games/arcade',
       'Allow: /api/games/play/',
-      'Disallow: /api/blog/admin/',
-      'Disallow: /api/',
-      'Disallow: /dashboard',
-      'Disallow: /admin/',
-      'Disallow: /login',
-      'Disallow: /register',
-      'Disallow: /auth/',
-      'Disallow: /pending',
-      'Disallow: /consent',
-      'Disallow: /report/',
+      ...ROBOTS_DISALLOW_WITH_LOCALE.map((path) => `Disallow: ${path}`),
       `Sitemap: ${siteOrigin}/sitemap.xml`,
       '',
     ].join('\n');
@@ -78,505 +181,233 @@ function seoRouter({ distRoot, siteOrigin, models = {} }) {
 
   router.get('/sitemap.xml', async (_req, res, next) => {
     try {
-      const [posts, games] = await Promise.all([
-        blogPostModel.find({ published: true })
-          .select('slug publishedAt updatedAt')
-          .sort({ publishedAt: -1 })
-          .lean(),
-        gameModel.find({ visibility: 'public' })
-          .select('slug updatedAt')
-          .sort({ updatedAt: -1 })
-          .lean(),
+      const [posts, games, articles, builds, settings] = await Promise.all([
+        blogPostModel.find({ published: true }).select('_id slug published publishedAt updatedAt').sort({ publishedAt: -1 }).lean(),
+        gameModel.find({ visibility: 'public' }).select('_id slug visibility updatedAt').sort({ updatedAt: -1 }).lean(),
+        gameArticleModel.find({ published: true }).select('_id gameId slug published publishedAt updatedAt').lean(),
+        buildModel.find({ isActive: true }).select('_id gameId isActive updatedAt').lean(),
+        settingsModel ? settingsModel.findById('site').lean().catch(() => null) : Promise.resolve(null),
       ]);
-
-      const urls = [
-        { loc: siteOrigin, lastmod: null },
-        { loc: `${siteOrigin}/arcade`, lastmod: null },
-        { loc: `${siteOrigin}/blog`, lastmod: posts[0]?.updatedAt || null },
-        // Only the current policy; superseded revisions are noindex by design.
-        { loc: `${siteOrigin}/privacy`, lastmod: PRIVACY_POLICY_DATES[0] },
-        ...posts.map((post) => ({
-          loc: `${siteOrigin}/blog/${post.slug}`,
-          lastmod: post.updatedAt || post.publishedAt,
-        })),
-      ];
-
-      const activeGames = await Promise.all(games.map(async (game) => {
-        const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('_id updatedAt').lean();
-        return build ? { loc: `${siteOrigin}/play/${game.slug}`, lastmod: build.updatedAt || game.updatedAt } : null;
-      }));
-      urls.push(...activeGames.filter(Boolean));
-
-      const gameArticles = await gameArticleModel.find({
-        gameId: { $in: games.map((game) => game._id) },
-        published: true,
-      })
-        .select('gameId slug publishedAt updatedAt')
-        .lean();
-      const gameSlugs = new Map(games.map((game) => [String(game._id), game.slug]));
-      const gameLastModified = new Map();
-      gameArticles.forEach((article) => {
-        const articleDate = article.updatedAt || article.publishedAt;
-        const articleTime = articleDate ? new Date(articleDate).getTime() : NaN;
-        if (!Number.isFinite(articleTime)) return;
-        const gameId = String(article.gameId);
-        const currentDate = gameLastModified.get(gameId);
-        if (!currentDate || articleTime > new Date(currentDate).getTime()) {
-          gameLastModified.set(gameId, articleDate);
-        }
+      const publishEnabled = Boolean(settings?.translation?.publishEnabled);
+      const translations = publishEnabled
+        ? await (translationModel || { find: () => ({ select: () => ({ lean: async () => [] }) }) }).find({ locale: 'en', status: 'ready', noindex: { $ne: true } }).select('refType refId status noindex origin translatedAt').lean()
+        : [];
+      const translationMap = new Map(translations.map((row) => [translationKey(row.refType, row.refId), row]));
+      const urls = buildSitemapUrls({
+        posts,
+        games,
+        articles,
+        builds,
+        translationsByRef: translationMap,
+        siteOrigin,
+        publishEnabled,
+        privacyDate: PRIVACY_POLICY_DATES[0],
       });
-      urls.push(...[...new Set(gameArticles.map((article) => String(article.gameId)))]
-        .map((gameId) => {
-          const gameSlug = gameSlugs.get(gameId);
-          return gameSlug
-            ? { loc: `${siteOrigin}/play/${gameSlug}/articles`, lastmod: gameLastModified.get(gameId) || null }
-            : null;
-        })
-        .filter(Boolean));
-      urls.push(...gameArticles
-        .map((article) => {
-          const gameSlug = gameSlugs.get(String(article.gameId));
-          return gameSlug
-            ? { loc: `${siteOrigin}/play/${gameSlug}/articles/${article.slug}`, lastmod: article.updatedAt || article.publishedAt }
-            : null;
-        })
-        .filter(Boolean));
-
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map(({ loc, lastmod }) => `<url><loc>${escapeXml(loc)}</loc>${lastmod ? `<lastmod>${new Date(lastmod).toISOString()}</lastmod>` : ''}</url>`).join('')}</urlset>`;
-      res.type('application/xml').set('Cache-Control', 'public, max-age=300').send(xml);
+      res.type('application/xml').set('Cache-Control', 'public, max-age=300').send(renderSitemapXml(urls));
     } catch (err) {
       next(err);
     }
   });
 
-  router.get('/', async (_req, res, next) => {
-    const shell = await readShell(next);
-    if (!shell) return;
-    const url = siteOrigin;
-    sendHtml(res, injectSeoHtml(shell, {
-      title: HOME_TITLE,
-      description: HOME_DESCRIPTION,
+  async function renderHome(req, res, next, locale) {
+    const c = copy[locale];
+    const policy = await getPolicy(locale);
+    return render({
+      req, res, next, locale, policy, path: '/', title: locale === 'en' ? c.homeTitle : HOME_TITLE,
+      description: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION,
       image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
-      url,
-      jsonLd: {
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: SITE_NAME,
-        url,
-        inLanguage: 'ko-KR',
-        publisher: { '@type': 'Organization', name: 'BCSDLab.' },
-      },
-      preview: {
-        title: HOME_TITLE,
-        summary: HOME_DESCRIPTION,
-      },
-    }));
-  });
+      jsonLd: { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, publisher: { '@type': 'Organization', name: 'BCSDLab.' } },
+      preview: { title: locale === 'en' ? c.homeTitle : HOME_TITLE, summary: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION },
+    });
+  }
 
-  // The current policy is indexable; superseded revisions stay crawlable but are
-  // marked noindex and canonicalised to /privacy so they cannot outrank it.
-  function renderPrivacy(req, res, next) {
+  async function renderPrivacy(req, res, next, locale) {
     const version = resolvePrivacyVersion(req.params.date);
     if (!version) return next();
-
-    return readShell(next).then((shell) => {
-      if (!shell) return;
-      const canonical = version.isLatest ? `${siteOrigin}/privacy` : `${siteOrigin}/privacy/${version.effectiveDate}`;
-      sendHtml(res, injectSeoHtml(shell, {
-        title: PRIVACY_TITLE,
-        description: PRIVACY_DESCRIPTION,
-        image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
-        url: canonical,
-        robots: version.isLatest ? 'index,follow' : 'noindex,follow',
-        jsonLd: version.isLatest ? {
-          '@context': 'https://schema.org',
-          '@type': 'WebPage',
-          name: '개인정보처리방침',
-          description: PRIVACY_DESCRIPTION,
-          url: canonical,
-          inLanguage: 'ko-KR',
-          datePublished: version.effectiveDate,
-          isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: siteOrigin },
-          publisher: { '@type': 'Organization', name: 'BCSDLab.' },
-        } : null,
-        preview: {
-          title: '개인정보처리방침',
-          summary: PRIVACY_DESCRIPTION,
-          body: `시행일자: ${version.effectiveDate}`,
-        },
-      }));
-    }).catch(next);
+    const policy = await getPolicy(locale);
+    const c = copy[locale];
+    const path = version.isLatest ? '/privacy' : `/privacy/${version.effectiveDate}`;
+    return render({
+      req, res, next, locale, policy, path,
+      title: `${c.privacyTitle} — ${SITE_NAME}`,
+      description: c.privacyDescription,
+      image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
+      robots: version.isLatest ? 'index,follow' : 'noindex,follow',
+      jsonLd: version.isLatest ? { '@context': 'https://schema.org', '@type': 'WebPage', name: c.privacyTitle, description: c.privacyDescription, datePublished: version.effectiveDate, isPartOf: { '@type': 'WebSite', name: SITE_NAME } } : null,
+      preview: { title: c.privacyTitle, summary: c.privacyDescription, body: `${c.effectiveDate}: ${version.effectiveDate}` },
+    });
   }
 
-  router.get('/privacy', renderPrivacy);
-  router.get('/privacy/:date', renderPrivacy);
-
-  router.get('/arcade', async (req, res, next) => {
-    try {
-      const games = await gameModel.find({ visibility: 'public' })
-        .sort({ updatedAt: -1 })
-        .populate('ownerId', 'name')
-        .select('name slug description thumbnailUrl ownerId updatedAt')
-        .lean();
-      const withBuilds = await Promise.all(games.map(async (game) => {
-        const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('version').lean();
-        if (!build) return null;
-        return {
-          ...game,
-          developerName: game.ownerId?.name ?? null,
-          latestBuildVersion: build.version || null,
-        };
-      }));
-      const visibleGames = withBuilds.filter(Boolean);
-      const shell = await readShell(next);
-      if (!shell) return;
-      const url = `${siteOrigin}/arcade`;
-      const description = 'BCSDLab. Game Track에서 만든 웹 게임을 모아둔 공간입니다. 설치 없이 브라우저에서 바로 플레이하세요.';
-      sendHtml(res, injectSeoHtml(shell, {
-        title: `Arcade — ${SITE_NAME}`,
-        description,
-        image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
-        url,
-        jsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'CollectionPage',
-          name: 'BCSDLab. Arcade',
-          description,
-          url,
-          mainEntity: {
-            '@type': 'ItemList',
-            itemListElement: visibleGames.map((game, index) => ({
-              '@type': 'ListItem',
-              position: index + 1,
-              name: game.name,
-              url: `${siteOrigin}/play/${game.slug}`,
-            })),
-          },
-        },
-        bootstrap: {
-          route: '/arcade',
-          url: req.originalUrl,
-          data: { games: visibleGames.map(toPublicArcadeGame) },
-        },
-        preview: {
-          title: 'Arcade',
-          summary: description,
-          items: visibleGames.map((game) => ({
-            title: game.name,
-            summary: game.description,
-            href: `/play/${game.slug}`,
-          })),
-        },
-      }));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get('/blog', async (req, res, next) => {
-    try {
-      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-      const limit = 9;
-      const filter = { published: true };
-      const [posts, total] = await Promise.all([
-        blogPostModel.find(filter)
-          .sort({ publishedAt: -1, createdAt: -1 })
-          .skip((page - 1) * limit)
-          .limit(limit)
-          .populate('author', 'name')
-          .select('-content')
-          .lean(),
-        blogPostModel.countDocuments(filter),
-      ]);
-      const pages = Math.max(1, Math.ceil(total / limit));
-      const shell = await readShell(next);
-      if (!shell) return;
-      const url = page === 1 ? `${siteOrigin}/blog` : `${siteOrigin}/blog?page=${page}`;
-      const canBootstrap = !req.query.tag && !req.query.q;
-      const description = 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.';
-      sendHtml(res, injectSeoHtml(shell, {
-        title: page === 1 ? `블로그 — ${SITE_NAME}` : `블로그 ${page}페이지 — ${SITE_NAME}`,
-        description,
-        image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
-        url,
-        jsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'Blog',
-          name: 'BCSDLab. Arcade 블로그',
-          url,
-          inLanguage: 'ko-KR',
-        },
-        bootstrap: canBootstrap ? {
-          route: '/blog',
-          url: req.originalUrl,
-          data: {
-            posts: posts.map(toPublicBlogSummary),
-            total,
-            page,
-            pages,
-          },
-        } : null,
-        preview: {
-          title: page === 1 ? '블로그' : `블로그 ${page}페이지`,
-          summary: description,
-          items: canBootstrap ? posts.map((post) => ({
-            title: post.title,
-            summary: post.summary,
-            href: `/blog/${post.slug}`,
-          })) : [],
-        },
-      }));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get('/blog/:slug', async (req, res, next) => {
-    try {
-      const post = await blogPostModel.findOne({ slug: req.params.slug, published: true })
-        .populate('author', 'name')
-        .lean();
-      if (!post) return res.status(404).send('Post not found');
-      const shell = await readShell(next);
-      if (!shell) return;
-      const url = `${siteOrigin}/blog/${post.slug}`;
-      const image = publicImageUrl(post.coverImageUrl, siteOrigin);
-      sendHtml(res, injectSeoHtml(shell, {
-        title: `${post.title} — ${SITE_NAME}`,
-        description: post.summary || DEFAULT_DESCRIPTION,
-        image,
-        url,
-        type: 'article',
-        jsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'BlogPosting',
-          headline: post.title,
-          description: post.summary || DEFAULT_DESCRIPTION,
-          image,
-          url,
-          datePublished: post.publishedAt || post.createdAt,
-          dateModified: post.updatedAt || post.publishedAt || post.createdAt,
-          author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' },
-          publisher: { '@type': 'Organization', name: 'BCSDLab.' },
-          mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-        },
-        bootstrap: {
-          route: '/blog/:slug',
-          url: req.originalUrl,
-          data: { post: toPublicBlogPost(post) },
-        },
-        preview: {
-          title: post.title,
-          summary: post.summary || DEFAULT_DESCRIPTION,
-          body: post.content,
-        },
-      }));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get('/play/:gameSlug/articles', async (req, res, next) => {
-    try {
-      const game = await gameModel.findOne({ slug: req.params.gameSlug, visibility: 'public' })
-        .populate('ownerId', 'name')
-        .lean();
-      if (!game) return res.status(404).send('Game not found');
-
-      const articles = await gameArticleModel.find({ gameId: game._id, published: true })
-        .sort({ publishedAt: -1, createdAt: -1 })
-        .populate('author', 'name')
-        .select('-content')
-        .lean();
-      const shell = await readShell(next);
-      if (!shell) return;
-      const url = `${siteOrigin}/play/${game.slug}/articles`;
-      const image = publicImageUrl(game.thumbnailUrl, siteOrigin);
-      const description = game.description || '\uac8c\uc784\uc758 \ud328\uce58\ub178\ud2b8, \uac1c\ubc1c \uc5c5\ub370\uc774\ud2b8\uc640 \uc18c\uc2dd\uc744 \ud655\uc778\ud574 \ubcf4\uc138\uc694.';
-      sendHtml(res, injectSeoHtml(shell, {
-        title: `${game.name} \u00b7 \uac8c\uc784 \uc544\ud2f0\ud074 \u2014 ${SITE_NAME}`,
-        description,
-        image,
-        url,
-        robots: articles.length > 0 ? 'index,follow' : 'noindex,follow',
-        jsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'CollectionPage',
-          name: `${game.name} \u00b7 \uac8c\uc784 \uc544\ud2f0\ud074`,
-          description,
-          url,
-          isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
-          mainEntity: {
-            '@type': 'ItemList',
-            itemListElement: articles.map((article, index) => ({
-              '@type': 'ListItem',
-              position: index + 1,
-              name: article.title,
-              url: `${siteOrigin}/play/${game.slug}/articles/${article.slug}`,
-            })),
-          },
-        },
-        bootstrap: {
-          route: '/play/:gameSlug/articles',
-          url: req.originalUrl,
-          data: {
-            game: toPublicGame(game),
-            articles: articles.map(toPublicGameArticleSummary),
-          },
-        },
-        preview: {
-          title: `${game.name} · 게임 아티클`,
-          summary: description,
-          items: articles.map((article) => ({
-            title: article.title,
-            summary: article.summary,
-            href: `/play/${game.slug}/articles/${article.slug}`,
-          })),
-        },
-      }));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
-    try {
-      const game = await gameModel.findOne({ slug: req.params.gameSlug, visibility: 'public' })
-        .populate('ownerId', 'name')
-        .lean();
-      if (!game) return res.status(404).send('Game not found');
-      const article = await gameArticleModel.findOne({
-        gameId: game._id,
-        slug: req.params.articleSlug,
-        published: true,
-      }).populate('author', 'name').lean();
-      if (!article) return res.status(404).send('Article not found');
-
-      const shell = await readShell(next);
-      if (!shell) return;
-      const url = `${siteOrigin}/play/${game.slug}/articles/${article.slug}`;
-      const image = publicImageUrl(article.coverImageUrl || game.thumbnailUrl, siteOrigin);
-      const description = article.summary || game.description || DEFAULT_DESCRIPTION;
-      sendHtml(res, injectSeoHtml(shell, {
-        title: `${article.title} · ${game.name} — ${SITE_NAME}`,
-        description,
-        image,
-        url,
-        type: 'article',
-        robots: 'index,follow',
-        jsonLd: {
-          '@context': 'https://schema.org',
-          '@type': 'Article',
-          headline: article.title,
-          description,
-          image,
-          url,
-          datePublished: article.publishedAt || article.createdAt,
-          dateModified: article.updatedAt || article.publishedAt || article.createdAt,
-          author: { '@type': 'Person', name: article.author?.name || game.ownerId?.name || 'BCSDLab.' },
-          isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
-        },
-        bootstrap: {
-          route: '/play/:gameSlug/articles/:articleSlug',
-          url: req.originalUrl,
-          data: {
-            game: toPublicGame(game),
-            article: toPublicGameArticle(article),
-          },
-        },
-        preview: {
-          title: article.title,
-          summary: description,
-          body: article.content,
-        },
-      }));
-    } catch (err) {
-      next(err);
-    }
-  });
-
-  async function renderPlay(req, res, next) {
-    try {
-      const game = await gameModel.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
-      if (!game) return res.status(404).send('Game not found');
-      const build = req.params.buildId
-        ? await buildModel.findOne({ _id: req.params.buildId, gameId: game._id }).lean()
-        : await buildModel.findOne({ gameId: game._id, isActive: true }).lean();
-      if (!build) return res.status(404).send('Build not found');
-      const isPublic = game.visibility === 'public';
-      const articles = isPublic
-        ? await gameArticleModel.find({ gameId: game._id, published: true })
-          .sort({ publishedAt: -1, createdAt: -1 })
-          .select('title slug summary coverImageUrl tags publishedAt createdAt updatedAt')
-          .lean()
-        : [];
-      const shell = await readShell(next);
-      if (!shell) return;
-      const canonical = `${siteOrigin}/play/${game.slug}`;
-      const image = publicImageUrl(game.thumbnailUrl, siteOrigin);
-      const reviewSeo = getGameReviewSeoData(game.reviewInfo);
-      const description = game.description || DEFAULT_DESCRIPTION;
-      const previewBody = [
-        game.ownerId?.name ? `개발자: ${game.ownerId.name}` : '',
-        build.version ? `버전: ${build.version}` : '',
-        '브라우저에서 게임을 플레이하고 버그 또는 제안을 제출할 수 있습니다.',
-      ].filter(Boolean).join('\n\n');
-      sendHtml(res, injectSeoHtml(shell, {
-        title: `${game.name} — ${SITE_NAME}`,
-        description,
-        image,
-        url: canonical,
-        robots: isPublic ? 'index,follow' : 'noindex,follow',
-        jsonLd: isPublic ? {
-          '@context': 'https://schema.org',
-          '@type': 'VideoGame',
-          name: game.name,
-          description,
-          image,
-          url: canonical,
-          gamePlatform: 'Web browser',
-          applicationCategory: 'Game',
-          author: game.ownerId?.name ? { '@type': 'Person', name: game.ownerId.name } : undefined,
-          version: build.version || undefined,
-          contentRating: reviewSeo.ratingLabel || undefined,
-          keywords: reviewSeo.descriptorLabels.length ? reviewSeo.descriptorLabels.join(', ') : undefined,
-          additionalProperty: reviewSeo.additionalProperty.length ? reviewSeo.additionalProperty : undefined,
-          hasPart: articles.length ? articles.map((article) => ({
-            '@type': 'Article',
-            headline: article.title,
-            description: article.summary || undefined,
-            url: `${siteOrigin}/play/${game.slug}/articles/${article.slug}`,
-            datePublished: article.publishedAt || article.createdAt,
-            dateModified: article.updatedAt || article.publishedAt || article.createdAt,
-          })) : undefined,
-        } : null,
-        bootstrap: {
-          route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug',
-          url: req.originalUrl,
-          data: {
-            game: toPublicPlayGame(game),
-            build: toPublicBuild(build),
-            articles: articles.map(toPublicGameArticleSummary),
-          },
-        },
-        preview: {
-          title: game.name,
-          summary: description,
-          body: previewBody,
-          items: articles.map((article) => ({
-            title: article.title,
-            summary: article.summary,
-            href: `/play/${game.slug}/articles/${article.slug}`,
-          })),
-        },
-      }), isPublic ? undefined : 'private, no-store');
-    } catch (err) {
-      next(err);
-    }
+  async function renderArcade(req, res, next, locale) {
+    const policy = await getPolicy(locale);
+    const games = await gameModel.find({ visibility: 'public' }).sort({ updatedAt: -1 }).populate('ownerId', 'name').select('name slug description thumbnailUrl ownerId updatedAt').lean();
+    const gameTranslations = await loadTranslations('Game', games.map((game) => game._id), locale, translationModel || emptyTranslationModel);
+    const withBuilds = await Promise.all(games.map(async (game) => {
+      const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('version').lean();
+      if (!build) return null;
+      const translatedGame = mergeTranslation(game, publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled), 'Game');
+      return { ...translatedGame, developerName: game.ownerId?.name ?? null, latestBuildVersion: build.version || null };
+    }));
+    const visibleGames = withBuilds.filter(Boolean);
+    const arcadeTranslation = locale === 'en' && games.some((game) => {
+      const row = publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled);
+      return row?.origin === 'machine';
+    }) ? { status: 'ready', origin: 'machine', noindex: false } : null;
+    const c = copy[locale];
+    return render({
+      req, res, next, locale, policy, path: '/arcade', title: `${c.arcadeTitle} — ${SITE_NAME}`,
+      description: c.arcadeDescription, image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin), translation: arcadeTranslation,
+      jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: c.arcadeTitle, description: c.arcadeDescription, mainEntity: { '@type': 'ItemList', itemListElement: visibleGames.map((game, index) => ({ '@type': 'ListItem', position: index + 1, name: game.name, url: pageUrl(siteOrigin, `/play/${game.slug}`, locale) })) } },
+      bootstrap: { route: '/arcade', data: { games: visibleGames.map(toPublicArcadeGame) } },
+      preview: { title: c.arcadeTitle, summary: c.arcadeDescription, items: visibleGames.map((game) => ({ title: game.name, description: game.description, href: localizedPath(`/play/${game.slug}`, locale) })) },
+    });
   }
 
-  router.get('/play/:gameSlug', renderPlay);
-  router.get('/play/:gameSlug/:buildId', renderPlay);
+  async function renderBlogList(req, res, next, locale) {
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = 9;
+    const skip = (page - 1) * limit;
+    const filter = { published: true };
+    const [posts, total] = await Promise.all([
+      blogPostModel.find(filter).sort({ publishedAt: -1, createdAt: -1 }).skip(skip).limit(limit).populate('author', 'name').select('-content').lean(),
+      blogPostModel.countDocuments(filter),
+    ]);
+    const policy = await getPolicy(locale);
+    const rows = await loadTranslations('BlogPost', posts.map((post) => post._id), locale, translationModel || emptyTranslationModel);
+    const translatedPosts = posts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), locale, policy.publishEnabled), 'BlogPost'));
+    const listTranslation = locale === 'en' && posts.some((post) => {
+      const row = publicTranslation(rows.get(String(post._id)), locale, policy.publishEnabled);
+      return row?.origin === 'machine';
+    }) ? { status: 'ready', origin: 'machine', noindex: false } : null;
+    const c = copy[locale];
+    const path = '/blog';
+    return render({
+      req, res, next, locale, policy, path, title: page > 1 ? `${c.blogPageTitle(page)} — ${SITE_NAME}` : `${c.blogTitle} — ${SITE_NAME}`,
+      description: c.blogDescription, image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin), translation: listTranslation,
+      jsonLd: { '@context': 'https://schema.org', '@type': 'Blog', name: c.blogTitle },
+      bootstrap: { route: '/blog', data: { posts: translatedPosts.map(toPublicBlogSummary), total, page, pages: Math.ceil(total / limit) } },
+      preview: { title: page > 1 ? c.blogPageTitle(page) : c.blogTitle, summary: c.blogDescription, items: translatedPosts.map((post) => ({ title: post.title, summary: post.summary, href: localizedPath(`/blog/${post.slug}`, locale) })) },
+    });
+  }
+
+  async function renderBlogPost(req, res, next, locale) {
+    const post = await blogPostModel.findOne({ slug: req.params.slug, published: true }).populate('author', 'name').lean();
+    if (!post) return next();
+    const policy = await getPolicy(locale);
+    const translation = await findTranslation('BlogPost', post._id, locale);
+    const effective = mergeTranslation(post, publicTranslation(translation, locale, policy.publishEnabled), 'BlogPost');
+    const c = copy[locale];
+    const path = `/blog/${post.slug}`;
+    return render({
+      req, res, next, locale, policy, path, dynamic: true, translation,
+      title: `${effective.title} — ${SITE_NAME}`, description: effective.summary || DEFAULT_DESCRIPTION,
+      image: publicImageUrl(effective.coverImageUrl, siteOrigin), type: 'article',
+      jsonLd: { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: effective.title, description: effective.summary || undefined, image: publicImageUrl(effective.coverImageUrl, siteOrigin), datePublished: post.publishedAt || post.createdAt, dateModified: post.updatedAt || post.publishedAt || post.createdAt, author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' } },
+      bootstrap: { route: '/blog/:slug', data: { post: toPublicBlogPost(effective) } },
+      preview: { title: effective.title, summary: effective.summary, body: effective.content },
+    });
+  }
+
+  async function renderGameArticles(req, res, next, locale) {
+    const game = await gameModel.findOne({ slug: req.params.gameSlug }).select('_id name slug description thumbnailUrl visibility').lean();
+    if (!game || game.visibility !== 'public') return next();
+    const articles = await gameArticleModel.find({ gameId: game._id, published: true }).sort({ publishedAt: -1, createdAt: -1 }).populate('author', 'name').select('-content').lean();
+    const policy = await getPolicy(locale);
+    const gameTranslation = await findTranslation('Game', game._id, locale);
+    const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
+    const articleRows = locale === 'en'
+      ? await loadTranslations('GameArticle', articles.map((article) => article._id), locale, translationModel || emptyTranslationModel)
+      : await loadAlternateRows('GameArticle', articles.map((article) => article._id), policy);
+    const effectiveArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), locale, policy.publishEnabled), 'GameArticle'));
+    const c = copy[locale];
+    const path = `/play/${game.slug}/articles`;
+    const publishedArticleRows = articles
+      .map((article) => articleRows.get(String(article._id)))
+      .filter((row) => isPublishedTranslation(row, policy.publishEnabled));
+    const listReady = publishedArticleRows.length > 0;
+    const listTranslation = listReady
+      ? { status: 'ready', noindex: false, origin: publishedArticleRows.some((row) => row.origin === 'machine') ? 'machine' : 'human' }
+      : null;
+    return render({
+      req, res, next, locale, policy, path, dynamic: true, translation: listTranslation, listReady,
+      title: `${effectiveGame.name} · ${c.gameArticlesTitle} — ${SITE_NAME}`, description: effectiveGame.description || c.gameArticlesDescription,
+      image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
+      jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: `${effectiveGame.name} · ${c.gameArticlesTitle}`, description: effectiveGame.description || c.gameArticlesDescription, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
+      bootstrap: { route: '/play/:gameSlug/articles', data: { game: toPublicGame(effectiveGame), articles: effectiveArticles.map(toPublicGameArticleSummary) } },
+      preview: { title: `${effectiveGame.name} · ${c.gameArticlesTitle}`, summary: effectiveGame.description || c.gameArticlesDescription, items: effectiveArticles.map((article) => ({ title: article.title, summary: article.summary, href: localizedPath(`/play/${game.slug}/articles/${article.slug}`, locale) })) },
+    });
+  }
+
+  async function renderGameArticle(req, res, next, locale) {
+    const game = await gameModel.findOne({ slug: req.params.gameSlug }).select('_id name slug description thumbnailUrl visibility').lean();
+    if (!game || game.visibility !== 'public') return next();
+    const article = await gameArticleModel.findOne({ gameId: game._id, slug: req.params.articleSlug, published: true }).populate('author', 'name').lean();
+    if (!article) return next();
+    const policy = await getPolicy(locale);
+    const [gameTranslation, translation] = await Promise.all([
+      findTranslation('Game', game._id, locale),
+      findTranslation('GameArticle', article._id, locale),
+    ]);
+    const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
+    const effectiveArticle = mergeTranslation(article, publicTranslation(translation, locale, policy.publishEnabled), 'GameArticle');
+    const c = copy[locale];
+    const path = `/play/${game.slug}/articles/${article.slug}`;
+    return render({
+      req, res, next, locale, policy, path, dynamic: true, translation,
+      title: `${effectiveArticle.title} · ${effectiveGame.name} — ${SITE_NAME}`, description: effectiveArticle.summary || effectiveGame.description || c.gameArticlesDescription,
+      image: publicImageUrl(effectiveArticle.coverImageUrl || effectiveGame.thumbnailUrl, siteOrigin), type: 'article',
+      jsonLd: { '@context': 'https://schema.org', '@type': 'Article', headline: effectiveArticle.title, description: effectiveArticle.summary || undefined, datePublished: article.publishedAt || article.createdAt, dateModified: article.updatedAt || article.publishedAt || article.createdAt, author: { '@type': 'Person', name: article.author?.name || 'BCSDLab.' }, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
+      bootstrap: { route: '/play/:gameSlug/articles/:articleSlug', data: { article: toPublicGameArticle(effectiveArticle), game: toPublicGame(effectiveGame) } },
+      preview: { title: effectiveArticle.title, summary: effectiveArticle.summary, body: effectiveArticle.content },
+    });
+  }
+
+  async function renderPlay(req, res, next, locale) {
+    const game = await gameModel.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
+    if (!game || game.visibility !== 'public') return next();
+    const buildQuery = req.params.buildId ? { _id: req.params.buildId, gameId: game._id } : { gameId: game._id, isActive: true };
+    const build = await buildModel.findOne(buildQuery).lean();
+    if (!build) return next();
+    const articles = await gameArticleModel.find({ gameId: game._id, published: true }).sort({ publishedAt: -1, createdAt: -1 }).populate('author', 'name').select('-content').limit(3).lean();
+    const policy = await getPolicy(locale);
+    const [gameTranslation, articleRows] = await Promise.all([
+      findTranslation('Game', game._id, locale),
+      loadTranslations('GameArticle', articles.map((article) => article._id), locale, translationModel || emptyTranslationModel),
+    ]);
+    const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
+    const effectiveArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), locale, policy.publishEnabled), 'GameArticle'));
+    const c = copy[locale];
+    const path = req.params.buildId ? `/play/${game.slug}/${req.params.buildId}` : `/play/${game.slug}`;
+    const review = getGameReviewSeoData(game.reviewInfo, locale);
+    const playData = { game: toPublicPlayGame(effectiveGame), build: toPublicBuild(build), articles: effectiveArticles.map(toPublicGameArticleSummary) };
+    return render({
+      req, res, next, locale, policy, path, dynamic: true, translation: gameTranslation,
+      title: `${effectiveGame.name} — ${SITE_NAME}`, description: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
+      jsonLd: { '@context': 'https://schema.org', '@type': 'VideoGame', name: effectiveGame.name, description: effectiveGame.description || undefined, image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin), gamePlatform: 'Web browser', applicationCategory: 'Game', author: effectiveGame.developerName ? { '@type': 'Person', name: effectiveGame.developerName } : undefined, version: build.version || undefined, contentRating: review.ratingLabel || undefined, keywords: review.descriptorLabels.length ? review.descriptorLabels.join(', ') : undefined, additionalProperty: review.additionalProperty.length ? review.additionalProperty : undefined },
+      bootstrap: { route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug', data: playData },
+      preview: { title: effectiveGame.name, summary: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), body: [effectiveGame.developerName ? `${c.developer}: ${effectiveGame.developerName}` : '', build.version ? `${c.version}: ${build.version}` : ''].filter(Boolean).join('\n\n') },
+    });
+  }
+
+  const handlers = {
+    home: renderHome,
+    privacy: renderPrivacy,
+    privacyDate: renderPrivacy,
+    arcade: renderArcade,
+    blogList: renderBlogList,
+    blogPost: renderBlogPost,
+    gameArticles: renderGameArticles,
+    gameArticle: renderGameArticle,
+    play: renderPlay,
+    playBuild: renderPlay,
+  };
+
+  for (const route of SEO_PAGE_ROUTES) {
+    router.get(route.path, (req, res, next) => handlers[route.key](req, res, next, 'ko'));
+    if (route.localized) {
+      router.get(localizedPath(route.path, 'en'), (req, res, next) => handlers[route.key](req, res, next, 'en'));
+    }
+  }
 
   return router;
 }

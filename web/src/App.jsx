@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { Outlet, useLocation, useViewTransitionState } from 'react-router-dom';
+import { LocaleSync } from './i18n.jsx';
 
 function transitionKind(pathname) {
   if (pathname === '/login' || pathname === '/register'
@@ -42,6 +43,8 @@ function RoutedPages() {
   }, [kind, location.pathname]);
 
   return (
+    <>
+    <LocaleSync />
     <div
       key={location.pathname}
       className={[
@@ -54,6 +57,7 @@ function RoutedPages() {
     >
       <Outlet />
     </div>
+    </>
   );
 }
 

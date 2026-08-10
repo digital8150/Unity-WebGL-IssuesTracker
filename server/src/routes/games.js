@@ -6,10 +6,15 @@ import multer from 'multer';
 import mongoose from 'mongoose';
 import AdmZip from 'adm-zip';
 import Game, { GAME_CONTENT_DESCRIPTOR_KEYS, GAME_RATING_KEYS } from '../models/Game.js';
+import GameArticle from '../models/GameArticle.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import User from '../models/User.js';
+import Translation from '../models/Translation.js';
+import SiteSettings from '../models/SiteSettings.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
+import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
+import { enqueue } from '../services/translation/queue.js';
 
 const router = Router();
 
@@ -118,7 +123,7 @@ function isAuthorized(game, userId) {
 // ── Public Arcade gallery ────────────────────────────────────────────────────
 // Listed before authenticated routes so the path resolves first.
 
-router.get('/arcade', async (_req, res, next) => {
+router.get('/arcade', async (req, res, next) => {
   try {
     const games = await Game.find({ visibility: 'public' })
       .sort({ updatedAt: -1 })
@@ -127,17 +132,20 @@ router.get('/arcade', async (_req, res, next) => {
       .lean();
 
     // Only include games that actually have an active build to play.
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const gameRows = await loadTranslations('Game', games.map((game) => game._id), req.query.locale, Translation);
     const withBuilds = await Promise.all(
       games.map(async (g) => {
         const build = await Build.findOne({ gameId: g._id, isActive: true })
           .select('_id version createdAt')
           .lean();
         if (!build) return null;
+        const translated = mergeTranslation(g, publicTranslation(gameRows.get(String(g._id)), req.query.locale, publishEnabled), 'Game');
         return {
           id: g._id,
           name: g.name,
           slug: g.slug,
-          description: g.description ?? '',
+          description: translated.description ?? '',
           thumbnailUrl: g.thumbnailUrl ?? '',
           developerName: g.ownerId?.name ?? null,
           updatedAt: g.updatedAt,
@@ -145,7 +153,7 @@ router.get('/arcade', async (_req, res, next) => {
         };
       }),
     );
-    res.json({ games: withBuilds.filter(Boolean) });
+    res.json({ games: withBuilds.filter(Boolean), translation: Object.fromEntries(games.map((game) => [String(game._id), publicTranslationMeta(gameRows.get(String(game._id)), req.query.locale, publishEnabled)])) });
   } catch (err) {
     next(err);
   }
@@ -185,6 +193,7 @@ router.post('/', requireAuth, requireApproved, async (req, res, next) => {
       ownerId: req.user.sub,
       discordWebhookUrl: discordWebhookUrl || '',
     });
+    enqueue({ refType: 'Game', refId: game._id, source: game.toObject(), priority: 5 }).catch((error) => console.error('[translation enqueue]', error));
     res.status(201).json({ game: { ...game.toObject(), isOwner: true } });
   } catch (err) {
     next(err);
@@ -210,6 +219,7 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const { name, discordWebhookUrl, visibility, description, reviewInfo } = req.body;
+    const previousDescription = game.description;
     if (name !== undefined) game.name = name;
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
@@ -235,7 +245,27 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       };
     }
     await game.save();
+    if (description !== undefined && String(previousDescription ?? '') !== String(game.description ?? '')) {
+      enqueue({ refType: 'Game', refId: game._id, source: game.toObject(), priority: 10 }).catch((error) => console.error('[translation enqueue]', error));
+    }
     res.json({ game: { ...game.toObject(), isOwner: true } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete game — owner only
+router.delete('/:gameId', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    const articles = await GameArticle.find({ gameId: game._id }).select('_id').lean();
+    await GameArticle.deleteMany({ gameId: game._id });
+    await game.deleteOne();
+    Translation.deleteOne({ refType: 'Game', refId: game._id, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
+    Translation.deleteMany({ refType: 'GameArticle', refId: { $in: articles.map((article) => article._id) }, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -564,7 +594,8 @@ function buildUrls(buildId, files) {
   };
 }
 
-function playResponse(game, build) {
+function playResponse(game, build, translation = null) {
+  const translatedGame = mergeTranslation(game.toObject ? game.toObject() : game, translation, 'Game');
   const reviewInfo = game.reviewInfo?.enabled
     ? {
         title: game.reviewInfo.title || '',
@@ -581,11 +612,11 @@ function playResponse(game, build) {
     gameId:        game._id,
     gameSlug:      game.slug,
     gameName:      game.name,
-    description:   game.description || '',
-    thumbnailUrl:  game.thumbnailUrl || '',
-    visibility:    game.visibility || 'private',
+    description:   translatedGame.description || '',
+    thumbnailUrl:  translatedGame.thumbnailUrl || '',
+    visibility:    translatedGame.visibility || 'private',
     reviewInfo,
-    developerName: game.ownerId?.name ?? null,
+    developerName: translatedGame.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,
     canvasWidth:   build.canvasWidth  ?? 1920,
@@ -600,7 +631,10 @@ router.get('/play/:gameSlug', async (req, res, next) => {
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const build = await Build.findOne({ gameId: game._id, isActive: true });
     if (!build) return res.status(404).json({ error: 'No active build for this game' });
-    res.json(playResponse(game, build));
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const row = (await loadTranslations('Game', [game._id], req.query.locale, Translation)).get(String(game._id));
+    const translation = publicTranslation(row, req.query.locale, publishEnabled);
+    res.json({ ...playResponse(game, build, translation), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }
@@ -612,7 +646,10 @@ router.get('/play/:gameSlug/:buildId', async (req, res, next) => {
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const build = await Build.findOne({ _id: req.params.buildId, gameId: game._id });
     if (!build) return res.status(404).json({ error: 'Build not found' });
-    res.json(playResponse(game, build));
+    const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
+    const row = (await loadTranslations('Game', [game._id], req.query.locale, Translation)).get(String(game._id));
+    const translation = publicTranslation(row, req.query.locale, publishEnabled);
+    res.json({ ...playResponse(game, build, translation), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }

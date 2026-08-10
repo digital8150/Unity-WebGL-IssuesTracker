@@ -2,6 +2,13 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 // Upload subdomain bypasses Cloudflare proxy — no size/speed limits.
 const UPLOAD_BASE = import.meta.env.VITE_UPLOAD_BASE ?? API_BASE;
 
+/** Adds the explicit API locale query used by public read endpoints. */
+export function withLocale(path, locale = 'ko') {
+  if (locale !== 'en') return path;
+  const separator = path.includes('?') ? '&' : '?';
+  return `${path}${separator}locale=en`;
+}
+
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
   const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -81,12 +88,12 @@ export async function deleteGameArticle(gameId, articleId) {
   return request(`/api/games/${gameId}/articles/${articleId}`, { method: 'DELETE' });
 }
 
-export async function listPublicGameArticles(gameSlug) {
-  return request(`/api/games/play/${gameSlug}/articles`);
+export async function listPublicGameArticles(gameSlug, locale = 'ko') {
+  return request(withLocale(`/api/games/play/${gameSlug}/articles`, locale));
 }
 
-export async function getPublicGameArticle(gameSlug, articleSlug) {
-  return request(`/api/games/play/${gameSlug}/articles/${articleSlug}`);
+export async function getPublicGameArticle(gameSlug, articleSlug, locale = 'ko') {
+  return request(withLocale(`/api/games/play/${gameSlug}/articles/${articleSlug}`, locale));
 }
 
 export async function addGameArticleComment(gameSlug, articleSlug, body, authorName, turnstileToken) {
@@ -233,8 +240,8 @@ export async function deleteConfigKey(gameId, cfgId) {
 
 // ── Arcade (public gallery) ──────────────────────────────────────────────────
 
-export async function getArcadeGames() {
-  return request('/api/games/arcade');
+export async function getArcadeGames(locale = 'ko') {
+  return request(withLocale('/api/games/arcade', locale));
 }
 
 // ── Game arcade settings ─────────────────────────────────────────────────────
@@ -263,26 +270,71 @@ export async function deleteUser(userId) {
   return request(`/api/auth/admin/users/${userId}`, { method: 'DELETE' });
 }
 
+// Translation administration
+export async function getTranslationSettings() {
+  return request('/api/admin/translations/settings');
+}
+
+export async function updateTranslationSettings(fields) {
+  return request('/api/admin/translations/settings', { method: 'PUT', body: JSON.stringify(fields) });
+}
+
+export async function validateGeminiKey(geminiApiKey) {
+  return request('/api/admin/translations/validate-key', { method: 'POST', body: JSON.stringify({ geminiApiKey }) });
+}
+
+export async function listTranslationModels() {
+  return request('/api/admin/translations/models');
+}
+
+export async function getTranslationStatus() {
+  return request('/api/admin/translations/status');
+}
+
+export async function backfillTranslations(fields = {}) {
+  return request('/api/admin/translations/backfill', { method: 'POST', body: JSON.stringify(fields) });
+}
+
+export async function getTranslation(refType, refId, locale = 'en') {
+  return request(`/api/admin/translations/${refType}/${refId}/${locale}`);
+}
+
+export async function saveTranslation(refType, refId, fields, locale = 'en') {
+  return request(`/api/admin/translations/${refType}/${refId}/${locale}`, { method: 'PUT', body: JSON.stringify({ fields }) });
+}
+
+export async function retranslate(refType, refId, locale = 'en') {
+  return request(`/api/admin/translations/${refType}/${refId}/${locale}/retranslate`, { method: 'POST' });
+}
+
+export async function retryTranslation(refType, refId, locale = 'en') {
+  return request(`/api/admin/translations/${refType}/${refId}/${locale}/retry`, { method: 'POST' });
+}
+
+export async function setTranslationNoindex(refType, refId, noindex, locale = 'en') {
+  return request(`/api/admin/translations/${refType}/${refId}/${locale}/noindex`, { method: 'PATCH', body: JSON.stringify({ noindex }) });
+}
+
 // ── Play (public) ─────────────────────────────────────────────────────────────
 
-export async function getPlayInfo(gameSlug, buildId = null) {
+export async function getPlayInfo(gameSlug, buildId = null, locale = 'ko') {
   const path = buildId
     ? `/api/games/play/${gameSlug}/${buildId}`
     : `/api/games/play/${gameSlug}`;
-  return request(path);
+  return request(withLocale(path, locale));
 }
 
 // ── Blog (public) ─────────────────────────────────────────────────────────────
 
-export async function listBlogPosts({ page = 1, limit = 10, tag = '', q = '' } = {}) {
+export async function listBlogPosts({ page = 1, limit = 10, tag = '', q = '', locale = 'ko' } = {}) {
   const params = new URLSearchParams({ page, limit });
   if (tag) params.set('tag', tag);
   if (q) params.set('q', q);
-  return request(`/api/blog?${params.toString()}`);
+  return request(withLocale(`/api/blog?${params.toString()}`, locale));
 }
 
-export async function getBlogPost(slug) {
-  return request(`/api/blog/${slug}`);
+export async function getBlogPost(slug, locale = 'ko') {
+  return request(withLocale(`/api/blog/${slug}`, locale));
 }
 
 // ── Blog Admin ────────────────────────────────────────────────────────────────

@@ -1,0 +1,34 @@
+.machine-translation-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs) var(--space-xs);
+  align-items: baseline;
+  margin: var(--space-lg) 0 0;
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--color-hairline);
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.machine-translation-notice span,
+.machine-translation-notice a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.machine-translation-notice a {
+  color: var(--color-body);
+  font-weight: 600;
+  text-underline-offset: 2px;
+}
+
+.machine-translation-notice a:hover {
+  color: var(--color-link);
+}
+
+.machine-translation-notice a:focus-visible {
+  border-radius: var(--radius-xs);
+  outline: 2px solid var(--color-link);
+  outline-offset: 3px;
+}
