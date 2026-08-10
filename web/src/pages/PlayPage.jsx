@@ -28,7 +28,8 @@ function formatArticleDate(date, lang) {
   });
 }
 
-function toBuildInfo({ game, build } = {}) {
+function toBuildInfo(bootstrap) {
+  const { game, build } = bootstrap ?? {};
   if (!game || !build) return null;
   return {
     gameId: game.id,
