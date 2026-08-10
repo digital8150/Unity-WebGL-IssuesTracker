@@ -52,6 +52,10 @@ function seoRouter({ distRoot, siteOrigin }) {
     const body = [
       'User-agent: *',
       'Allow: /',
+      'Allow: /api/blog/',
+      'Allow: /api/games/arcade',
+      'Allow: /api/games/play/',
+      'Disallow: /api/blog/admin/',
       'Disallow: /api/',
       'Disallow: /dashboard',
       'Disallow: /admin/',
