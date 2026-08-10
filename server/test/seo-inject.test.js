@@ -17,9 +17,6 @@ import { injectSeoHtml } from '../src/services/seo.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../..');
 
-const SENTINEL = 'SENTINEL_SERVER_RENDERED_BODY';
-const CONTENT = `<main data-test="sentinel"><h1>${SENTINEL}</h1></main>`;
-
 function readShell() {
   return readFile(path.join(repoRoot, 'web', 'index.html'), 'utf8');
 }
@@ -34,33 +31,10 @@ function baseOptions(overrides = {}) {
   };
 }
 
-test('server-rendered content actually lands in the output', async () => {
-  const result = injectSeoHtml(await readShell(), baseOptions({ content: CONTENT }));
-
-  assert.ok(
-    result.includes(SENTINEL),
-    'injectSeoHtml dropped the server-rendered body. The shell in web/index.html no longer ' +
-      'contains the anchor the injection replaces, so every public page is now serving an ' +
-      'empty SPA shell to crawlers.',
-  );
-});
-
-test('injected content sits inside the React root container', async () => {
-  const result = injectSeoHtml(await readShell(), baseOptions({ content: CONTENT }));
-
-  const rootStart = result.indexOf('id="root"');
-  assert.notEqual(rootStart, -1, 'The shell must keep an element with id="root"');
-  assert.ok(
-    result.indexOf(SENTINEL) > rootStart,
-    'Server-rendered content must live inside #root so createRoot().render() clears it on mount. ' +
-      'Content outside #root is never removed and will stay visible under the mounted app.',
-  );
-});
-
 test('metadata is rewritten for an indexable page', async () => {
   const result = injectSeoHtml(
     await readShell(),
-    baseOptions({ title: 'My Game — Arcade', description: 'A description.', content: CONTENT }),
+    baseOptions({ title: 'My Game — Arcade', description: 'A description.' }),
   );
 
   assert.match(result, /<title>My Game — Arcade<\/title>/);
@@ -81,7 +55,7 @@ test('metadata is rewritten for an indexable page', async () => {
 test('a private page keeps noindex', async () => {
   const result = injectSeoHtml(
     await readShell(),
-    baseOptions({ robots: 'noindex,follow', content: CONTENT }),
+    baseOptions({ robots: 'noindex,follow' }),
   );
 
   assert.match(result, /<meta\s+name="robots"\s+content="noindex,follow"/);
@@ -92,7 +66,6 @@ test('JSON-LD is injected and cannot break out of its script tag', async () => {
   const result = injectSeoHtml(
     await readShell(),
     baseOptions({
-      content: CONTENT,
       jsonLd: { '@context': 'https://schema.org', '@type': 'VideoGame', name: '</script><img>' },
     }),
   );
@@ -134,7 +107,7 @@ test('omitting bootstrap leaves no bootstrap script in the shell', async () => {
 });
 
 test('the JSON-LD placeholder is consumed even when a page has no structured data', async () => {
-  const result = injectSeoHtml(await readShell(), baseOptions({ content: CONTENT }));
+  const result = injectSeoHtml(await readShell(), baseOptions());
 
   assert.ok(
     !result.includes('<!-- SEO_JSON_LD -->'),
@@ -146,7 +119,7 @@ test('the JSON-LD placeholder is consumed even when a page has no structured dat
 test('HTML-significant characters in metadata are escaped', async () => {
   const result = injectSeoHtml(
     await readShell(),
-    baseOptions({ title: 'Quote " and <tag>', description: 'Ampersand & angle <', content: CONTENT }),
+    baseOptions({ title: 'Quote " and <tag>', description: 'Ampersand & angle <' }),
   );
 
   assert.ok(!/<title>[^<]*<tag>/.test(result), 'Title must be HTML-escaped');
@@ -156,7 +129,7 @@ test('HTML-significant characters in metadata are escaped', async () => {
   );
 });
 
-test('omitting content leaves the shell renderable', async () => {
+test('omitting bootstrap leaves the shell renderable', async () => {
   const shell = await readShell();
   const result = injectSeoHtml(shell, baseOptions());
 

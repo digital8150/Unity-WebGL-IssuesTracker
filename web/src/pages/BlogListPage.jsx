@@ -1,26 +1,32 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listBlogPosts } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { readSsrData } from '../utils/ssrData.js';
 import './BlogListPage.css';
 
 export default function BlogListPage() {
   const { lang, t } = useI18n();
-  const [posts, setPosts] = useState([]);
+  const bootstrap = readSsrData('/blog');
+  const requestedPage = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
+  const fallbackPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const initialPosts = Array.isArray(bootstrap?.posts) ? bootstrap.posts : [];
+  const hasBootstrap = Array.isArray(bootstrap?.posts)
+    && Number.isFinite(bootstrap.page)
+    && Number.isFinite(bootstrap.pages);
+  const [posts, setPosts] = useState(initialPosts);
   const [tagOptions, setTagOptions] = useState([]);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [tag, setTag] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(() => {
-    const requestedPage = Number.parseInt(new URLSearchParams(window.location.search).get('page'), 10);
-    return Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
-  });
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(1);
+  const [loading, setLoading] = useState(!hasBootstrap);
+  const [page, setPage] = useState(() => bootstrap?.page ?? fallbackPage);
+  const [total, setTotal] = useState(() => bootstrap?.total ?? 0);
+  const [pages, setPages] = useState(() => bootstrap?.pages ?? 1);
+  const bootstrapPendingRef = useRef(hasBootstrap);
 
   const LIMIT = 9;
   const canonicalUrl = page > 1
@@ -76,6 +82,11 @@ export default function BlogListPage() {
   }, [searchInput]);
 
   useEffect(() => {
+    if (bootstrapPendingRef.current) {
+      bootstrapPendingRef.current = false;
+      return undefined;
+    }
+
     let cancelled = false;
     setLoading(true);
     listBlogPosts({ page, limit: LIMIT, tag, q: search })

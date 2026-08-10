@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { listPublicGameArticles } from '../api.js';
 import { useI18n } from '../i18n.jsx';
@@ -7,15 +7,21 @@ import PublicNav from '../components/PublicNav.jsx';
 import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { assetUrl } from '../utils/gameVisuals.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { readSsrData } from '../utils/ssrData.js';
 import './GameArticlesPage.css';
 
 export default function GameArticlesPage() {
   const { gameSlug } = useParams();
   const { lang, t } = useI18n();
-  const [game, setGame] = useState(null);
-  const [articles, setArticles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const bootstrap = readSsrData('/play/:gameSlug/articles');
+  const initialGame = bootstrap?.game ?? null;
+  const initialArticles = Array.isArray(bootstrap?.articles) ? bootstrap.articles : [];
+  const hasBootstrap = Boolean(initialGame && Array.isArray(bootstrap?.articles));
+  const [game, setGame] = useState(initialGame);
+  const [articles, setArticles] = useState(initialArticles);
+  const [loading, setLoading] = useState(!hasBootstrap);
   const [notFound, setNotFound] = useState(false);
+  const bootstrapPendingRef = useRef(hasBootstrap);
 
   const canonicalUrl = `${window.location.origin}/play/${gameSlug}/articles`;
   const articleListJsonLd = game ? {
@@ -53,6 +59,11 @@ export default function GameArticlesPage() {
   });
 
   useEffect(() => {
+    if (bootstrapPendingRef.current) {
+      bootstrapPendingRef.current = false;
+      return undefined;
+    }
+
     let active = true;
     setLoading(true);
     setNotFound(false);

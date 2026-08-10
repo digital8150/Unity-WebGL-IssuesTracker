@@ -15,24 +15,28 @@ import {
   SITE_NAME,
   absoluteUrl,
   escapeXml,
-  formatDate,
   getGameReviewSeoData,
   injectSeoHtml,
   publicImageUrl,
-  renderArcadeContent,
-  renderBlogListContent,
-  renderGameArticleListContent,
-  renderGameArticleContent,
-  renderBlogPostContent,
-  renderHomeContent,
-  renderPlayContent,
-  renderPrivacyContent,
   resolvePrivacyVersion,
 } from '../services/seo.js';
-import { toPublicBlogPost } from '../services/publicData.js';
+import {
+  toPublicArcadeGame,
+  toPublicBlogPost,
+  toPublicBlogSummary,
+  toPublicBuild,
+  toPublicGame,
+  toPublicGameArticle,
+  toPublicGameArticleSummary,
+  toPublicPlayGame,
+} from '../services/publicData.js';
 
-function seoRouter({ distRoot, siteOrigin }) {
+function seoRouter({ distRoot, siteOrigin, models = {} }) {
   const router = express.Router();
+  const blogPostModel = models.BlogPost ?? BlogPost;
+  const gameArticleModel = models.GameArticle ?? GameArticle;
+  const buildModel = models.Build ?? Build;
+  const gameModel = models.Game ?? Game;
 
   async function readShell(next) {
     try {
@@ -75,11 +79,11 @@ function seoRouter({ distRoot, siteOrigin }) {
   router.get('/sitemap.xml', async (_req, res, next) => {
     try {
       const [posts, games] = await Promise.all([
-        BlogPost.find({ published: true })
+        blogPostModel.find({ published: true })
           .select('slug publishedAt updatedAt')
           .sort({ publishedAt: -1 })
           .lean(),
-        Game.find({ visibility: 'public' })
+        gameModel.find({ visibility: 'public' })
           .select('slug updatedAt')
           .sort({ updatedAt: -1 })
           .lean(),
@@ -98,12 +102,12 @@ function seoRouter({ distRoot, siteOrigin }) {
       ];
 
       const activeGames = await Promise.all(games.map(async (game) => {
-        const build = await Build.findOne({ gameId: game._id, isActive: true }).select('_id updatedAt').lean();
+        const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('_id updatedAt').lean();
         return build ? { loc: `${siteOrigin}/play/${game.slug}`, lastmod: build.updatedAt || game.updatedAt } : null;
       }));
       urls.push(...activeGames.filter(Boolean));
 
-      const gameArticles = await GameArticle.find({
+      const gameArticles = await gameArticleModel.find({
         gameId: { $in: games.map((game) => game._id) },
         published: true,
       })
@@ -162,7 +166,6 @@ function seoRouter({ distRoot, siteOrigin }) {
         inLanguage: 'ko-KR',
         publisher: { '@type': 'Organization', name: 'BCSDLab.' },
       },
-      content: renderHomeContent(),
     }));
   });
 
@@ -192,7 +195,6 @@ function seoRouter({ distRoot, siteOrigin }) {
           isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: siteOrigin },
           publisher: { '@type': 'Organization', name: 'BCSDLab.' },
         } : null,
-        content: renderPrivacyContent(version),
       }));
     }).catch(next);
   }
@@ -200,15 +202,15 @@ function seoRouter({ distRoot, siteOrigin }) {
   router.get('/privacy', renderPrivacy);
   router.get('/privacy/:date', renderPrivacy);
 
-  router.get('/arcade', async (_req, res, next) => {
+  router.get('/arcade', async (req, res, next) => {
     try {
-      const games = await Game.find({ visibility: 'public' })
+      const games = await gameModel.find({ visibility: 'public' })
         .sort({ updatedAt: -1 })
         .populate('ownerId', 'name')
         .select('name slug description thumbnailUrl ownerId updatedAt')
         .lean();
       const withBuilds = await Promise.all(games.map(async (game) => {
-        const build = await Build.findOne({ gameId: game._id, isActive: true }).select('version').lean();
+        const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('version').lean();
         if (!build) return null;
         return {
           ...game,
@@ -241,7 +243,11 @@ function seoRouter({ distRoot, siteOrigin }) {
             })),
           },
         },
-        content: renderArcadeContent(visibleGames, siteOrigin),
+        bootstrap: {
+          route: '/arcade',
+          url: req.originalUrl,
+          data: { games: visibleGames.map(toPublicArcadeGame) },
+        },
       }));
     } catch (err) {
       next(err);
@@ -254,19 +260,20 @@ function seoRouter({ distRoot, siteOrigin }) {
       const limit = 9;
       const filter = { published: true };
       const [posts, total] = await Promise.all([
-        BlogPost.find(filter)
+        blogPostModel.find(filter)
           .sort({ publishedAt: -1, createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit)
           .populate('author', 'name')
           .select('-content')
           .lean(),
-        BlogPost.countDocuments(filter),
+        blogPostModel.countDocuments(filter),
       ]);
       const pages = Math.max(1, Math.ceil(total / limit));
       const shell = await readShell(next);
       if (!shell) return;
       const url = page === 1 ? `${siteOrigin}/blog` : `${siteOrigin}/blog?page=${page}`;
+      const canBootstrap = !req.query.tag && !req.query.q;
       sendHtml(res, injectSeoHtml(shell, {
         title: page === 1 ? `블로그 — ${SITE_NAME}` : `블로그 ${page}페이지 — ${SITE_NAME}`,
         description: 'BCSDLab. Game Track의 개발 일지, 업데이트와 Unity WebGL 아티클입니다.',
@@ -279,7 +286,16 @@ function seoRouter({ distRoot, siteOrigin }) {
           url,
           inLanguage: 'ko-KR',
         },
-        content: renderBlogListContent(posts, page, pages, siteOrigin),
+        bootstrap: canBootstrap ? {
+          route: '/blog',
+          url: req.originalUrl,
+          data: {
+            posts: posts.map(toPublicBlogSummary),
+            total,
+            page,
+            pages,
+          },
+        } : null,
       }));
     } catch (err) {
       next(err);
@@ -288,7 +304,7 @@ function seoRouter({ distRoot, siteOrigin }) {
 
   router.get('/blog/:slug', async (req, res, next) => {
     try {
-      const post = await BlogPost.findOne({ slug: req.params.slug, published: true })
+      const post = await blogPostModel.findOne({ slug: req.params.slug, published: true })
         .populate('author', 'name')
         .lean();
       if (!post) return res.status(404).send('Post not found');
@@ -320,7 +336,6 @@ function seoRouter({ distRoot, siteOrigin }) {
           url: req.originalUrl,
           data: { post: toPublicBlogPost(post) },
         },
-        content: renderBlogPostContent(post, siteOrigin),
       }));
     } catch (err) {
       next(err);
@@ -329,12 +344,12 @@ function seoRouter({ distRoot, siteOrigin }) {
 
   router.get('/play/:gameSlug/articles', async (req, res, next) => {
     try {
-      const game = await Game.findOne({ slug: req.params.gameSlug, visibility: 'public' })
+      const game = await gameModel.findOne({ slug: req.params.gameSlug, visibility: 'public' })
         .populate('ownerId', 'name')
         .lean();
       if (!game) return res.status(404).send('Game not found');
 
-      const articles = await GameArticle.find({ gameId: game._id, published: true })
+      const articles = await gameArticleModel.find({ gameId: game._id, published: true })
         .sort({ publishedAt: -1, createdAt: -1 })
         .populate('author', 'name')
         .select('-content')
@@ -367,7 +382,14 @@ function seoRouter({ distRoot, siteOrigin }) {
             })),
           },
         },
-        content: renderGameArticleListContent(game, articles, siteOrigin),
+        bootstrap: {
+          route: '/play/:gameSlug/articles',
+          url: req.originalUrl,
+          data: {
+            game: toPublicGame(game),
+            articles: articles.map(toPublicGameArticleSummary),
+          },
+        },
       }));
     } catch (err) {
       next(err);
@@ -376,11 +398,11 @@ function seoRouter({ distRoot, siteOrigin }) {
 
   router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
     try {
-      const game = await Game.findOne({ slug: req.params.gameSlug, visibility: 'public' })
+      const game = await gameModel.findOne({ slug: req.params.gameSlug, visibility: 'public' })
         .populate('ownerId', 'name')
         .lean();
       if (!game) return res.status(404).send('Game not found');
-      const article = await GameArticle.findOne({
+      const article = await gameArticleModel.findOne({
         gameId: game._id,
         slug: req.params.articleSlug,
         published: true,
@@ -410,7 +432,14 @@ function seoRouter({ distRoot, siteOrigin }) {
           author: { '@type': 'Person', name: article.author?.name || game.ownerId?.name || 'BCSDLab.' },
           isPartOf: { '@type': 'VideoGame', name: game.name, url: `${siteOrigin}/play/${game.slug}` },
         },
-        content: renderGameArticleContent(article, game, siteOrigin),
+        bootstrap: {
+          route: '/play/:gameSlug/articles/:articleSlug',
+          url: req.originalUrl,
+          data: {
+            game: toPublicGame(game),
+            article: toPublicGameArticle(article),
+          },
+        },
       }));
     } catch (err) {
       next(err);
@@ -419,15 +448,15 @@ function seoRouter({ distRoot, siteOrigin }) {
 
   async function renderPlay(req, res, next) {
     try {
-      const game = await Game.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
+      const game = await gameModel.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
       if (!game) return res.status(404).send('Game not found');
       const build = req.params.buildId
-        ? await Build.findOne({ _id: req.params.buildId, gameId: game._id }).lean()
-        : await Build.findOne({ gameId: game._id, isActive: true }).lean();
+        ? await buildModel.findOne({ _id: req.params.buildId, gameId: game._id }).lean()
+        : await buildModel.findOne({ gameId: game._id, isActive: true }).lean();
       if (!build) return res.status(404).send('Build not found');
       const isPublic = game.visibility === 'public';
       const articles = isPublic
-        ? await GameArticle.find({ gameId: game._id, published: true })
+        ? await gameArticleModel.find({ gameId: game._id, published: true })
           .sort({ publishedAt: -1, createdAt: -1 })
           .select('title slug summary coverImageUrl tags publishedAt createdAt updatedAt')
           .lean()
@@ -466,7 +495,15 @@ function seoRouter({ distRoot, siteOrigin }) {
             dateModified: article.updatedAt || article.publishedAt || article.createdAt,
           })) : undefined,
         } : null,
-        content: renderPlayContent(game, build, siteOrigin, articles),
+        bootstrap: {
+          route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug',
+          url: req.originalUrl,
+          data: {
+            game: toPublicPlayGame(game),
+            build: toPublicBuild(build),
+            articles: articles.map(toPublicGameArticleSummary),
+          },
+        },
       }), isPublic ? undefined : 'private, no-store');
     } catch (err) {
       next(err);
