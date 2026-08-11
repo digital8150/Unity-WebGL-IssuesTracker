@@ -397,12 +397,14 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   );
   const hasActiveBuild = builds.some((b) => b.isActive);
   const initialSettings = useMemo(() => ({
+    name: game.name || '',
     visibility: game.visibility || 'private',
     description: game.description || '',
     thumbnailUrl: game.thumbnailUrl || '',
   }), [game]);
 
   const [savedSettings, setSavedSettings] = useState(initialSettings);
+  const [name, setName] = useState(initialSettings.name);
   const [visibility, setVisibility] = useState(initialSettings.visibility);
   const [description, setDescription] = useState(initialSettings.description);
   const [sourceDescription, setSourceDescription] = useState(initialSettings.description);
@@ -441,6 +443,18 @@ const ArcadeSection = forwardRef(function ArcadeSection({
     if (!isEnglish) setSourceDescription(value);
   }
 
+  function validateName(value) {
+    const trimmedName = value.trim();
+    if (!trimmedName) return td.arcadeNameRequired;
+    if (trimmedName.length > 100) return td.arcadeNameTooLong;
+    return '';
+  }
+
+  function updateName(value) {
+    setName(value);
+    setError(validateName(value));
+  }
+
   const draftThumbnailKey = thumbnailFile
     ? `file:${thumbnailFile.name}:${thumbnailFile.size}:${thumbnailFile.lastModified}`
     : thumbnailRemoved ? '' : savedSettings.thumbnailUrl;
@@ -450,7 +464,8 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   const hasUnsavedChanges = isEnglish
     ? translationReady && description !== savedDescription
     : (
-      visibility !== savedSettings.visibility
+      name !== savedSettings.name
+      || visibility !== savedSettings.visibility
       || description !== savedSettings.description
       || draftThumbnailKey !== savedSettings.thumbnailUrl
     );
@@ -468,6 +483,13 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   async function handleSave(e) {
     e?.preventDefault?.();
     if (!hasUnsavedChanges) return true;
+    if (!isEnglish) {
+      const nameError = validateName(name);
+      if (nameError) {
+        setError(nameError);
+        return false;
+      }
+    }
     setError('');
     setSaving(true);
     try {
@@ -477,12 +499,13 @@ const ArcadeSection = forwardRef(function ArcadeSection({
       }
 
       const settingsChanged = (
-        visibility !== savedSettings.visibility
+        name !== savedSettings.name
+        || visibility !== savedSettings.visibility
         || description !== savedSettings.description
       );
       let updated = null;
       if (settingsChanged) {
-        const result = await updateGame(gameId, { visibility, description });
+        const result = await updateGame(gameId, { name: name.trim(), visibility, description });
         updated = result.game;
       }
 
@@ -495,12 +518,15 @@ const ArcadeSection = forwardRef(function ArcadeSection({
         nextThumbnailUrl = '';
       }
 
+      const nextName = updated?.name ?? name.trim();
       setGame((prev) => ({
         ...prev,
         ...(updated || {}),
+        name: nextName,
         thumbnailUrl: nextThumbnailUrl,
       }));
-      setSavedSettings({ visibility, description, thumbnailUrl: nextThumbnailUrl });
+      setName(nextName);
+      setSavedSettings({ name: nextName, visibility, description, thumbnailUrl: nextThumbnailUrl });
       setThumbnailFile(null);
       setThumbnailRemoved(false);
       return true;
@@ -532,6 +558,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({
 
   function handleRevert() {
     setError('');
+    setName(savedSettings.name);
     setVisibility(savedSettings.visibility);
     setDescription(isEnglish ? savedDescription : savedSettings.description);
     setThumbnailFile(null);
@@ -567,6 +594,23 @@ const ArcadeSection = forwardRef(function ArcadeSection({
       {!hasActiveBuild && (
         <div className="gd-arcade-warn">{td.requiresActiveBuild}</div>
       )}
+
+      <div className="gd-arcade-block">
+        <label className="form-label">
+          {td.arcadeName}
+          {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
+        </label>
+        <input
+          className="form-input"
+          type="text"
+          maxLength={100}
+          placeholder={td.arcadeNamePlaceholder}
+          value={name}
+          disabled={isEnglish}
+          onChange={(e) => updateName(e.target.value)}
+        />
+        <div className="gd-arcade-counter">{name.length} / 100</div>
+      </div>
 
       <div className="gd-arcade-row">
         <label className={`gd-vis-card${visibility === 'private' ? ' active' : ''}`}>

@@ -237,3 +237,9 @@ implementation details. Entries are written in English for agent readability.
 - Added an Apache catch-all after the per-PR vhosts for `*.preview.codingbot.kr`; deleted or unknown preview hosts now return the custom 404 instead of falling through to BTCPay's default vhost.
 - Reused the Let's Encrypt `*.preview.codingbot.kr` certificate for the catch-all and set Apache `ServerTokens Prod` / `ServerSignature Off`; verified custom HTML, CSS, image, HTTP 404, and TLS responses while the BTCPay service still returns normally.
 - Added depth-independent `AliasMatch` mappings for the pages' relative `error.css` and `assets/error-*.png` URLs; verified those browser-relative requests return 200 with the correct MIME types.
+
+## 2026-08-12 (game name editing)
+
+- Added dashboard editing for the game's Arcade name with Korean/English labels, validation, dirty-state tracking, save, and revert handling.
+- Hardened `PATCH /api/games/:gameId` name validation (string, non-empty after trim, max 100 characters).
+- Verification: `server/npm test` (77 passing), `web/npm run build`, `node --check src/routes/games.js`, and `git diff --check`.
