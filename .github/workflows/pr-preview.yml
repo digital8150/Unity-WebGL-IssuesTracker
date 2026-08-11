@@ -1,0 +1,144 @@
+name: PR Preview
+
+on:
+  workflow_run:
+    workflows: ["CI Build Check"]
+    types: [completed]
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  PREVIEW_HOST: upload.codingbot.kr
+  PREVIEW_USER: ubuntu
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve main PR
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          number="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls" \
+            --header 'Accept: application/vnd.github+json' \
+            --jq '.[] | select(.state == "open" and .base.ref == "main" and .head.repo.full_name == "'"${REPOSITORY}"'") | .number' \
+            | head -n 1)"
+          [[ "$number" =~ ^[0-9]+$ ]] || {
+            echo 'The completed CI run is not for a main-branch PR; skipping preview.'
+            echo 'number=' >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+
+      - name: Install SSH key
+        if: steps.pr.outputs.number != ''
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ env.PREVIEW_HOST }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/preview_key"
+          chmod 600 "$HOME/.ssh/preview_key"
+          ssh-keyscan -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Deploy isolated preview
+        if: steps.pr.outputs.number != ''
+        id: deploy
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ env.PREVIEW_HOST }}
+          SSH_USER: ${{ env.PREVIEW_USER }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          output_file="$RUNNER_TEMP/preview-output.txt"
+          ssh -i "$HOME/.ssh/preview_key" \
+            -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "sudo /usr/local/sbin/arcade-preview up '$PR_NUMBER' '$HEAD_SHA'" \
+            | tee "$output_file"
+          {
+            echo 'output<<PREVIEW_OUTPUT_EOF'
+            cat "$output_file"
+            echo 'PREVIEW_OUTPUT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview details
+        if: steps.pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          DEPLOY_OUTPUT: ${{ steps.deploy.outputs.output }}
+        run: |
+          set -euo pipefail
+          value() { printf '%s\n' "$DEPLOY_OUTPUT" | sed -n "s/^$1=//p" | tail -n 1; }
+          url="$(value PREVIEW_URL)"
+          user="$(value PREVIEW_USERNAME)"
+          password="$(value PREVIEW_PASSWORD)"
+          dashboard="$(value DASHBOARD_LOGIN)"
+          body="<!-- arcade-preview -->
+          ### PR preview ready
+
+          - URL: $url
+          - HTTP Basic user: `$user`
+          - HTTP Basic password: `$password`
+          - Dashboard login: [$dashboard]($dashboard)
+
+          The preview uses a disposable snapshot of production data. PR redeploys refresh the snapshot; PR close removes it."
+
+          comment_id="$(gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- arcade-preview -->"))) | .id' \
+            | tail -n 1)"
+          if [[ -n "$comment_id" ]]; then
+            gh api --method PATCH "repos/${REPOSITORY}/issues/comments/${comment_id}" \
+              -f body="$body" >/dev/null
+          else
+            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "$body" >/dev/null
+          fi
+
+  cleanup:
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action == 'closed'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          SSH_HOST: ${{ env.PREVIEW_HOST }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_KEY" > "$HOME/.ssh/preview_key"
+          chmod 600 "$HOME/.ssh/preview_key"
+          ssh-keyscan -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
+
+      - name: Remove isolated preview
+        env:
+          SSH_HOST: ${{ env.PREVIEW_HOST }}
+          SSH_USER: ${{ env.PREVIEW_USER }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/preview_key" \
+            -o BatchMode=yes \
+            "$SSH_USER@$SSH_HOST" \
+            "sudo /usr/local/sbin/arcade-preview down '$PR_NUMBER'"

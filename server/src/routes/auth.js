@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Game from '../models/Game.js';
@@ -66,6 +67,40 @@ router.post('/confirm-age', requireAuth, async (req, res, next) => {
       await user.save();
     }
     res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Preview-only sign-in. Preview deployments receive a fresh database and a
+// one-off access token from the deploy controller; production never enables
+// this route. It lets reviewers inspect the dashboard without copying the
+// production JWT secret or OAuth credentials into an untrusted PR container.
+router.get('/preview', async (req, res, next) => {
+  try {
+    if (process.env.PREVIEW_MODE !== 'true') return res.status(404).end();
+
+    const expected = String(process.env.PREVIEW_ACCESS_TOKEN || '');
+    const received = String(req.query.token || '');
+    const expectedBuffer = Buffer.from(expected);
+    const receivedBuffer = Buffer.from(received);
+    if (
+      !expectedBuffer.length
+      || expectedBuffer.length !== receivedBuffer.length
+      || !timingSafeEqual(expectedBuffer, receivedBuffer)
+    ) {
+      return res.status(404).end();
+    }
+
+    const previewUserId = String(process.env.PREVIEW_USER_ID || '');
+    if (!previewUserId) return res.status(404).end();
+    const user = await User.findById(previewUserId).select('-passwordHash');
+    if (!user) return res.status(404).end();
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(signToken(user))}`);
   } catch (err) {
     next(err);
   }
