@@ -33,3 +33,8 @@ Apache terminates HTTPS and forwards the preview URL without an HTTP Basic Auth
 prompt. Dashboard access still uses the preview-only login link emitted by the
 controller; that link is regenerated whenever the preview is redeployed and is
 not published as a credential in the public PR comment.
+
+`preview-error-catchall.conf` is enabled after the per-PR vhosts. It prevents a
+deleted preview hostname from falling through to another service's default
+vhost, and returns the custom static error pages from `/var/www/preview-errors`
+with the preview wildcard certificate.

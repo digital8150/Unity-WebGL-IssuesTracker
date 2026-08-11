@@ -230,3 +230,10 @@ implementation details. Entries are written in English for agent readability.
 ## 2026-08-11 (preview cleanup race)
 
 - Made the preview controller wait up to six minutes for an active deployment lock so PR-close cleanup does not fail when deploy and cleanup events overlap.
+
+## 2026-08-11 (preview error catch-all)
+
+- Installed the supplied static 400/403/404/500/503 pages, stylesheet, and error artwork at `/var/www/preview-errors` on the remote host.
+- Added an Apache catch-all after the per-PR vhosts for `*.preview.codingbot.kr`; deleted or unknown preview hosts now return the custom 404 instead of falling through to BTCPay's default vhost.
+- Reused the Let's Encrypt `*.preview.codingbot.kr` certificate for the catch-all and set Apache `ServerTokens Prod` / `ServerSignature Off`; verified custom HTML, CSS, image, HTTP 404, and TLS responses while the BTCPay service still returns normally.
+- Added depth-independent `AliasMatch` mappings for the pages' relative `error.css` and `assets/error-*.png` URLs; verified those browser-relative requests return 200 with the correct MIME types.
