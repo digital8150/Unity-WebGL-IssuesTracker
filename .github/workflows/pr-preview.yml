@@ -97,8 +97,8 @@ jobs:
           ### PR preview ready
 
           - URL: $url
-          - HTTP Basic user: `$user`
-          - HTTP Basic password: `$password`
+- HTTP Basic user: $user
+- HTTP Basic password: $password
           - Dashboard login: [$dashboard]($dashboard)
 
           The preview uses a disposable snapshot of production data. PR redeploys refresh the snapshot; PR close removes it."
