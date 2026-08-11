@@ -40,6 +40,10 @@ export async function getMe(token) {
   return request('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
 }
 
+export async function updateMyProfile(fields) {
+  return request('/api/auth/me', { method: 'PATCH', body: JSON.stringify(fields) });
+}
+
 export async function getUsage() {
   return request('/api/auth/usage');
 }

@@ -192,6 +192,14 @@ implementation details. Entries are written in English for agent readability.
 - Production `SiteSettings` document does not exist, so `getPolicy()` fails closed (`publishEnabled: false`, `enabled: false`). Deploying the translation branch is therefore safe on its own: `/en` stays `noindex`, emits no hreflang, and is absent from `sitemap.xml`; the worker does not drain. English exposure requires an admin to flip the toggle in `/admin/translations`.
 - Production data at time of check: 0 `translations` rows, 2 published blog posts, 6 public games.
 - Still open: `/en` Apache routing (must proxy **without stripping the prefix** — a stripped prefix loses `/en` from `req.originalUrl`, which makes `readSsrData` reject the bootstrap and silently degrade every `/en` page to a client fetch with no error anywhere).
+## 2026-08-11 (profile and landing carousel)
+
+- Updated local `main` to `origin/main` at `494e52f`, created `feat/profile-and-landing-carousel`, and restored the in-progress work onto it.
+- Added `/dashboard/profile` with a dashboard My Page, account summary, and editable display name; added authenticated `PATCH /api/auth/me` with trimmed/length-checked `User.name` validation.
+- Reworked the landing updated-game carousel into bottom-left dot navigation with an `UPDATED` label, 6.5-second auto-advance, pause-on-hover/focus, reduced-motion handling, slide entrance animation, and a left-only scrim that fades to transparent over the right-side artwork.
+- Added English/Korean copy and route prefetch coverage for the profile page.
+- Verification: `web/npm run build`, `server/npm test` (77 passing), `node --check src/routes/auth.js`, and `git diff --check` passed.
+
 ## 2026-08-11 (isolated PR previews)
 
 - Added an isolated preview deployment design: each open same-repository PR gets `pr-<number>.preview.codingbot.kr` with a fresh production Mongo snapshot, copied build/media storage, disposable Mongo/app/gateway containers, and Apache Basic Auth/TLS.
@@ -199,3 +207,22 @@ implementation details. Entries are written in English for agent readability.
 - Added preview-only dashboard sign-in, opt-in static serving for the app container, trusted `previewctl.sh`, fixed Docker assets, and the `PR Preview` workflow for CI success/PR close lifecycle.
 - Installed the root-owned controller and `*.preview.codingbot.kr` Let’s Encrypt certificate on the remote host; verified a live `pr-23` preview returns 401 without Basic Auth, 200 with it, and serves production-snapshot arcade data.
 - Verification: `server/npm test` (77 passing), `web/npm run build`, Node/Bash/YAML syntax checks, and live TLS/Apache/container smoke checks.
+
+## 2026-08-11 (PR23 preview follow-up)
+
+- Merged PR24 into `main`, merged `main` into PR23, and resolved the only conflict in `progress.md`; feature code merged cleanly.
+- Rebuilt PR23 from the synchronized branch: React assets return 200, API data returns 200, and preview dashboard login redirects through `/auth/callback`.
+- Fixed preview-comment shell quoting so generated credentials are not interpreted as commands; CI remains green.
+
+## 2026-08-11 (preview access simplification)
+
+- Removed Apache HTTP Basic Auth from PR previews; HTTPS URL access is direct, while dashboard sign-in remains preview-token based.
+- Stopped publishing preview passwords or tokens as credentials in public PR comments; comments now contain only the preview URL and dashboard link.
+- Merged the access/workflow fix as PR25 and verified the PR23 workflow through successful deploy and comment steps.
+
+## 2026-08-11 (carousel controls)
+
+- Reduced landing carousel auto-advance from 6.5 seconds to 3 seconds.
+- Added accessible previous/next arrow buttons beside the dot navigation; arrows wrap around the featured game list and preserve pause-on-hover/focus behavior.
+- Added English/Korean arrow labels and updated the selected-dot progress animation to 3 seconds.
+- Verification: `web/npm run build` and `git diff --check` passed.

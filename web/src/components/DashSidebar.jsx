@@ -30,6 +30,11 @@ export default function DashSidebar({
         ) : (
           <PageLink className="dash-nav-item" to={backHref} {...linkProps}>{firstLabel}</PageLink>
         )}
+        {active === 'profile' ? (
+          <span className="dash-nav-item active">{t.nav.profile}</span>
+        ) : (
+          <PageLink className="dash-nav-item" to="/dashboard/profile" {...linkProps}>{t.nav.profile}</PageLink>
+        )}
         <PageLink className={`dash-nav-item${active === 'arcade' ? ' active' : ''}`} to="/arcade" {...linkProps}>{t.nav.arcade}</PageLink>
         {gameScope ? (
           <>

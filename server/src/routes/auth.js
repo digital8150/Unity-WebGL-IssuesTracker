@@ -55,6 +55,26 @@ router.get('/me', requireAuth, async (req, res, next) => {
   }
 });
 
+router.patch('/me', requireAuth, async (req, res, next) => {
+  try {
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    if (!name) return res.status(400).json({ error: 'Display name is required' });
+    if (name.length > 100) {
+      return res.status(400).json({ error: 'Display name must be 100 characters or fewer' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.sub,
+      { name },
+      { new: true, runValidators: true },
+    ).select('-passwordHash');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Self-declared age-of-consent gate (PIPA §22-2 — under-14 users need guardian
 // consent, which this service does not collect). Idempotent: only sets the
 // timestamp on first confirmation.

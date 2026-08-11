@@ -20,6 +20,7 @@ export const ROUTES = [
   { path: '/play/:gameSlug/articles/:articleSlug', loaderKey: 'blogPost', localized: true },
 
   { path: '/dashboard', loaderKey: 'dashboard', guard: true, localized: false },
+  { path: '/dashboard/profile', loaderKey: 'profile', guard: true, localized: false },
   { path: '/dashboard/games/:gameId', loaderKey: 'gameDetail', guard: true, localized: false },
   { path: '/dashboard/games/:gameId/issues/:issueId', loaderKey: 'issueDetail', guard: true, localized: false },
 
