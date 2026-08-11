@@ -28,3 +28,8 @@ Apache vhost.
 workflow passes only a validated PR number and commit SHA to it; the checked
 out PR source is used as Docker build context but cannot change the controller,
 Apache target, host mounts, or environment contract.
+
+Apache terminates HTTPS and forwards the preview URL without an HTTP Basic Auth
+prompt. Dashboard access still uses the preview-only login link emitted by the
+controller; that link is regenerated whenever the preview is redeployed and is
+not published as a credential in the public PR comment.
