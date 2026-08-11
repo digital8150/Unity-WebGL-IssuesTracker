@@ -42,7 +42,6 @@ paths_for_pr() {
   APACHE_NAME="arcade-preview-pr-$pr.conf"
   APACHE_CONF="$APACHE_AVAILABLE/$APACHE_NAME"
   APACHE_LINK="$APACHE_ENABLED/$APACHE_NAME"
-  AUTH_FILE="/etc/apache2/.htpasswd-preview-pr-$pr"
 }
 
 assert_safe_root() {
@@ -87,7 +86,7 @@ stop_existing() {
     docker compose -p "$PROJECT" -f "$COMPOSE" down -v --remove-orphans || true
   fi
   docker image rm "$IMAGE" >/dev/null 2>&1 || true
-  rm -f -- "$APACHE_LINK" "$APACHE_CONF" "$AUTH_FILE"
+  rm -f -- "$APACHE_LINK" "$APACHE_CONF"
   if [[ -d "$ROOT" ]]; then
     assert_safe_root
     rm -rf -- "$ROOT"
@@ -228,11 +227,6 @@ build_image() {
 }
 
 write_apache() {
-  local auth_password="$1"
-  htpasswd -Bbn preview "$auth_password" > "$AUTH_FILE"
-  chown root:www-data "$AUTH_FILE"
-  chmod 640 "$AUTH_FILE"
-
   cat > "$APACHE_CONF" <<EOF
 <VirtualHost *:80>
     ServerName $HOST
@@ -247,14 +241,6 @@ write_apache() {
     SSLEngine on
     SSLCertificateFile $CERT_ROOT/fullchain.pem
     SSLCertificateKeyFile $CERT_ROOT/privkey.pem
-
-    <Location />
-        AuthType Basic
-        AuthName "PR Preview"
-        AuthBasicProvider file
-        AuthUserFile $AUTH_FILE
-        Require valid-user
-    </Location>
 
     ProxyPreserveHost On
     ProxyTimeout 120
@@ -316,13 +302,9 @@ up() {
     (( attempt < 60 )) || die "preview app did not become healthy"
   done
 
-  local auth_password
-  auth_password="$(openssl rand -hex 18)"
-  write_apache "$auth_password"
+  write_apache
 
   echo "PREVIEW_URL=https://$HOST"
-  echo "PREVIEW_USERNAME=preview"
-  echo "PREVIEW_PASSWORD=$auth_password"
   echo "DASHBOARD_LOGIN=https://$HOST/api/auth/preview?token=$bootstrap_token"
 }
 
@@ -337,7 +319,7 @@ down() {
     docker compose -p "$PROJECT" -f "$COMPOSE" down -v --remove-orphans || true
   fi
   docker image rm "$IMAGE" >/dev/null 2>&1 || true
-  rm -f -- "$APACHE_LINK" "$APACHE_CONF" "$AUTH_FILE"
+  rm -f -- "$APACHE_LINK" "$APACHE_CONF"
   if [[ -d "$ROOT" ]]; then
     rm -rf -- "$ROOT"
   fi
