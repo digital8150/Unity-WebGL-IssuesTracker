@@ -226,3 +226,7 @@ implementation details. Entries are written in English for agent readability.
 - Added accessible previous/next arrow buttons beside the dot navigation; arrows wrap around the featured game list and preserve pause-on-hover/focus behavior.
 - Added English/Korean arrow labels and updated the selected-dot progress animation to 3 seconds.
 - Verification: `web/npm run build` and `git diff --check` passed.
+
+## 2026-08-11 (preview cleanup race)
+
+- Made the preview controller wait up to six minutes for an active deployment lock so PR-close cleanup does not fail when deploy and cleanup events overlap.

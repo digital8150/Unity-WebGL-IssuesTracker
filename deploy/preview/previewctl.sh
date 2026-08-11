@@ -52,10 +52,16 @@ assert_safe_root() {
 with_lock() {
   mkdir -p "$BASE_ROOT"
   LOCK_PATH="$BASE_ROOT/.lock"
-  if ! mkdir "$LOCK_PATH" 2>/dev/null; then
-    die "another preview operation is already running"
-  fi
-  trap 'rmdir "$LOCK_PATH" 2>/dev/null || true' EXIT
+  local lock_attempt
+  for lock_attempt in {1..180}; do
+    if mkdir "$LOCK_PATH" 2>/dev/null; then
+      trap 'rmdir "$LOCK_PATH" 2>/dev/null || true' EXIT
+      return
+    fi
+    (( lock_attempt == 1 )) && echo "[preview] waiting for another preview operation to finish"
+    sleep 2
+  done
+  die "another preview operation did not finish within 6 minutes"
 }
 
 find_port() {
