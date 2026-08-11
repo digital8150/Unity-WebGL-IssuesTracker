@@ -219,3 +219,10 @@ implementation details. Entries are written in English for agent readability.
 - Removed Apache HTTP Basic Auth from PR previews; HTTPS URL access is direct, while dashboard sign-in remains preview-token based.
 - Stopped publishing preview passwords or tokens as credentials in public PR comments; comments now contain only the preview URL and dashboard link.
 - Merged the access/workflow fix as PR25 and verified the PR23 workflow through successful deploy and comment steps.
+
+## 2026-08-11 (carousel controls)
+
+- Reduced landing carousel auto-advance from 6.5 seconds to 3 seconds.
+- Added accessible previous/next arrow buttons beside the dot navigation; arrows wrap around the featured game list and preserve pause-on-hover/focus behavior.
+- Added English/Korean arrow labels and updated the selected-dot progress animation to 3 seconds.
+- Verification: `web/npm run build` and `git diff --check` passed.

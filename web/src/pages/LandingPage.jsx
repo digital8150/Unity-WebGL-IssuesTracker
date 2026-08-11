@@ -13,7 +13,7 @@ import { withLocale } from '../i18n/localePath.js';
 import './LandingPage.css';
 
 const FEATURED_GAME_LIMIT = 5;
-const CAROUSEL_INTERVAL_MS = 6500;
+const CAROUSEL_INTERVAL_MS = 3000;
 
 function formatArticleDate(dateStr, lang) {
   if (!dateStr) return '';
@@ -115,6 +115,14 @@ export default function LandingPage() {
   const featuredGame = games.find((game) => game.id === selectedGameId) ?? games[0] ?? null;
   const featuredGames = games.slice(0, FEATURED_GAME_LIMIT);
   const featuredTransitionName = featuredGame ? gameTransitionName(featuredGame.slug) : undefined;
+  const moveFeatured = (direction) => {
+    if (featuredGames.length < 2) return;
+    setSelectedGameId((currentId) => {
+      const currentIndex = featuredGames.findIndex((game) => game.id === currentId);
+      const nextIndex = (currentIndex + direction + featuredGames.length) % featuredGames.length;
+      return featuredGames[nextIndex].id;
+    });
+  };
   const activateFeaturedSource = () => {
     if (!featuredGame) return;
     setActiveTransition({ id: featuredGame.id, type: 'hero' });
@@ -202,18 +210,40 @@ export default function LandingPage() {
             className={`l-featured-pagination${isCarouselPaused ? ' is-paused' : ''}`}
             aria-label={t.home.updatedEyebrow}
           >
-            {featuredGames.map((game) => (
+            {featuredGames.length > 1 && (
               <button
-                key={game.id}
                 type="button"
-                className={`l-featured-dot${game.id === featuredGame.id ? ' is-selected' : ''}`}
-                onClick={() => setSelectedGameId(game.id)}
-                aria-label={game.name}
-                aria-current={game.id === featuredGame.id ? 'true' : undefined}
+                className="l-featured-arrow"
+                onClick={() => moveFeatured(-1)}
+                aria-label={t.home.previousFeatured}
               >
-                <span aria-hidden="true" />
+                <span aria-hidden="true">‹</span>
               </button>
-            ))}
+            )}
+            <div className="l-featured-dots" aria-label={t.home.updatedEyebrow}>
+              {featuredGames.map((game) => (
+                <button
+                  key={game.id}
+                  type="button"
+                  className={`l-featured-dot${game.id === featuredGame.id ? ' is-selected' : ''}`}
+                  onClick={() => setSelectedGameId(game.id)}
+                  aria-label={game.name}
+                  aria-current={game.id === featuredGame.id ? 'true' : undefined}
+                >
+                  <span aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+            {featuredGames.length > 1 && (
+              <button
+                type="button"
+                className="l-featured-arrow"
+                onClick={() => moveFeatured(1)}
+                aria-label={t.home.nextFeatured}
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+            )}
           </div>
         </section>
       ) : (
