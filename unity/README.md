@@ -27,6 +27,36 @@ The play page's **Report a Bug** button calls `unityInstance.SendMessage("IssueT
 
 The C# side appends buffered logs + custom state, serializes to JSON, and hands the payload back to JS via `IssueTracker_SubmitReport` (declared in `IssueTracker.jslib`). The JS side forwards it to `window.__issueTrackerReceive`; the play page stores that snapshot and opens the dedicated report page, where the tester enters the title and description.
 
+## Authenticated Arcade SDK v2
+
+SDK v2 adds account-backed leaderboards, dynamic config reads, and optional cloud saves. In the dashboard's **Server Integration → SDK v2** section, enable SDK v2 and copy both generated files into the matching Unity paths:
+
+- `Assets/Scripts/ArcadeSdk.cs`
+- `Assets/Plugins/WebGL/ArcadeSdk.jslib`
+
+Add `ArcadeSdk` to a bootstrap-scene GameObject. The component automatically corrects the GameObject name to `ArcadeSdk`, which is required for the play page's `SendMessage` credential injection. Wait for `ArcadeSdk.Instance.OnReady` before making account-backed calls.
+
+```csharp
+using ArcadeBackend;
+
+void Start()
+{
+    ArcadeSdk.Instance.OnReady += () =>
+    {
+        ArcadeSdk.Instance.SubmitScore("main", 4200, (ok, rank) =>
+            Debug.Log(ok ? $"Rank: {rank}" : "Score submission failed"));
+    };
+}
+```
+
+For Editor Play mode, issue a seven-day development token from the same dashboard section. The recommended local-only setup is:
+
+```csharp
+UnityEditor.EditorPrefs.SetString("ArcadeSdk.DevToken", "paste-token-here");
+```
+
+The inspector token field is a fallback and is serialized into the scene, so never commit a populated field to a public repository. Reissuing the token immediately invalidates the previous editor token. The browser build does not include either editor-only field; it receives a 15-minute game-scoped token from the host page and refreshes through the WebGL bridge.
+
 ## WebGL build settings
 
 - Compression: Gzip or Brotli (both work; configure server `Content-Encoding` accordingly).

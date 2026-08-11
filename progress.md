@@ -63,3 +63,13 @@ Keep this file short; detailed implementation history remains in git commits.
 - Corrected best-score replacement semantics: descending replaces lower stored scores; ascending replaces higher stored scores.
 - Verification: `server/npm test` (117 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.
 - Next: Phase 2 Unity SDK/code generation, then Phase 3 play gate/dashboard UI/i18n and manual Unity WebGL E2E.
+
+## 2026-08-12 — Arcade ID / GBaaS Phase 2–3
+
+- Added static `ArcadeSdk.cs` + `ArcadeSdk.jslib`, EditorPrefs development-token bootstrap, browser credential injection, bounded token wait, and one-time 401 retry.
+- Added authenticated generated-SDK delivery with `SITE_ORIGIN` substitution and per-game score/config/save examples.
+- Added SDK v2 play-token refresh, Unity-first/token-first handshake, signed-out canvas gate, and en/ko copy.
+- Added dashboard SDK v2 controls, generated files/docs, revocable editor token, account/legacy score tabs, test-record cleanup, and cloud-save metadata management.
+- Added manager/admin score/save APIs with game scoping, pagination, and cloud-save body redaction.
+- Verification: `server/npm test` (122 passing), `web/npm run build`, changed-module `node --check`, SDK bridge syntax check, and `git diff --check`.
+- Remaining before merge: manual Unity Editor + uploaded WebGL E2E, including token reissue invalidation, 15-minute refresh, score/save round trips, and responsive login gate checks.
