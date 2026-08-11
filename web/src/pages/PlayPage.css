@@ -165,6 +165,213 @@
   box-shadow: var(--shadow-5);
 }
 
+/* Auth gate: keep the game stage dark and cinematic while making the reason
+   for the pause unmistakable. The grid/halo echoes the Arcade shell without
+   competing with the actual game once the credential is injected. */
+.play-login-gate {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(52, 126, 255, 0.16), transparent 30%),
+    linear-gradient(135deg, #080b12 0%, #050608 52%, #020304 100%);
+  color: var(--surface-night-ink);
+}
+
+.play-login-gate::before,
+.play-login-gate::after {
+  position: absolute;
+  z-index: -1;
+  width: 420px;
+  height: 420px;
+  border: 1px solid rgba(126, 181, 255, 0.12);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.play-login-gate::before {
+  transform: translate(38%, -30%) scale(1.4);
+}
+
+.play-login-gate::after {
+  transform: translate(-42%, 36%) scale(0.8);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.play-login-gate-grid {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-position: center;
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, transparent, black 22%, black 78%, transparent);
+  pointer-events: none;
+}
+
+.play-login-gate-glow {
+  position: absolute;
+  z-index: -1;
+  top: 12%;
+  left: 50%;
+  width: min(38vw, 430px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(40, 116, 255, 0.12);
+  filter: blur(42px);
+  opacity: 0.7;
+  transform: translateX(-50%);
+}
+
+.play-login-gate-content {
+  display: flex;
+  width: min(calc(100% - 40px), 420px);
+  align-items: center;
+  flex-direction: column;
+  padding: 36px 28px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  background: rgba(8, 10, 15, 0.76);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  text-align: center;
+  backdrop-filter: blur(18px);
+  animation: play-gate-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.play-login-gate-mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
+  margin-bottom: 20px;
+  border: 1px solid rgba(116, 175, 255, 0.48);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(60, 135, 255, 0.26), rgba(60, 135, 255, 0.05));
+  color: #a9ceff;
+  box-shadow: 0 0 0 6px rgba(60, 135, 255, 0.06), 0 12px 34px rgba(22, 94, 210, 0.2);
+}
+
+.play-login-gate-mark svg {
+  width: 29px;
+  height: 29px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.play-login-gate-eyebrow {
+  margin: 0;
+  color: #8ebcff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.play-login-gate-content h2 {
+  margin: 12px 0 0;
+  color: var(--surface-night-ink);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+.play-login-gate-description {
+  max-width: 330px;
+  margin: 14px 0 0;
+  color: var(--surface-night-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.play-login-gate-action {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 0 20px 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: var(--surface-night-ink);
+  color: #08090c;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.play-login-gate-action:hover {
+  background: #cfe4ff;
+  box-shadow: 0 8px 24px rgba(66, 143, 255, 0.26);
+  transform: translateY(-2px);
+}
+
+.play-login-gate-action:focus-visible {
+  outline: 2px solid #9ac7ff;
+  outline-offset: 4px;
+}
+
+.play-login-gate-note {
+  margin: 17px 0 0;
+  color: var(--surface-night-faint);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.play-login-gate-loading .play-login-gate-content {
+  width: min(calc(100% - 40px), 300px);
+  padding-block: 28px;
+}
+
+.play-login-gate-loading-label {
+  margin: 12px 0 0;
+  color: var(--surface-night-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.play-login-gate-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #9ac7ff;
+  border-radius: 50%;
+  animation: play-gate-spin 0.8s linear infinite;
+}
+
+@keyframes play-gate-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes play-gate-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .play-login-gate-content,
+  .play-login-gate-spinner { animation: none; }
+  .play-login-gate-action { transition: none; }
+}
+
 .play-shell {
   width: min(calc(100% - 64px), 1160px);
   margin: 0 auto;

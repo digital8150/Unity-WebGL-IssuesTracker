@@ -3,6 +3,8 @@ import Game from '../models/Game.js';
 import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
 import GameConfig from '../models/GameConfig.js';
+import LeaderboardScore from '../models/LeaderboardScore.js';
+import CloudSave from '../models/CloudSave.js';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { verifyGameHmac } from '../middleware/gameHmac.js';
 import { generateSecret, issueSessionToken, isTimestampFresh } from '../services/gameSecret.js';
@@ -14,6 +16,7 @@ const router = Router();
 
 const KEY_RE = /^[a-z0-9][a-z0-9_-]*$/;
 const CONFIG_KEY_RE = /^[a-z0-9][a-z0-9_.-]*$/;
+const MANAGEMENT_PAGE_SIZE = 50;
 
 function isOwner(game, userId) {
   return game.ownerId.toString() === String(userId);
@@ -21,7 +24,11 @@ function isOwner(game, userId) {
 
 function isAuthorized(game, userId) {
   if (isOwner(game, userId)) return true;
-  return game.collaborators.some((c) => (c._id ?? c).toString() === String(userId));
+  return (game.collaborators ?? []).some((c) => (c._id ?? c).toString() === String(userId));
+}
+
+function isManagementAuthorized(game, user) {
+  return user?.role === 'admin' || isAuthorized(game, user?.sub);
 }
 
 function timestampMilliseconds(value) {
@@ -58,6 +65,72 @@ async function loadAuthorizedGame(req, res) {
     return null;
   }
   return game;
+}
+
+async function loadManagementGame(req, res) {
+  const game = await Game.findById(req.params.gameId);
+  if (!game || !isManagementAuthorized(game, req.user)) {
+    res.status(404).json({ error: 'Game not found' });
+    return null;
+  }
+  return game;
+}
+
+function parseManagementPage(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function pageInfo(page, total, limit = MANAGEMENT_PAGE_SIZE) {
+  return {
+    page,
+    limit,
+    total,
+    pages: Math.max(1, Math.ceil(total / limit)),
+  };
+}
+
+function idString(value) {
+  const id = value?._id ?? value?.id ?? value;
+  return id === null || id === undefined ? null : String(id);
+}
+
+function serializeScore(score, rank) {
+  return {
+    _id: idString(score?._id),
+    userId: idString(score?.userId),
+    rank,
+    displayName: String(score?.displayName ?? ''),
+    score: score?.score,
+    playCount: score?.playCount ?? 0,
+    isDev: Boolean(score?.isDev),
+    updatedAt: score?.updatedAt ?? null,
+  };
+}
+
+function serializeSave(save) {
+  return {
+    _id: idString(save?._id),
+    userId: idString(save?.userId),
+    slot: String(save?.slot ?? ''),
+    size: save?.size,
+    rev: save?.rev,
+    isDev: Boolean(save?.isDev),
+    createdAt: save?.createdAt ?? null,
+    updatedAt: save?.updatedAt ?? null,
+  };
+}
+
+async function loadManagementLeaderboard(req, res, game) {
+  const leaderboard = await Leaderboard.findOne({
+    _id: req.params.lbId,
+    gameId: game._id,
+  });
+  if (!leaderboard) {
+    res.status(404).json({ error: 'Leaderboard not found' });
+    return null;
+  }
+  return leaderboard;
 }
 
 // ── Dashboard: backend settings ────────────────────────────────────────────────
@@ -180,6 +253,83 @@ router.get('/:gameId/backend/generated-sdk', requireAuth, requireApproved, async
   }
 });
 
+router.get('/:gameId/backend/leaderboards/:lbId/scores', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const page = parseManagementPage(req.query.page);
+    const skip = (page - 1) * MANAGEMENT_PAGE_SIZE;
+    const sortDirection = leaderboard.sort === 'asc' ? 1 : -1;
+    const filter = { gameId: game._id, leaderboardId: leaderboard._id };
+    const [total, scores] = await Promise.all([
+      LeaderboardScore.countDocuments(filter),
+      LeaderboardScore.find(filter)
+        .select('_id userId displayName score playCount isDev updatedAt')
+        .sort({ score: sortDirection, bestAt: 1, _id: 1 })
+        .skip(skip)
+        .limit(MANAGEMENT_PAGE_SIZE)
+        .lean(),
+    ]);
+
+    res.json({
+      scores: scores.map((score, index) => serializeScore(score, skip + index + 1)),
+      ...pageInfo(page, total),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function deleteDevScores(req, res, next) {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const result = await LeaderboardScore.deleteMany({
+      gameId: game._id,
+      leaderboardId: leaderboard._id,
+      isDev: true,
+    });
+    res.json({ ok: true, deletedCount: result.deletedCount ?? 0 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.delete('/:gameId/backend/leaderboards/:lbId/scores', requireAuth, requireApproved, async (req, res, next) => {
+  if (String(req.query.devOnly).toLowerCase() !== 'true') {
+    return res.status(400).json({ error: 'Set devOnly=true to delete test scores' });
+  }
+  return deleteDevScores(req, res, next);
+});
+
+router.delete('/:gameId/backend/leaderboards/:lbId/scores/:scoreId', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const result = await LeaderboardScore.deleteOne({
+      _id: req.params.scoreId,
+      gameId: game._id,
+      leaderboardId: leaderboard._id,
+    });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Score not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Dashboard: leaderboard management ──────────────────────────────────────────
 
 router.post('/:gameId/backend/leaderboards', requireAuth, requireApproved, async (req, res, next) => {
@@ -262,6 +412,25 @@ router.get('/:gameId/backend/leaderboards/:lbId/entries', requireAuth, requireAp
   }
 });
 
+router.delete('/:gameId/backend/leaderboards/:lbId/entries', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const deletedCount = Array.isArray(leaderboard.entries) ? leaderboard.entries.length : 0;
+    await Leaderboard.updateOne(
+      { _id: leaderboard._id, gameId: game._id },
+      { $set: { entries: [] } },
+    );
+    res.json({ ok: true, deletedCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:gameId/backend/leaderboards/:lbId/entries/:entryId', requireAuth, requireApproved, async (req, res, next) => {
   try {
     const game = await loadAuthorizedGame(req, res);
@@ -273,6 +442,65 @@ router.delete('/:gameId/backend/leaderboards/:lbId/entries/:entryId', requireAut
       { new: true },
     );
     if (!leaderboard) return res.status(404).json({ error: 'Leaderboard not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:gameId/backend/saves', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const page = parseManagementPage(req.query.page);
+    const skip = (page - 1) * MANAGEMENT_PAGE_SIZE;
+    const filter = { gameId: game._id };
+    const [total, saves] = await Promise.all([
+      CloudSave.countDocuments(filter),
+      CloudSave.find(filter)
+        .select('-data')
+        .sort({ updatedAt: -1, _id: 1 })
+        .skip(skip)
+        .limit(MANAGEMENT_PAGE_SIZE)
+        .lean(),
+    ]);
+
+    res.json({
+      saves: saves.map(serializeSave),
+      ...pageInfo(page, total),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function deleteDevSaves(req, res, next) {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const result = await CloudSave.deleteMany({ gameId: game._id, isDev: true });
+    res.json({ ok: true, deletedCount: result.deletedCount ?? 0 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.delete('/:gameId/backend/saves', requireAuth, requireApproved, async (req, res, next) => {
+  if (String(req.query.devOnly).toLowerCase() !== 'true') {
+    return res.status(400).json({ error: 'Set devOnly=true to delete test saves' });
+  }
+  return deleteDevSaves(req, res, next);
+});
+
+router.delete('/:gameId/backend/saves/:saveId', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const result = await CloudSave.deleteOne({ _id: req.params.saveId, gameId: game._id });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Save not found' });
     res.json({ ok: true });
   } catch (err) {
     next(err);
