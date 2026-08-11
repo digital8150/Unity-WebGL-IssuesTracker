@@ -85,6 +85,33 @@ test('normal and development credentials carry the expected claims and TTLs', ()
   assert.equal(verifyGameToken(developmentTokenValue)?.dev, true);
 });
 
+test('explicit issuedAt fixes JWT iat and derives expiry from that marker', () => {
+  process.env.JWT_SECRET = 'site-secret';
+  process.env.GAME_TOKEN_SECRET = 'game-secret';
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const normal = claimsFor(signGameToken({
+    userId: 'user-1',
+    gameId: 'game-1',
+    displayName: 'Player',
+    issuedAt,
+  }));
+  assert.equal(normal.iat, issuedAt);
+  assert.equal(normal.exp, issuedAt + GAME_TOKEN_TTL_S);
+
+  const developmentToken = signGameToken({
+    userId: 'user-1',
+    gameId: 'game-1',
+    displayName: 'Developer',
+    dev: true,
+    issuedAt: new Date(issuedAt * 1000 + 987),
+  });
+  const development = claimsFor(developmentToken);
+  assert.equal(development.iat, issuedAt);
+  assert.equal(development.exp, issuedAt + GAME_DEV_TOKEN_TTL_S);
+  assert.equal(verifyGameToken(developmentToken)?.iat, issuedAt);
+});
+
 test('verification rejects wrong typ and expired credentials', () => {
   process.env.JWT_SECRET = 'site-secret';
   process.env.GAME_TOKEN_SECRET = 'game-secret';

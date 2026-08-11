@@ -48,6 +48,13 @@ function publicGameFields(game) {
   };
 }
 
+export function toPublicSdkV2(game) {
+  return {
+    enabled: game?.serverBackend?.v2Enabled === true,
+    cloudSaveEnabled: game?.serverBackend?.cloudSaveEnabled === true,
+  };
+}
+
 function publicArticleFields(article) {
   return {
     _id: article?._id,
@@ -152,6 +159,7 @@ export function toPublicPlayGame(game) {
     visibility: game.visibility || 'private',
     reviewInfo: publicReviewInfo(game.reviewInfo),
     developerName: game.developerName ?? game.ownerId?.name ?? null,
+    sdkV2: toPublicSdkV2(game),
   };
 }
 

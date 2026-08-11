@@ -15,6 +15,7 @@ import SiteSettings from '../models/SiteSettings.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
+import { toPublicSdkV2 } from '../services/publicData.js';
 
 const router = Router();
 
@@ -628,6 +629,7 @@ function playResponse(game, build, translation = null) {
     thumbnailUrl:  translatedGame.thumbnailUrl || '',
     visibility:    translatedGame.visibility || 'private',
     reviewInfo,
+    sdkV2: toPublicSdkV2(game),
     developerName: translatedGame.ownerId?.name ?? null,
     buildId:       build._id,
     buildVersion:  build.version || null,

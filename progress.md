@@ -52,3 +52,14 @@ Keep this file short; detailed implementation history remains in git commits.
 - Discord uses the per-game webhook, falling back to `DISCORD_WEBHOOK_URL`; missing configuration is a no-op.
 - Unity custom state remains schemaless; retain the hand-written C# JSON writer.
 - Leaderboards are per-game, HMAC-protected, and top-N bounded; current nonce/rate-limit state assumes one process.
+
+## 2026-08-12 — Arcade ID / GBaaS Phase 0–1
+
+- Reframed pending/rejected accounts as regular members; developer approval now gates dashboard access only.
+- Added `/me`, shared profile editing components, desktop public-nav auth affordance, and member/developer copy.
+- Added live User-backed ownership for Issue, BlogPost, and GameArticle comments; legacy comment deletion remains manager/admin-only.
+- Added separately signed 15-minute game tokens, revocable 7-day editor tokens, account leaderboards, cloud saves, and `/api/v2` routes.
+- Added per-game `v2Enabled`/`cloudSaveEnabled`, public `sdkV2` play metadata, and dashboard backend token/flag endpoints.
+- Corrected best-score replacement semantics: descending replaces lower stored scores; ascending replaces higher stored scores.
+- Verification: `server/npm test` (117 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.
+- Next: Phase 2 Unity SDK/code generation, then Phase 3 play gate/dashboard UI/i18n and manual Unity WebGL E2E.

@@ -270,3 +270,28 @@ test('save writes are scoped to token game and cap users at eight slots', async 
   });
   assert.equal(otherGame.status, 404);
 });
+
+test('CAS against a missing slot reports save_conflict before slot capacity', async (t) => {
+  const initialSaves = Array.from({ length: 8 }, (_, index) => ({
+    gameId: 'game-a',
+    userId: 'user-a',
+    slot: `slot-${index}`,
+    data: '{}',
+    size: 2,
+    rev: 1,
+  }));
+  const models = modelsFor({ initialSaves });
+  const server = await start(models);
+  t.after(() => server.close());
+
+  const response = await request(server, '/api/v2/saves/missing', {
+    token: token(),
+    method: 'PUT',
+    body: { data: '{}', rev: 1 },
+  });
+
+  assert.deepEqual(response, {
+    status: 409,
+    body: { error: 'Save conflict', code: 'save_conflict', rev: null, data: null },
+  });
+});

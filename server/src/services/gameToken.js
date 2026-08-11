@@ -14,6 +14,30 @@ function gameTokenSecret() {
     .digest();
 }
 
+function normalizeIssuedAt(value) {
+  if (value instanceof Date) {
+    const milliseconds = value.getTime();
+    return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    // Numeric timestamps are normally expressed in seconds. Accepting epoch
+    // milliseconds as well keeps the signing helper safe to use with Date
+    // values that have already been reduced to a number.
+    return Math.floor(value > 1e12 ? value / 1000 : value);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return normalizeIssuedAt(numeric);
+
+    const milliseconds = Date.parse(value);
+    return Number.isFinite(milliseconds) ? Math.floor(milliseconds / 1000) : null;
+  }
+
+  return null;
+}
+
 function verifySignedGameToken(token) {
   if (typeof token !== 'string' || !token) {
     return { payload: null, error: null };
@@ -46,8 +70,9 @@ function verifySignedGameToken(token) {
  * Signs a short-lived Arcade game credential. Development credentials use a
  * longer lifetime and are marked so the dashboard can revoke them as a group.
  */
-export function signGameToken({ userId, gameId, displayName, dev = false } = {}) {
+export function signGameToken({ userId, gameId, displayName, dev = false, issuedAt } = {}) {
   const expiresIn = dev ? GAME_DEV_TOKEN_TTL_S : GAME_TOKEN_TTL_S;
+  const issuedAtSeconds = normalizeIssuedAt(issuedAt);
   const claims = {
     sub: String(userId),
     gid: String(gameId),
@@ -56,10 +81,17 @@ export function signGameToken({ userId, gameId, displayName, dev = false } = {})
   };
   if (dev) claims.dev = true;
 
+  if (issuedAtSeconds !== null) {
+    claims.iat = issuedAtSeconds;
+    claims.exp = issuedAtSeconds + expiresIn;
+  }
+
   return jwt.sign(
     claims,
     gameTokenSecret(),
-    { algorithm: 'HS256', expiresIn },
+    issuedAtSeconds === null
+      ? { algorithm: 'HS256', expiresIn }
+      : { algorithm: 'HS256' },
   );
 }
 

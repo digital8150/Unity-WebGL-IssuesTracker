@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import Game from '../models/Game.js';
+import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
 import GameConfig from '../models/GameConfig.js';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { verifyGameHmac } from '../middleware/gameHmac.js';
 import { generateSecret, issueSessionToken, isTimestampFresh } from '../services/gameSecret.js';
+import { GAME_DEV_TOKEN_TTL_S, signGameToken } from '../services/gameToken.js';
 import { rateLimitMiddleware, clientIp } from '../services/rateLimiter.js';
 import { generateServerBridge } from '../services/codegen.js';
 
@@ -20,6 +22,33 @@ function isOwner(game, userId) {
 function isAuthorized(game, userId) {
   if (isOwner(game, userId)) return true;
   return game.collaborators.some((c) => (c._id ?? c).toString() === String(userId));
+}
+
+function timestampMilliseconds(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1000;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return timestampMilliseconds(numeric);
+    return Date.parse(value);
+  }
+  return NaN;
+}
+
+// JWT timestamps have one-second precision. Move the marker to a strictly
+// later second on every issuance so a same-second reissue revokes its parent.
+export function nextV2DevTokenIssuedAt(previous, now = Date.now()) {
+  const nowMilliseconds = timestampMilliseconds(now);
+  const nowSeconds = Number.isFinite(nowMilliseconds)
+    ? Math.floor(nowMilliseconds / 1000)
+    : Math.floor(Date.now() / 1000);
+  const previousMilliseconds = timestampMilliseconds(previous);
+  const previousSeconds = Number.isFinite(previousMilliseconds)
+    ? Math.floor(previousMilliseconds / 1000)
+    : -1;
+  return Math.max(nowSeconds, previousSeconds + 1);
 }
 
 async function loadAuthorizedGame(req, res) {
@@ -58,11 +87,43 @@ router.patch('/:gameId/backend', requireAuth, requireApproved, async (req, res, 
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
 
-    const { leaderboardEnabled, configEnabled } = req.body ?? {};
+    const { leaderboardEnabled, configEnabled, v2Enabled, cloudSaveEnabled } = req.body ?? {};
+    if (!game.serverBackend) game.serverBackend = {};
     if (leaderboardEnabled !== undefined) game.serverBackend.leaderboardEnabled = Boolean(leaderboardEnabled);
     if (configEnabled !== undefined) game.serverBackend.configEnabled = Boolean(configEnabled);
+    if (v2Enabled !== undefined) game.serverBackend.v2Enabled = Boolean(v2Enabled);
+    if (cloudSaveEnabled !== undefined) game.serverBackend.cloudSaveEnabled = Boolean(cloudSaveEnabled);
     await game.save();
     res.json({ serverBackend: game.serverBackend });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:gameId/backend/v2/dev-token', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadAuthorizedGame(req, res);
+    if (!game) return;
+
+    // requireApproved checks the account status, but fetch the current user
+    // again so a renamed account is reflected in every newly issued token.
+    const user = await User.findById(req.user.sub).select('name');
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    if (!game.serverBackend) game.serverBackend = {};
+    const issuedAtSeconds = nextV2DevTokenIssuedAt(game.serverBackend.v2DevTokenIssuedAt);
+    game.serverBackend.v2DevTokenIssuedAt = new Date(issuedAtSeconds * 1000);
+    await game.save();
+
+    const token = signGameToken({
+      userId: req.user.sub,
+      gameId: game._id,
+      displayName: user.name,
+      dev: true,
+      issuedAt: issuedAtSeconds,
+    });
+    const expiresAt = new Date((issuedAtSeconds + GAME_DEV_TOKEN_TTL_S) * 1000).toISOString();
+    res.json({ token, expiresAt });
   } catch (err) {
     next(err);
   }

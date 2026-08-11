@@ -13,6 +13,7 @@ import backendRouter from './routes/backend.js';
 import blogRouter from './routes/blog.js';
 import translationsRouter from './routes/translations.js';
 import seoRouter from './routes/seo.js';
+import apiV2Router from './routes/apiV2.js';
 import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
@@ -38,6 +39,7 @@ await fs.mkdir(THUMBNAIL_ROOT, { recursive: true });
 await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json({
   limit: '2mb',
@@ -52,6 +54,7 @@ app.use('/api/games', gamesRouter);
 app.use('/api/games', backendRouter);
 app.use('/api/blog', blogRouter);
 app.use('/api/admin/translations', translationsRouter);
+app.use('/api/v2', apiV2Router());
 
 function baseMime(filename) {
   if (filename.endsWith('.wasm')) return 'application/wasm';

@@ -153,6 +153,7 @@ void Start() {
 |------|------|--------|------|
 | `MONGO_URI` | Yes | `mongodb://localhost:27017/issue_tracker` | MongoDB 연결 문자열 |
 | `JWT_SECRET` | Yes (prod) | 개발용 기본값 | JWT 서명 키 — **운영 환경에서는 반드시 설정** |
+| `GAME_TOKEN_SECRET` | No | `JWT_SECRET`에서 별도 키 파생 | SDK v2 게임 토큰 전용 회전 키 |
 | `PORT` | No | `4000` | API 서버 포트 |
 | `CORS_ORIGIN` | No | `http://localhost:5173` | 허용 CORS 오리진 |
 | `SERVER_URL` | No | `http://localhost:4000` | 빌드/썸네일 공개 URL 베이스 |
@@ -202,6 +203,18 @@ void Start() {
 | `GET` | `/api/games/play/:gameSlug` | — | 플레이용 빌드 URL 조회 (active) |
 | `GET` | `/api/games/play/:gameSlug/:buildId` | — | 플레이용 빌드 URL 조회 (특정 빌드) |
 | `GET` | `/api/games/play/:gameSlug/issues` | optionalAuth | 공개 이슈 보드 |
+| `POST` | `/api/games/:gameId/backend/v2/dev-token` | Bearer(developer) | Unity Editor용 7일 개발 토큰 발급·재발급 |
+
+### 인증 기반 게임 API v2
+| Method | Path | Auth | 설명 |
+|--------|------|------|------|
+| `POST` | `/api/v2/games/:gameSlug/play-token` | Site Bearer | 게임 범위 15분 토큰 발급 |
+| `GET` | `/api/v2/me` | Game Bearer | 게임 토큰의 계정 정보 조회 |
+| `POST` | `/api/v2/leaderboards/:key/scores` | Game Bearer | 계정별 최고 점수 제출 |
+| `GET` | `/api/v2/leaderboards/:key` | Game Bearer | 계정 기반 리더보드 조회 |
+| `GET` | `/api/v2/leaderboards/:key/me` | Game Bearer | 내 최고 점수와 순위 조회 |
+| `GET` | `/api/v2/config/:key` | Game Bearer | 게임 동적 JSON 조회 |
+| `GET/PUT/DELETE` | `/api/v2/saves/:slot` | Game Bearer | 사용자별 클라우드 세이브 관리 |
 
 ### 이슈
 | Method | Path | Auth | 설명 |

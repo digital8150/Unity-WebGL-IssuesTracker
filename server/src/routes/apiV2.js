@@ -557,7 +557,8 @@ export function apiV2Router({ models = {} } = {}) {
         const { gameId, userId } = tokenIdentity(req);
         const slot = req.params.slot;
         const existing = await findOne(SaveModel, { gameId, userId, slot });
-        if (!existing && typeof SaveModel.countDocuments === 'function') {
+        const mayCreate = req.body.rev === undefined || req.body.rev === 0;
+        if (!existing && mayCreate && typeof SaveModel.countDocuments === 'function') {
           const slotCount = await SaveModel.countDocuments({ gameId, userId });
           if (slotCount >= MAX_SAVE_SLOTS) return statusError(res, 409, 'Save slot limit reached', 'save_slots_full');
         }
