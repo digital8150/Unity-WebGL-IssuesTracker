@@ -10,6 +10,7 @@ export const routeLoaders = {
   consent: () => import('../pages/AgeConsentPage.jsx'),
   privacy: () => import('../pages/PrivacyPolicyPage.jsx'),
   dashboard: () => import('../pages/DashboardPage.jsx'),
+  profile: () => import('../pages/ProfilePage.jsx'),
   gameDetail: () => import('../pages/GameDetailPage.jsx'),
   issueDetail: () => import('../pages/IssueDetailPage.jsx'),
   play: () => import('../pages/PlayPage.jsx'),

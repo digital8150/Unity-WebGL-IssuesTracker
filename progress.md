@@ -192,3 +192,11 @@ implementation details. Entries are written in English for agent readability.
 - Production `SiteSettings` document does not exist, so `getPolicy()` fails closed (`publishEnabled: false`, `enabled: false`). Deploying the translation branch is therefore safe on its own: `/en` stays `noindex`, emits no hreflang, and is absent from `sitemap.xml`; the worker does not drain. English exposure requires an admin to flip the toggle in `/admin/translations`.
 - Production data at time of check: 0 `translations` rows, 2 published blog posts, 6 public games.
 - Still open: `/en` Apache routing (must proxy **without stripping the prefix** — a stripped prefix loses `/en` from `req.originalUrl`, which makes `readSsrData` reject the bootstrap and silently degrade every `/en` page to a client fetch with no error anywhere).
+
+## 2026-08-11 (profile and landing carousel)
+
+- Updated local `main` to `origin/main` at `494e52f`, created `feat/profile-and-landing-carousel`, and restored the in-progress work onto it.
+- Added `/dashboard/profile` with a dashboard My Page, account summary, and editable display name; added authenticated `PATCH /api/auth/me` with trimmed/length-checked `User.name` validation.
+- Reworked the landing updated-game carousel into bottom-left dot navigation with an `UPDATED` label, 6.5-second auto-advance, pause-on-hover/focus, reduced-motion handling, slide entrance animation, and a left-only scrim that fades to transparent over the right-side artwork.
+- Added English/Korean copy and route prefetch coverage for the profile page.
+- Verification: `web/npm run build`, `server/npm test` (77 passing), `node --check src/routes/auth.js`, and `git diff --check` passed.

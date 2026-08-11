@@ -16,6 +16,7 @@ export function loaderFor(pathname) {
   if (pathname === '/consent') return ['consent', routeLoaders.consent];
   if (pathname === '/privacy' || pathname.startsWith('/privacy/')) return ['privacy', routeLoaders.privacy];
   if (pathname === '/dashboard') return ['dashboard', routeLoaders.dashboard];
+  if (pathname === '/dashboard/profile') return ['profile', routeLoaders.profile];
   if (pathname.startsWith('/dashboard/games/') && pathname.includes('/issues/')) {
     return ['issueDetail', routeLoaders.issueDetail];
   }

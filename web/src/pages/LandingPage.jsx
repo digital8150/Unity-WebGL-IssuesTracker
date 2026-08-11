@@ -12,6 +12,9 @@ import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { withLocale } from '../i18n/localePath.js';
 import './LandingPage.css';
 
+const FEATURED_GAME_LIMIT = 5;
+const CAROUSEL_INTERVAL_MS = 6500;
+
 function formatArticleDate(dateStr, lang) {
   if (!dateStr) return '';
   return new Date(dateStr).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
@@ -54,6 +57,7 @@ export default function LandingPage() {
   const [recentPosts, setRecentPosts] = useState([]);
   const [selectedGameId, setSelectedGameId] = useState(null);
   const [activeTransition, setActiveTransition] = useState(null);
+  const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const featuredArtRef = React.useRef(null);
   const [gamesLoading, setGamesLoading] = useState(true);
   const [articlesLoading, setArticlesLoading] = useState(true);
@@ -91,7 +95,25 @@ export default function LandingPage() {
     return () => { cancelled = true; };
   }, [lang]);
 
+  useEffect(() => {
+    const featuredGames = games.slice(0, FEATURED_GAME_LIMIT);
+    if (featuredGames.length < 2 || isCarouselPaused) return undefined;
+
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (prefersReducedMotion) return undefined;
+
+    const timer = window.setInterval(() => {
+      setSelectedGameId((currentId) => {
+        const currentIndex = featuredGames.findIndex((game) => game.id === currentId);
+        return featuredGames[(currentIndex + 1) % featuredGames.length].id;
+      });
+    }, CAROUSEL_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+  }, [games, isCarouselPaused]);
+
   const featuredGame = games.find((game) => game.id === selectedGameId) ?? games[0] ?? null;
+  const featuredGames = games.slice(0, FEATURED_GAME_LIMIT);
   const featuredTransitionName = featuredGame ? gameTransitionName(featuredGame.slug) : undefined;
   const activateFeaturedSource = () => {
     if (!featuredGame) return;
@@ -123,8 +145,20 @@ export default function LandingPage() {
           </div>
         </section>
       ) : featuredGame ? (
-        <section className="l-featured-hero">
+        <section
+          className="l-featured-hero"
+          role="region"
+          aria-roledescription="carousel"
+          aria-label={t.home.updatedEyebrow}
+          onMouseEnter={() => setIsCarouselPaused(true)}
+          onMouseLeave={() => setIsCarouselPaused(false)}
+          onFocus={() => setIsCarouselPaused(true)}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setIsCarouselPaused(false);
+          }}
+        >
           <div
+            key={`art-${featuredGame.id}`}
             ref={featuredArtRef}
             className="l-featured-art"
             style={{
@@ -136,10 +170,10 @@ export default function LandingPage() {
             aria-hidden="true"
           />
           <div className="l-featured-scrim" aria-hidden="true" />
-          <div className="l-featured-inner">
-            <div className="l-hero-copy">
+          <div className="l-featured-inner" key={`copy-${featuredGame.id}`}>
+            <div className="l-hero-copy l-featured-copy" aria-live={isCarouselPaused ? 'polite' : 'off'}>
               <div className="l-hero-meta-row">
-                <span className="l-featured-pill">{t.home.featuredEyebrow}</span>
+                <span className="l-featured-pill">{t.home.updatedEyebrow}</span>
                 <span className="l-hero-meta">
                   {featuredGame.developerName || t.arcade.trackName}
                   {featuredGame.latestBuildVersion && ` · ${t.home.versionPrefix}${featuredGame.latestBuildVersion}`}
@@ -164,31 +198,22 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="l-featured-strip" aria-label={t.home.featuredEyebrow}>
-            <div className="l-featured-strip-inner">
-              {games.slice(0, 5).map((game) => (
-                <button
-                  key={game.id}
-                  type="button"
-                  className={`l-featured-chip${game.id === featuredGame.id ? ' is-selected' : ''}`}
-                  onClick={() => setSelectedGameId(game.id)}
-                  aria-pressed={game.id === featuredGame.id}
-                >
-                  <span
-                    className="l-featured-chip-art"
-                    style={{ backgroundImage: gameBackground(game) }}
-                    aria-hidden="true"
-                  />
-                  <span className="l-featured-chip-copy">
-                    <strong>{game.name}</strong>
-                    <small>
-                      {game.developerName || t.arcade.trackName}
-                      {game.latestBuildVersion && ` · ${t.home.versionPrefix}${game.latestBuildVersion}`}
-                    </small>
-                  </span>
-                </button>
-              ))}
-            </div>
+          <div
+            className={`l-featured-pagination${isCarouselPaused ? ' is-paused' : ''}`}
+            aria-label={t.home.updatedEyebrow}
+          >
+            {featuredGames.map((game) => (
+              <button
+                key={game.id}
+                type="button"
+                className={`l-featured-dot${game.id === featuredGame.id ? ' is-selected' : ''}`}
+                onClick={() => setSelectedGameId(game.id)}
+                aria-label={game.name}
+                aria-current={game.id === featuredGame.id ? 'true' : undefined}
+              >
+                <span aria-hidden="true" />
+              </button>
+            ))}
           </div>
         </section>
       ) : (
