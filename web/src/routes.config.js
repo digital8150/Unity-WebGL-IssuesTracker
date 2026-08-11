@@ -7,6 +7,7 @@ export const ROUTES = [
   { path: '/auth/callback', loaderKey: 'authCallback', localized: false },
   { path: '/consent', loaderKey: 'consent', guard: { requireApproved: false, requireAgeConsent: false }, localized: false },
   { path: '/pending', loaderKey: 'pending', guard: { requireApproved: false }, localized: false },
+  { path: '/me', loaderKey: 'memberProfile', guard: { requireApproved: false }, localized: false },
   { path: '/arcade', loaderKey: 'arcade', localized: true },
   { path: '/privacy', loaderKey: 'privacy', localized: true },
   { path: '/privacy/:date', loaderKey: 'privacy', localized: true },

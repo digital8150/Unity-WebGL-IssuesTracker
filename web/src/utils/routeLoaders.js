@@ -7,6 +7,7 @@ export const routeLoaders = {
   register: () => import('../pages/RegisterPage.jsx'),
   authCallback: () => import('../pages/AuthCallbackPage.jsx'),
   pending: () => import('../pages/PendingPage.jsx'),
+  memberProfile: () => import('../pages/MemberProfilePage.jsx'),
   consent: () => import('../pages/AgeConsentPage.jsx'),
   privacy: () => import('../pages/PrivacyPolicyPage.jsx'),
   dashboard: () => import('../pages/DashboardPage.jsx'),

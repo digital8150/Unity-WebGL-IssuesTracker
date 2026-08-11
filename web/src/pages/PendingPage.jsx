@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
@@ -12,13 +12,19 @@ export default function PendingPage() {
   const { lang, toggleLang, t } = useI18n();
   const navigate = usePageNavigate();
   const [checking, setChecking] = useState(false);
+  const myPageLabel = t.nav.myPage || t.nav.profile;
+
+  useEffect(() => {
+    if (user?.status === 'approved') {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate, user?.status]);
 
   if (!user) {
     return <RedirectToLogin />;
   }
 
   if (user.status === 'approved') {
-    navigate('/dashboard', { replace: true });
     return null;
   }
 
@@ -66,11 +72,15 @@ export default function PendingPage() {
         </div>
 
         <div className="pending-actions">
-          {!rejected && (
-            <button className="btn btn-primary" onClick={handleRefresh} disabled={checking}>
-              {checking ? t.loading : t.pending.refresh}
-            </button>
-          )}
+          <PageLink to="/me" className="btn btn-secondary">
+            {myPageLabel}
+          </PageLink>
+          <PageLink to="/arcade" className="btn btn-secondary">
+            {t.nav.arcade}
+          </PageLink>
+          <button className="btn btn-primary" onClick={handleRefresh} disabled={checking}>
+            {checking ? t.loading : t.pending.refresh}
+          </button>
           <button className="btn btn-secondary" onClick={handleSignOut}>
             {t.pending.signOut}
           </button>

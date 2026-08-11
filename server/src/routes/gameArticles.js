@@ -1,6 +1,7 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import Game from '../models/Game.js';
+import User from '../models/User.js';
 import GameArticle, { MAX_GAME_ARTICLE_COMMENTS, slugify } from '../models/GameArticle.js';
 import Translation from '../models/Translation.js';
 import SiteSettings from '../models/SiteSettings.js';
@@ -18,6 +19,60 @@ function isOwner(game, userId) {
 function isAuthorized(game, userId) {
   return isOwner(game, userId)
     || game.collaborators.some((collaborator) => String(collaborator?._id ?? collaborator) === String(userId));
+}
+
+function sameId(left, right) {
+  const leftId = left?._id ?? left?.id ?? left;
+  const rightId = right?._id ?? right?.id ?? right;
+  return leftId !== null && leftId !== undefined
+    && rightId !== null && rightId !== undefined
+    && String(leftId) === String(rightId);
+}
+
+export function canDeleteGameArticleComment({ comment, userId, game, role } = {}) {
+  return role === 'admin'
+    || (comment?.authorId && sameId(comment.authorId, userId))
+    || (game && (sameId(game.ownerId, userId)
+      || (Array.isArray(game.collaborators) && game.collaborators.some((collaborator) => sameId(collaborator, userId)))));
+}
+
+export function serializeGameArticleComment(comment, fallbackAuthorName = '') {
+  if (!comment) return comment;
+  const value = comment?.toObject ? comment.toObject() : { ...comment };
+  const populatedName = value.authorId && typeof value.authorId === 'object'
+    ? String(value.authorId.name ?? '').trim()
+    : '';
+  const storedName = String(value.authorName ?? '').trim();
+  const currentName = value.authorId && String(fallbackAuthorName ?? '').trim();
+  const { authorId, ...serialized } = value;
+  const publicAuthorId = authorId?._id ?? authorId;
+  return {
+    ...serialized,
+    ...(publicAuthorId ? { authorId: String(publicAuthorId) } : {}),
+    authorName: populatedName || currentName || storedName || 'Anonymous',
+  };
+}
+
+function serializeGameArticle(article) {
+  if (!article) return article;
+  const value = article?.toObject ? article.toObject() : { ...article };
+  return {
+    ...value,
+    comments: Array.isArray(value.comments)
+      ? value.comments.map((comment) => serializeGameArticleComment(comment))
+      : [],
+  };
+}
+
+async function isAdminUser(req) {
+  if (req.user?.role !== undefined) return req.user.role === 'admin';
+  if (!req.user?.sub || User.db.readyState !== 1) return false;
+  try {
+    const user = await User.findById(req.user.sub).select('role').lean();
+    return user?.role === 'admin';
+  } catch {
+    return false;
+  }
 }
 
 function canManageArticle(game, article, user) {
@@ -70,20 +125,22 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
     const articles = await GameArticle.find({ gameId: game._id, published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
       .populate('author', 'name')
+      .populate('comments.authorId', 'name')
       .select('-content')
       .lean();
+    const serializedArticles = articles.map(serializeGameArticle);
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
     const gameRow = (await loadTranslations('Game', [game._id], req.query.locale, Translation)).get(String(game._id));
-    const articleRows = await loadTranslations('GameArticle', articles.map((article) => article._id), req.query.locale, Translation);
+    const articleRows = await loadTranslations('GameArticle', serializedArticles.map((article) => article._id), req.query.locale, Translation);
     const publicGameRow = publicTranslation(gameRow, req.query.locale, publishEnabled);
-    const publicArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), req.query.locale, publishEnabled), 'GameArticle'));
-    const publishedArticleRows = articles
+    const publicArticles = serializedArticles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), req.query.locale, publishEnabled), 'GameArticle'));
+    const publishedArticleRows = serializedArticles
       .map((article) => articleRows.get(String(article._id)))
       .filter((row) => isPublishedTranslation(row, publishEnabled));
     const listTranslation = req.query.locale === 'en' && publishedArticleRows.length
       ? { origin: publishedArticleRows.some((row) => row.origin === 'machine') ? 'machine' : 'human', translatedAt: null, noindex: false }
       : null;
-    res.json({ game: { id: game._id, name: game.name, slug: game.slug, description: mergeTranslation(game.toObject(), publicGameRow, 'Game').description }, articles: publicArticles, translation: listTranslation, gameTranslation: publicTranslationMeta(gameRow, req.query.locale, publishEnabled), translations: Object.fromEntries(articles.map((article) => [String(article._id), publicTranslationMeta(articleRows.get(String(article._id)), req.query.locale, publishEnabled)])) });
+    res.json({ game: { id: game._id, name: game.name, slug: game.slug, description: mergeTranslation(game.toObject(), publicGameRow, 'Game').description }, articles: publicArticles, translation: listTranslation, gameTranslation: publicTranslationMeta(gameRow, req.query.locale, publishEnabled), translations: Object.fromEntries(serializedArticles.map((article) => [String(article._id), publicTranslationMeta(articleRows.get(String(article._id)), req.query.locale, publishEnabled)])) });
   } catch (err) {
     next(err);
   }
@@ -98,17 +155,18 @@ router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
       gameId: game._id,
       slug: req.params.articleSlug,
       published: true,
-    }).populate('author', 'name').lean();
+    }).populate('author', 'name').populate('comments.authorId', 'name').lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
+    const serializedArticle = serializeGameArticle(article);
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
     const [gameRow, articleRow] = await Promise.all([
       loadTranslations('Game', [game._id], req.query.locale, Translation),
-      loadTranslations('GameArticle', [article._id], req.query.locale, Translation),
+      loadTranslations('GameArticle', [serializedArticle._id], req.query.locale, Translation),
     ]);
     const gameTranslation = gameRow.get(String(game._id));
-    const articleTranslation = articleRow.get(String(article._id));
+    const articleTranslation = articleRow.get(String(serializedArticle._id));
     const translatedGame = mergeTranslation(game.toObject(), publicTranslation(gameTranslation, req.query.locale, publishEnabled), 'Game');
-    const translatedArticle = mergeTranslation(article, publicTranslation(articleTranslation, req.query.locale, publishEnabled), 'GameArticle');
+    const translatedArticle = mergeTranslation(serializedArticle, publicTranslation(articleTranslation, req.query.locale, publishEnabled), 'GameArticle');
     res.json({ article: translatedArticle, game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description }, translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
@@ -128,15 +186,17 @@ router.post(
 
       const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id');
       if (!game) return res.status(404).json({ error: 'Game not found' });
-      const authorName = req.user
-        ? (typeof req.user.name === 'string' && req.user.name.trim() ? req.user.name.trim() : 'User')
-        : (typeof guestName === 'string' && guestName.trim() ? guestName.trim() : 'Anonymous');
       const comment = {
         _id: new mongoose.Types.ObjectId(),
         body: commentBody.trim(),
-        authorName,
+        authorId: req.user?.sub ?? null,
         createdAt: new Date(),
       };
+      if (!req.user) {
+        comment.authorName = typeof guestName === 'string' && guestName.trim()
+          ? guestName.trim()
+          : 'Anonymous';
+      }
       const article = await GameArticle.findOneAndUpdate(
         {
           gameId: game._id,
@@ -156,7 +216,7 @@ router.post(
         if (!exists) return res.status(404).json({ error: 'Article not found' });
         return res.status(409).json({ error: 'Article comment limit reached' });
       }
-      res.status(201).json({ comment });
+      res.status(201).json({ comment: serializeGameArticleComment(comment, req.user?.name || req.user?.email || 'User') });
     } catch (err) {
       next(err);
     }
@@ -172,9 +232,18 @@ router.delete(
         return res.status(400).json({ error: 'Invalid comment ID' });
       }
       const game = await Game.findOne({ slug: req.params.gameSlug }).select('ownerId collaborators');
-      if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Article not found' });
+      if (!game) return res.status(404).json({ error: 'Article not found' });
       const article = await GameArticle.findOne({ gameId: game._id, slug: req.params.articleSlug });
-      if (!article || !canManageArticle(game, article, req.user)) return res.status(403).json({ error: 'Forbidden' });
+      if (!article) return res.status(404).json({ error: 'Article not found' });
+      const comment = (article.comments ?? []).find((item) => sameId(item?._id, req.params.commentId));
+      if (!comment) return res.status(404).json({ error: 'Comment not found' });
+      const admin = await isAdminUser(req);
+      if (!canDeleteGameArticleComment({
+        comment,
+        userId: req.user.sub,
+        game,
+        role: admin ? 'admin' : req.user.role,
+      })) return res.status(403).json({ error: 'Forbidden' });
       await article.updateOne({ $pull: { comments: { _id: req.params.commentId } } });
       res.json({ ok: true });
     } catch (err) {
@@ -192,17 +261,19 @@ router.get('/:gameId/articles', requireAuth, requireApproved, async (req, res, n
     const articles = await GameArticle.find({ gameId: game._id })
       .sort({ createdAt: -1 })
       .populate('author', 'name')
+      .populate('comments.authorId', 'name')
       .select('-content')
       .lean();
+    const serializedArticles = articles.map(serializeGameArticle);
     const rows = await Translation.find({
       refType: 'GameArticle',
-      refId: { $in: articles.map((article) => article._id) },
+      refId: { $in: serializedArticles.map((article) => article._id) },
       locale: 'en',
     }).select('refId status origin noindex').lean();
     const byRefId = new Map(rows.map((row) => [String(row.refId), row]));
     res.json({
       game: { ...game.toObject() },
-      articles: articles.map((article) => ({
+      articles: serializedArticles.map((article) => ({
         ...article,
         translationStatus: byRefId.get(String(article._id)) ?? null,
       })),
@@ -221,9 +292,10 @@ router.get('/:gameId/articles/:articleId', requireAuth, requireApproved, async (
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const article = await GameArticle.findOne({ _id: req.params.articleId, gameId: game._id })
       .populate('author', 'name')
+      .populate('comments.authorId', 'name')
       .lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
-    res.json({ article, game: { ...game.toObject() } });
+    res.json({ article: serializeGameArticle(article), game: { ...game.toObject() } });
   } catch (err) {
     next(err);
   }
@@ -272,9 +344,11 @@ router.patch('/:gameId/articles/:articleId', requireAuth, requireApproved, async
     if (input.published && !existing.publishedAt) updates.publishedAt = new Date();
     const article = await GameArticle.findByIdAndUpdate(existing._id, updates, { new: true, runValidators: true })
       .populate('author', 'name')
+      .populate('comments.authorId', 'name')
       .lean();
-    enqueue({ refType: 'GameArticle', refId: article._id, source: article }).catch((error) => console.error('[translation enqueue]', error));
-    res.json({ article });
+    const serializedArticle = serializeGameArticle(article);
+    enqueue({ refType: 'GameArticle', refId: serializedArticle._id, source: serializedArticle }).catch((error) => console.error('[translation enqueue]', error));
+    res.json({ article: serializedArticle });
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
     next(err);

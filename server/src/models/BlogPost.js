@@ -30,6 +30,7 @@ const blogPostSchema = new mongoose.Schema(
     comments: [
       {
         body:       { type: String, required: true, trim: true, maxlength: 2000 },
+        authorId:   { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         authorName: { type: String, trim: true, maxlength: 100, default: 'Anonymous' },
         createdAt:  { type: Date, default: () => new Date() },
       },

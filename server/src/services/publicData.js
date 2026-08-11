@@ -3,10 +3,15 @@ function publicAuthor(author) {
 }
 
 function publicComment(comment) {
+  const populatedName = comment?.authorId && typeof comment.authorId === 'object'
+    ? String(comment.authorId.name ?? '').trim()
+    : '';
+  const authorId = publicId(comment?.authorId);
   return {
     _id: comment?._id,
     body: String(comment?.body ?? ''),
-    authorName: String(comment?.authorName ?? 'Anonymous'),
+    ...(authorId ? { authorId } : {}),
+    authorName: populatedName || String(comment?.authorName ?? '').trim() || 'Anonymous',
     createdAt: comment?.createdAt ?? null,
   };
 }

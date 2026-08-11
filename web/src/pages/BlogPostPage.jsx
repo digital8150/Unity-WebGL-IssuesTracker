@@ -266,7 +266,7 @@ export default function BlogPostPage() {
                       <span className="bpost-comment-date">
                         {formatDate(c.createdAt, lang)}
                       </span>
-                      {user && (user.role === 'admin') && (
+                      {user && (user.role === 'admin' || String(c.authorId) === String(user.id)) && (
                         <button
                           className="bpost-comment-delete"
                           onClick={() => handleDeleteComment(c._id)}

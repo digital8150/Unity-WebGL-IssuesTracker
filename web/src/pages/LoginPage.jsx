@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import DarkModeToggle from '../components/DarkModeToggle.jsx';
@@ -12,11 +12,63 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 const SKIP_CHALLENGE = !import.meta.env.VITE_TURNSTILE_SITE_KEY
   || import.meta.env.VITE_TURNSTILE_SITE_KEY === '1x00000000000000000000AA';
 
+const AUTH_RETURN_TARGET_KEY = 'auth.returnTarget';
+const UNSAFE_RETURN_PATHS = ['/login', '/auth/callback', '/consent', '/pending'];
+
+function getSafeReturnTarget(value) {
+  const candidate = typeof value === 'string'
+    ? value
+    : value && typeof value === 'object'
+      ? `${value.pathname || ''}${value.search || ''}${value.hash || ''}`
+      : '';
+
+  if (!candidate || !candidate.startsWith('/') || candidate.startsWith('//') || candidate.includes('\\')) {
+    return '/';
+  }
+
+  try {
+    const url = new URL(candidate, window.location.origin);
+    if (url.origin !== window.location.origin) return '/';
+    const target = `${url.pathname}${url.search}${url.hash}`;
+    const path = url.pathname.replace(/\/$/, '') || '/';
+    if (UNSAFE_RETURN_PATHS.some((unsafePath) => path === unsafePath || path.startsWith(`${unsafePath}/`))) {
+      return '/';
+    }
+    return target;
+  } catch {
+    return '/';
+  }
+}
+
+function readStoredReturnTarget() {
+  try {
+    return getSafeReturnTarget(window.sessionStorage.getItem(AUTH_RETURN_TARGET_KEY));
+  } catch {
+    return '/';
+  }
+}
+
+function storeReturnTarget(target) {
+  try {
+    window.sessionStorage.setItem(AUTH_RETURN_TARGET_KEY, target);
+  } catch {
+    // Private browsing modes may disable sessionStorage; root remains the safe fallback.
+  }
+}
+
 export default function LoginPage() {
   const { lang, toggleLang, t } = useI18n();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
   const oauthError = searchParams.get('error');
   const [cfPassed, setCfPassed] = useState(SKIP_CHALLENGE);
+
+  const requestedReturnTarget = getSafeReturnTarget(location.state?.from);
+  const returnTarget = requestedReturnTarget !== '/'
+    ? requestedReturnTarget
+    : oauthError
+      ? readStoredReturnTarget()
+      : '/';
 
   const errorMessage = oauthError
     ? oauthError.startsWith('discord')
@@ -32,6 +84,7 @@ export default function LoginPage() {
       e.preventDefault();
       return;
     }
+    storeReturnTarget(returnTarget);
     window.location.href = url;
   }
 
