@@ -120,6 +120,26 @@ app.use(seoRouter({
   models: { Translation, SiteSettings },
 }));
 
+// Preview containers own the web build as well as the API. Production keeps
+// serving the SPA from Apache, so this is opt-in and does not change the
+// production request path.
+if (process.env.SERVE_STATIC === 'true') {
+  app.use(express.static(DIST_ROOT));
+  app.get('*', (req, res, next) => {
+    if (
+      req.path.startsWith('/api/')
+      || req.path.startsWith('/builds/')
+      || req.path.startsWith('/thumbnails/')
+      || req.path.startsWith('/blog-images/')
+    ) {
+      return next();
+    }
+    res.sendFile(path.join(DIST_ROOT, 'index.html'), (err) => {
+      if (err) next(err);
+    });
+  });
+}
+
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(err.status || 500).json({ error: err.message || 'Internal error' });
