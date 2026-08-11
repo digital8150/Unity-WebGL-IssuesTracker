@@ -207,3 +207,9 @@ implementation details. Entries are written in English for agent readability.
 - Added preview-only dashboard sign-in, opt-in static serving for the app container, trusted `previewctl.sh`, fixed Docker assets, and the `PR Preview` workflow for CI success/PR close lifecycle.
 - Installed the root-owned controller and `*.preview.codingbot.kr` Let’s Encrypt certificate on the remote host; verified a live `pr-23` preview returns 401 without Basic Auth, 200 with it, and serves production-snapshot arcade data.
 - Verification: `server/npm test` (77 passing), `web/npm run build`, Node/Bash/YAML syntax checks, and live TLS/Apache/container smoke checks.
+
+## 2026-08-11 (PR23 preview follow-up)
+
+- Merged PR24 into `main`, merged `main` into PR23, and resolved the only conflict in `progress.md`; feature code merged cleanly.
+- Rebuilt PR23 from the synchronized branch: React assets return 200, API data returns 200, and preview dashboard login redirects through `/auth/callback`.
+- Fixed preview-comment shell quoting so generated credentials are not interpreted as commands; CI remains green.
