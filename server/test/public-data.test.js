@@ -26,4 +26,3 @@ test('toPublicPlayGame mirrors SDK v2 flags without exposing backend settings', 
   assert.equal('discordWebhookUrl' in result, false);
   assert.equal('email' in result, false);
 });
-
