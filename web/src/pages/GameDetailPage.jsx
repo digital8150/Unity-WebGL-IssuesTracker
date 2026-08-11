@@ -397,12 +397,14 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   );
   const hasActiveBuild = builds.some((b) => b.isActive);
   const initialSettings = useMemo(() => ({
+    name: game.name || '',
     visibility: game.visibility || 'private',
     description: game.description || '',
     thumbnailUrl: game.thumbnailUrl || '',
   }), [game]);
 
   const [savedSettings, setSavedSettings] = useState(initialSettings);
+  const [name, setName] = useState(initialSettings.name);
   const [visibility, setVisibility] = useState(initialSettings.visibility);
   const [description, setDescription] = useState(initialSettings.description);
   const [sourceDescription, setSourceDescription] = useState(initialSettings.description);
@@ -441,19 +443,34 @@ const ArcadeSection = forwardRef(function ArcadeSection({
     if (!isEnglish) setSourceDescription(value);
   }
 
+  function validateName(value) {
+    const trimmedName = value.trim();
+    if (!trimmedName) return td.arcadeNameRequired;
+    if (trimmedName.length > 100) return td.arcadeNameTooLong;
+    return '';
+  }
+
+  function updateName(value) {
+    setName(value);
+    setError(validateName(value));
+  }
+
   const draftThumbnailKey = thumbnailFile
     ? `file:${thumbnailFile.name}:${thumbnailFile.size}:${thumbnailFile.lastModified}`
     : thumbnailRemoved ? '' : savedSettings.thumbnailUrl;
   const savedDescription = isEnglish
     ? translation.row?.fields?.description || ''
     : savedSettings.description;
-  const hasUnsavedChanges = isEnglish
-    ? translationReady && description !== savedDescription
-    : (
-      visibility !== savedSettings.visibility
-      || description !== savedSettings.description
-      || draftThumbnailKey !== savedSettings.thumbnailUrl
-    );
+  const hasUnsavedChanges = (
+    name !== savedSettings.name
+    || (isEnglish
+      ? translationReady && description !== savedDescription
+      : (
+        visibility !== savedSettings.visibility
+        || description !== savedSettings.description
+        || draftThumbnailKey !== savedSettings.thumbnailUrl
+      ))
+  );
   const thumbnailImageSrc = thumbnailFile
     ? thumbnailPreviewUrl
     : savedSettings.thumbnailUrl && !thumbnailRemoved
@@ -468,41 +485,68 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   async function handleSave(e) {
     e?.preventDefault?.();
     if (!hasUnsavedChanges) return true;
+    if (name !== savedSettings.name) {
+      const nameError = validateName(name);
+      if (nameError) {
+        setError(nameError);
+        return false;
+      }
+    }
     setError('');
     setSaving(true);
     try {
       if (isEnglish) {
-        await translation.save({ description });
+        if (name !== savedSettings.name) {
+          const result = await updateGame(gameId, { name: name.trim() });
+          const updated = result.game;
+          const nextName = updated?.name ?? name.trim();
+          setGame((prev) => ({ ...prev, ...(updated || {}), name: nextName }));
+          setName(nextName);
+          setSavedSettings((prev) => ({ ...prev, name: nextName }));
+        }
+        if (translationReady && description !== savedDescription) {
+          await translation.save({ description });
+        }
         return true;
       }
 
       const settingsChanged = (
-        visibility !== savedSettings.visibility
+        name !== savedSettings.name
+        || visibility !== savedSettings.visibility
         || description !== savedSettings.description
       );
-      let updated = null;
       if (settingsChanged) {
-        const result = await updateGame(gameId, { visibility, description });
-        updated = result.game;
+        const result = await updateGame(gameId, { name: name.trim(), visibility, description });
+        const updated = result.game;
+        const nextName = updated?.name ?? name.trim();
+        const nextVisibility = updated?.visibility ?? visibility;
+        const nextDescription = updated?.description ?? description;
+        setGame((prev) => ({ ...prev, ...(updated || {}), name: nextName }));
+        setName(nextName);
+        setVisibility(nextVisibility);
+        setDescription(nextDescription);
+        setSourceDescription(nextDescription);
+        setSavedSettings((prev) => ({
+          ...prev,
+          name: nextName,
+          visibility: nextVisibility,
+          description: nextDescription,
+        }));
       }
 
-      let nextThumbnailUrl = savedSettings.thumbnailUrl;
       if (thumbnailFile) {
         const result = await uploadThumbnail(gameId, thumbnailFile);
-        nextThumbnailUrl = result.thumbnailUrl || '';
+        const nextThumbnailUrl = result.thumbnailUrl || '';
+        setGame((prev) => ({ ...prev, thumbnailUrl: nextThumbnailUrl }));
+        setSavedSettings((prev) => ({ ...prev, thumbnailUrl: nextThumbnailUrl }));
+        setThumbnailFile(null);
       } else if (thumbnailRemoved && savedSettings.thumbnailUrl) {
         await deleteThumbnail(gameId);
-        nextThumbnailUrl = '';
+        setGame((prev) => ({ ...prev, thumbnailUrl: '' }));
+        setSavedSettings((prev) => ({ ...prev, thumbnailUrl: '' }));
+        setThumbnailRemoved(false);
       }
 
-      setGame((prev) => ({
-        ...prev,
-        ...(updated || {}),
-        thumbnailUrl: nextThumbnailUrl,
-      }));
-      setSavedSettings({ visibility, description, thumbnailUrl: nextThumbnailUrl });
-      setThumbnailFile(null);
-      setThumbnailRemoved(false);
       return true;
     } catch (err) {
       setError(err.message);
@@ -532,6 +576,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({
 
   function handleRevert() {
     setError('');
+    setName(savedSettings.name);
     setVisibility(savedSettings.visibility);
     setDescription(isEnglish ? savedDescription : savedSettings.description);
     setThumbnailFile(null);
@@ -567,6 +612,24 @@ const ArcadeSection = forwardRef(function ArcadeSection({
       {!hasActiveBuild && (
         <div className="gd-arcade-warn">{td.requiresActiveBuild}</div>
       )}
+
+      <div className="gd-arcade-block">
+        <label className="form-label" htmlFor={`arcade-game-name-${gameId}`}>
+          {td.arcadeName}
+          {isEnglish && <small> · {t.blog.editorLocale.source}</small>}
+        </label>
+        <input
+          id={`arcade-game-name-${gameId}`}
+          className="form-input"
+          type="text"
+          maxLength={100}
+          placeholder={td.arcadeNamePlaceholder}
+          value={name}
+          disabled={saving || isEnglish}
+          onChange={(e) => updateName(e.target.value)}
+        />
+        <div className="gd-arcade-counter">{name.length} / 100</div>
+      </div>
 
       <div className="gd-arcade-row">
         <label className={`gd-vis-card${visibility === 'private' ? ' active' : ''}`}>

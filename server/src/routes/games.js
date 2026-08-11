@@ -220,7 +220,19 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
     if (!game) return res.status(404).json({ error: 'Game not found' });
     const { name, discordWebhookUrl, visibility, description, reviewInfo } = req.body;
     const previousDescription = game.description;
-    if (name !== undefined) game.name = name;
+    if (name !== undefined) {
+      if (typeof name !== 'string') {
+        return res.status(400).json({ error: 'Game name must be a string.' });
+      }
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        return res.status(400).json({ error: 'Game name cannot be empty.' });
+      }
+      if (trimmedName.length > 100) {
+        return res.status(400).json({ error: 'Game name must be 100 characters or fewer.' });
+      }
+      game.name = trimmedName;
+    }
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
       game.visibility = visibility;
