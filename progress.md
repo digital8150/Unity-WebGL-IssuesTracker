@@ -213,3 +213,9 @@ implementation details. Entries are written in English for agent readability.
 - Merged PR24 into `main`, merged `main` into PR23, and resolved the only conflict in `progress.md`; feature code merged cleanly.
 - Rebuilt PR23 from the synchronized branch: React assets return 200, API data returns 200, and preview dashboard login redirects through `/auth/callback`.
 - Fixed preview-comment shell quoting so generated credentials are not interpreted as commands; CI remains green.
+
+## 2026-08-11 (preview access simplification)
+
+- Removed Apache HTTP Basic Auth from PR previews; HTTPS URL access is direct, while dashboard sign-in remains preview-token based.
+- Stopped publishing preview passwords or tokens as credentials in public PR comments; comments now contain only the preview URL and dashboard link.
+- Merged the access/workflow fix as PR25 and verified the PR23 workflow through successful deploy and comment steps.
