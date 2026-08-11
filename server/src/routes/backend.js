@@ -8,7 +8,7 @@ import { verifyGameHmac } from '../middleware/gameHmac.js';
 import { generateSecret, issueSessionToken, isTimestampFresh } from '../services/gameSecret.js';
 import { GAME_DEV_TOKEN_TTL_S, signGameToken } from '../services/gameToken.js';
 import { rateLimitMiddleware, clientIp } from '../services/rateLimiter.js';
-import { generateServerBridge } from '../services/codegen.js';
+import { generateArcadeSdk, generateServerBridge } from '../services/codegen.js';
 
 const router = Router();
 
@@ -157,6 +157,23 @@ router.get('/:gameId/backend/generated-code', requireAuth, requireApproved, asyn
     ]);
 
     const generated = generateServerBridge(game, { leaderboards, config });
+    res.json(generated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:gameId/backend/generated-sdk', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadAuthorizedGame(req, res);
+    if (!game) return;
+
+    const [leaderboards, config] = await Promise.all([
+      Leaderboard.find({ gameId: game._id, enabled: true }).select('-entries'),
+      GameConfig.find({ gameId: game._id, enabled: true }),
+    ]);
+
+    const generated = generateArcadeSdk(game, { leaderboards, config });
     res.json(generated);
   } catch (err) {
     next(err);

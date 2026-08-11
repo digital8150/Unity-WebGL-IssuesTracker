@@ -1,4 +1,10 @@
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 const { SITE_ORIGIN = 'https://arcade.codingbot.kr' } = process.env;
+const DEFAULT_SITE_ORIGIN = 'https://arcade.codingbot.kr';
+const ARCADE_SDK_CS = fileURLToPath(new URL('../../../unity/Assets/Scripts/ArcadeSdk.cs', import.meta.url));
+const ARCADE_SDK_JSLIB = fileURLToPath(new URL('../../../unity/Assets/Plugins/WebGL/ArcadeSdk.jslib', import.meta.url));
 
 const XOR_KEY = 0x5a;
 
@@ -320,5 +326,106 @@ ${leaderboardEntryStruct}
   return {
     files: [{ filename: 'ServerBridge.cs', code }],
     docs,
+  };
+}
+
+function readArcadeSdkFile(filename, path) {
+  try {
+    return fs.readFileSync(path, 'utf8');
+  } catch (error) {
+    const wrapped = new Error(`Arcade SDK asset is unavailable: ${filename}`);
+    wrapped.cause = error;
+    throw wrapped;
+  }
+}
+
+function csharpString(value) {
+  return String(value)
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"');
+}
+
+function injectApiBaseUrl(source, siteOrigin) {
+  const replacement = csharpString(siteOrigin);
+  return source.replace(
+    /(\bApiBaseUrl\s*=\s*")[^"]*(")/g,
+    (_match, prefix, suffix) => `${prefix}${replacement}${suffix}`,
+  );
+}
+
+function firstKey(items, fallback) {
+  return items.find((item) => typeof item?.key === 'string' && item.key.length > 0)?.key ?? fallback;
+}
+
+function arcadeSdkDocs(game, leaderboards, config) {
+  const leaderboardKey = firstKey(leaderboards, 'main');
+  const configKey = firstKey(config, 'settings');
+  const docs = [
+    {
+      title: 'Initialize the SDK',
+      body: 'Add ArcadeSdk to a GameObject named ArcadeSdk. The play page supplies the short-lived credential before gameplay starts.',
+      snippet: 'ArcadeSdk.Instance.OnReady += () => Debug.Log($"Signed in as {ArcadeSdk.Instance.DisplayName}");',
+    },
+  ];
+
+  if (leaderboards.length > 0) {
+    docs.push(
+      {
+        title: 'Submit a score',
+        body: 'Scores are associated with the signed-in account; the display name is never accepted from the game payload.',
+        snippet: `ArcadeSdk.Instance.SubmitScore("${leaderboardKey}", 4200, (ok, rank) => {\n    if (ok) Debug.Log($"Submitted, rank={rank}");\n});`,
+      },
+      {
+        title: 'Read the leaderboard',
+        body: 'Fetch the account-backed leaderboard and inspect rank, userId, displayName, score, and isMe.',
+        snippet: `ArcadeSdk.Instance.GetLeaderboard("${leaderboardKey}", (ok, entries) => {\n    if (!ok) return;\n    foreach (var entry in entries) Debug.Log($"{entry.rank}. {entry.displayName} - {entry.score}");\n});`,
+      },
+      {
+        title: 'Read your rank',
+        body: 'Get the current best score and tie-aware rank for the signed-in account.',
+        snippet: `ArcadeSdk.Instance.GetMyRank("${leaderboardKey}", (ok, result) => {\n    if (ok) Debug.Log($"My rank={result.rank}, score={result.score}");\n});`,
+      },
+    );
+  }
+
+  if (config.length > 0) {
+    docs.push({
+      title: 'Read game config',
+      body: 'Config values are returned as their original JSON string so the game can deserialize its own schema.',
+      snippet: `ArcadeSdk.Instance.GetConfig("${configKey}", (ok, json) => {\n    if (!ok) return;\n    var settings = JsonUtility.FromJson<MySettings>(json);\n});`,
+    });
+  }
+
+  if (game?.serverBackend?.cloudSaveEnabled) {
+    docs.push({
+      title: 'Load and save data',
+      body: 'Cloud saves preserve the original JSON string and return a revision for compare-and-swap writes.',
+      snippet: 'ArcadeSdk.Instance.LoadSave("main", (ok, save) => { /* save.data, save.rev */ });\nArcadeSdk.Instance.SaveData("main", "{\\"coins\\":100}", 0, (ok, save) => { /* save.rev */ });\nArcadeSdk.Instance.DeleteSave("main", ok => { /* deleted */ });',
+    });
+  }
+
+  return docs;
+}
+
+/**
+ * Build the static account-backed SDK drop-in and game-specific examples.
+ * The source files remain authoritative Unity assets; this function only
+ * injects the deployment origin into the C# constant and never embeds a
+ * game secret or XOR obfuscation path.
+ */
+export function generateArcadeSdk(game, { leaderboards = [], config = [] } = {}) {
+  const siteOrigin = process.env.SITE_ORIGIN || DEFAULT_SITE_ORIGIN;
+  const csharp = injectApiBaseUrl(
+    readArcadeSdkFile('ArcadeSdk.cs', ARCADE_SDK_CS),
+    siteOrigin,
+  );
+  const jslib = readArcadeSdkFile('ArcadeSdk.jslib', ARCADE_SDK_JSLIB);
+
+  return {
+    files: [
+      { filename: 'ArcadeSdk.cs', code: csharp },
+      { filename: 'ArcadeSdk.jslib', code: jslib },
+    ],
+    docs: arcadeSdkDocs(game, leaderboards, config),
   };
 }
