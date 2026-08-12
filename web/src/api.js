@@ -214,6 +214,31 @@ export async function deleteBuild(gameId, buildId) {
   return request(`/api/games/${gameId}/builds/${buildId}`, { method: 'DELETE' });
 }
 
+// ── Addressables content ──────────────────────────────────────────────────────
+
+export async function getGameContent(gameId) {
+  return request(`/api/games/${gameId}/content`);
+}
+
+export function uploadGameContent(gameId, channel, contentZip, { mode = 'merge', onProgress, signal } = {}) {
+  const fd = new FormData();
+  fd.append('contentZip', contentZip);
+  fd.append('mode', mode);
+  return uploadMultipart(`/api/games/${gameId}/content/${channel}`, fd, {
+    method: 'PUT',
+    onProgress,
+    signal,
+  });
+}
+
+export async function getGameContentFiles(gameId, channel, { offset = 0, limit = 100 } = {}) {
+  return request(`/api/games/${gameId}/content/${channel}/files?offset=${offset}&limit=${limit}`);
+}
+
+export async function deleteGameContent(gameId, channel) {
+  return request(`/api/games/${gameId}/content/${channel}`, { method: 'DELETE' });
+}
+
 // ── Reports ───────────────────────────────────────────────────────────────────
 
 export async function getGameReports(gameId, { status, priority, tag } = {}) {

@@ -2,14 +2,18 @@ import { Router } from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import multer from 'multer';
 import mongoose from 'mongoose';
-import AdmZip from 'adm-zip';
 import Game, { GAME_CONTENT_DESCRIPTOR_KEYS, GAME_RATING_KEYS } from '../models/Game.js';
 import GameArticle from '../models/GameArticle.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
+import AddressableContent from '../models/AddressableContent.js';
+import GameConfig from '../models/GameConfig.js';
+import Leaderboard from '../models/Leaderboard.js';
+import LeaderboardScore from '../models/LeaderboardScore.js';
+import CloudSave from '../models/CloudSave.js';
 import User from '../models/User.js';
 import Translation from '../models/Translation.js';
 import SiteSettings from '../models/SiteSettings.js';
@@ -17,6 +21,13 @@ import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.j
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
 import { toPublicSdkV2 } from '../services/publicData.js';
+import {
+  acquireAssetReplaceLock,
+  extractAndSwapArchive,
+  extractArchive,
+  moveFile,
+  sweepSwapArtifacts,
+} from '../services/assetArchive.js';
 
 const router = Router();
 
@@ -51,20 +62,8 @@ const thumbUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-async function moveFile(src, dest) {
-  try {
-    await fs.rename(src, dest);
-  } catch (err) {
-    if (err.code === 'EXDEV') {
-      await fs.copyFile(src, dest);
-      await fs.rm(src, { force: true });
-    } else {
-      throw err;
-    }
-  }
-}
-
 const STORAGE_ROOT = path.resolve('storage', 'builds');
+const CONTENT_ROOT = path.resolve('storage', 'content');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
 const THUMBNAIL_MIME_TO_EXT = {
   'image/png': 'png',
@@ -73,9 +72,6 @@ const THUMBNAIL_MIME_TO_EXT = {
   'image/gif': 'gif',
 };
 const THUMBNAIL_EXTENSIONS = new Set(Object.values(THUMBNAIL_MIME_TO_EXT));
-const STREAMING_ASSETS_MAX_ENTRIES = 100_000;
-const STREAMING_ASSETS_MAX_ENTRY_BYTES = 256 * 1024 * 1024;
-const STREAMING_ASSETS_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 const STREAMING_ASSETS_SWAP_ARTIFACT_PREFIXES = [
   '.streaming-assets-tmp-',
   '.streaming-assets-old-',
@@ -111,144 +107,39 @@ async function removeGameThumbnailFiles(gameId, currentThumbnailUrl = '') {
   }
 }
 
-function streamingAssetsError(message, status = 413) {
-  const error = new Error(message);
-  error.status = status;
-  return error;
-}
-
 // Extracts a StreamingAssets zip into an explicit destination root, preserving
 // nested folder structure. Returns { relPaths, totalBytes } where relPaths are
 // paths relative to the build directory (e.g. "StreamingAssets/sub/data.json").
 async function extractStreamingAssetsZip(zipPath, destinationRoot, limits = {}) {
-  const maxEntries = limits.maxEntries ?? STREAMING_ASSETS_MAX_ENTRIES;
-  const maxEntryBytes = limits.maxEntryBytes ?? STREAMING_ASSETS_MAX_ENTRY_BYTES;
-  const maxBytes = limits.maxBytes ?? STREAMING_ASSETS_MAX_BYTES;
-  const zip = new AdmZip(zipPath);
-  const entries = zip.getEntries().filter((e) => !e.isDirectory);
-  if (entries.length > maxEntries) {
-    throw streamingAssetsError('StreamingAssets zip contains too many files');
-  }
-
-  // If every entry shares one common top-level folder named "streamingassets",
-  // the developer zipped the folder itself — strip that one wrapper so we don't
-  // end up with StreamingAssets/StreamingAssets/....
-  const firstSegments = entries.map((e) => String(e.entryName).replaceAll('\\', '/').split('/')[0]);
-  const stripWrapper =
-    entries.length > 0 &&
-    firstSegments.every((seg) => seg.toLowerCase() === 'streamingassets');
-
-  const destRoot = path.resolve(destinationRoot);
-  const relPaths = [];
-  const seenPaths = new Set();
-  let totalBytes = 0;
-
-  await fs.mkdir(destRoot, { recursive: true });
-
-  for (const entry of entries) {
-    const rawParts = entry.entryName.replaceAll('\\', '/').split('/').filter(Boolean);
-    const parts = stripWrapper ? rawParts.slice(1) : rawParts;
-    if (!parts.length || parts.some((p) => p === '..' || p === '.')) continue;
-
-    const relPath = path.posix.join(...parts);
-    const relativeFile = path.posix.join('StreamingAssets', relPath);
-    if (seenPaths.has(relativeFile)) continue;
-    seenPaths.add(relativeFile);
-    const dest = path.resolve(destRoot, ...parts);
-    if (!dest.startsWith(destRoot + path.sep) && dest !== destRoot) continue; // zip-slip guard
-
-    const declaredSize = Number(entry.header?.size ?? 0);
-    if (declaredSize > maxEntryBytes) {
-      throw streamingAssetsError('A StreamingAssets file is too large');
-    }
-
-    const data = entry.getData();
-    if (data.length > maxEntryBytes) {
-      throw streamingAssetsError('A StreamingAssets file is too large');
-    }
-    if (totalBytes + data.length > maxBytes) {
-      throw streamingAssetsError('StreamingAssets zip is too large after extraction');
-    }
-
-    await fs.mkdir(path.dirname(dest), { recursive: true });
-    await fs.writeFile(dest, data);
-    const stat = await fs.stat(dest);
-    totalBytes += stat.size;
-    relPaths.push(relativeFile);
-  }
-
-  return { relPaths, totalBytes };
+  return extractArchive(zipPath, destinationRoot, {
+    prefix: 'StreamingAssets',
+    wrapperNames: ['streamingassets'],
+    label: 'StreamingAssets',
+    limits,
+  });
 }
 
 async function sweepStreamingAssetsSwapArtifacts(buildDir) {
-  let entries;
-  try {
-    entries = await fs.readdir(buildDir, { withFileTypes: true });
-  } catch (error) {
-    if (error.code === 'ENOENT') return;
-    throw error;
-  }
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (!STREAMING_ASSETS_SWAP_ARTIFACT_PREFIXES.some((prefix) => entry.name.startsWith(prefix))) continue;
-    await fs.rm(path.join(buildDir, entry.name), { recursive: true, force: true });
-  }
+  return sweepSwapArtifacts(buildDir, STREAMING_ASSETS_SWAP_ARTIFACT_PREFIXES);
 }
 
 function acquireStreamingAssetsReplaceLock(buildId) {
-  const key = String(buildId);
-  if (streamingAssetsReplaceLocks.has(key)) return null;
-
-  let release;
-  const lock = new Promise((resolve) => { release = resolve; });
-  streamingAssetsReplaceLocks.set(key, lock);
-  return () => {
-    if (streamingAssetsReplaceLocks.get(key) === lock) streamingAssetsReplaceLocks.delete(key);
-    release();
-  };
+  return acquireAssetReplaceLock(buildId, streamingAssetsReplaceLocks);
 }
 
 async function extractAndSwapStreamingAssets(zipPath, buildDir) {
   // A replacement temporarily needs room for both the old and new trees.
   // With the 2 GB extracted cap, peak disk usage can therefore approach 4 GB.
-  const token = randomUUID();
-  const tempDir = path.join(buildDir, `.streaming-assets-tmp-${token}`);
-  const oldDir = path.join(buildDir, `.streaming-assets-old-${token}`);
-  const liveDir = path.join(buildDir, 'StreamingAssets');
-  let oldMoved = false;
-  let swapped = false;
-
-  try {
-    await fs.rm(tempDir, { recursive: true, force: true });
-    await fs.rm(oldDir, { recursive: true, force: true });
-    const extracted = await extractStreamingAssetsZip(zipPath, tempDir);
-
-    try {
-      await fs.rename(liveDir, oldDir);
-      oldMoved = true;
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-
-    try {
-      await fs.rename(tempDir, liveDir);
-    } catch (error) {
-      if (oldMoved) {
-        try {
-          await fs.rename(oldDir, liveDir);
-        } catch (rollbackError) {
-          error.rollbackError = rollbackError;
-        }
-      }
-      throw error;
-    }
-    swapped = true;
-    await fs.rm(oldDir, { recursive: true, force: true });
-    return extracted;
-  } finally {
-    if (!swapped) await fs.rm(tempDir, { recursive: true, force: true });
-  }
+  return extractAndSwapArchive(zipPath, buildDir, {
+    liveDirName: 'StreamingAssets',
+    tempPrefix: '.streaming-assets-tmp-',
+    oldPrefix: '.streaming-assets-old-',
+    extractOptions: {
+      prefix: 'StreamingAssets',
+      wrapperNames: ['streamingassets'],
+      label: 'StreamingAssets',
+    },
+  });
 }
 
 function uniqueOtherFiles(files) {
@@ -443,7 +334,26 @@ router.delete('/:gameId', requireAuth, requireApproved, async (req, res, next) =
     if (!game) return res.status(404).json({ error: 'Game not found' });
 
     const articles = await GameArticle.find({ gameId: game._id }).select('_id').lean();
+    const builds = await Build.find({ gameId: game._id }).select('_id').lean();
+
+    // Remove filesystem payloads before deleting their owning documents. This
+    // keeps a failed database deletion recoverable while ensuring a successful
+    // game deletion cannot leave build/content bytes outside quota accounting.
+    await Promise.all(builds.map((build) => fs.rm(
+      path.join(STORAGE_ROOT, String(build._id)),
+      { recursive: true, force: true },
+    )));
+    await fs.rm(path.join(CONTENT_ROOT, String(game._id)), { recursive: true, force: true });
+    await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
+
     await GameArticle.deleteMany({ gameId: game._id });
+    await Build.deleteMany({ gameId: game._id });
+    await Issue.deleteMany({ gameId: game._id });
+    await AddressableContent.deleteMany({ gameId: game._id });
+    await GameConfig.deleteMany({ gameId: game._id });
+    await LeaderboardScore.deleteMany({ gameId: game._id });
+    await Leaderboard.deleteMany({ gameId: game._id });
+    await CloudSave.deleteMany({ gameId: game._id });
     await game.deleteOne();
     Translation.deleteOne({ refType: 'Game', refId: game._id, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
     Translation.deleteMany({ refType: 'GameArticle', refId: { $in: articles.map((article) => article._id) }, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));

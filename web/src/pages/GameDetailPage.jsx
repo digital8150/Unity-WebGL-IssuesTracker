@@ -4,6 +4,7 @@ import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getGame, uploadBuild, replaceStreamingAssets, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
+import GameContentTab from './GameContentTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 import Modal from '../components/Modal.jsx';
@@ -1616,6 +1617,9 @@ export default function GameDetailPage() {
           <button className={`gd-tab${tab === 'serverIntegration' ? ' active' : ''}`} onClick={() => selectTab('serverIntegration')}>
             {td.serverIntegration}
           </button>
+          <button className={`gd-tab${tab === 'content' ? ' active' : ''}`} onClick={() => selectTab('content')}>
+            {td.content}
+          </button>
         </div>
 
         {/* ── Builds ── */}
@@ -1956,6 +1960,11 @@ export default function GameDetailPage() {
         {/* ── LiveOps settings ── */}
         {tab === 'serverIntegration' && (
           <ServerIntegrationTab gameId={gameId} />
+        )}
+
+        {/* ── Addressables remote content ── */}
+        {tab === 'content' && (
+          <GameContentTab gameId={gameId} />
         )}
 
         {/* ── Settings ── */}

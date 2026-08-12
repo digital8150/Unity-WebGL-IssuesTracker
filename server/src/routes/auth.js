@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Game from '../models/Game.js';
 import Build from '../models/Build.js';
+import AddressableContent from '../models/AddressableContent.js';
 import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
@@ -131,12 +132,18 @@ router.get('/usage', requireAuth, requireApproved, async (req, res, next) => {
     const user = await User.findById(req.user.sub).select('storageQuota');
     const games = await Game.find({ ownerId: req.user.sub }).select('_id');
     const gameIds = games.map((g) => g._id);
-    const [agg] = await Build.aggregate([
-      { $match: { gameId: { $in: gameIds } } },
-      { $group: { _id: null, total: { $sum: '$storageBytes' } } },
+    const [[buildAgg], [contentAgg]] = await Promise.all([
+      Build.aggregate([
+        { $match: { gameId: { $in: gameIds } } },
+        { $group: { _id: null, total: { $sum: '$storageBytes' } } },
+      ]),
+      AddressableContent.aggregate([
+        { $match: { gameId: { $in: gameIds } } },
+        { $group: { _id: null, total: { $sum: '$storageBytes' } } },
+      ]),
     ]);
     res.json({
-      usedBytes: agg?.total ?? 0,
+      usedBytes: (buildAgg?.total ?? 0) + (contentAgg?.total ?? 0),
       quotaBytes: user?.storageQuota ?? 500 * 1024 * 1024,
     });
   } catch (err) {
