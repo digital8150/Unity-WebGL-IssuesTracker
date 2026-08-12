@@ -60,6 +60,10 @@ test('Game serverBackend contains the v2 feature flags and token kill switch', (
   assert.equal(game.serverBackend.v2Enabled, false);
   assert.equal(game.serverBackend.cloudSaveEnabled, false);
   assert.equal(game.serverBackend.v2DevTokenIssuedAt, null);
+  assert.equal(game.serverBackend.liveOpsEnabled, undefined);
+  assert.equal(game.serverBackend.liveOpsMode, undefined);
+  assert.equal(Game.schema.path('serverBackend.liveOpsEnabled').options.type, Boolean);
+  assert.equal(Game.schema.path('serverBackend.liveOpsMode').options.type, String);
   assert.equal(Game.schema.path('serverBackend.v2Enabled').options.type, Boolean);
   assert.equal(Game.schema.path('serverBackend.cloudSaveEnabled').options.type, Boolean);
   assert.equal(Game.schema.path('serverBackend.v2DevTokenIssuedAt').options.type, Date);

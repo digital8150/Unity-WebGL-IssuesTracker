@@ -106,7 +106,9 @@ test('developer tokens use live names, monotonic revocation markers, and backend
     ownerId: 'owner',
     collaborators: ['collaborator'],
     serverBackend: {
-      v2Enabled: false,
+      liveOpsEnabled: true,
+      liveOpsMode: 'v2',
+      v2Enabled: true,
       cloudSaveEnabled: false,
       v2DevTokenIssuedAt: null,
     },

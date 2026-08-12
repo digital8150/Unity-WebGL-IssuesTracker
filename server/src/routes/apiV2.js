@@ -5,6 +5,7 @@ import { requireGameToken } from '../middleware/gameAuth.js';
 import { signGameToken, GAME_TOKEN_TTL_S } from '../services/gameToken.js';
 import { rateLimitMiddleware } from '../services/rateLimiter.js';
 import { buildBestScoreOps, buildRankQuery, resolveSaveWrite } from '../services/v2Queries.js';
+import { getLiveOpsMode, isLiveOpsEnabled } from '../services/liveOps.js';
 import Game from '../models/Game.js';
 import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
@@ -68,11 +69,13 @@ function statusError(res, status, error, code) {
 }
 
 function isV2Enabled(game) {
-  return game?.serverBackend?.v2Enabled === true;
+  const backend = game?.serverBackend;
+  return isLiveOpsEnabled(backend) && getLiveOpsMode(backend) === 'v2' && backend?.v2Enabled === true;
 }
 
 function isCloudSaveEnabled(game) {
-  return game?.serverBackend?.cloudSaveEnabled === true;
+  const backend = game?.serverBackend;
+  return isV2Enabled(game) && backend?.cloudSaveEnabled === true;
 }
 
 function tokenIdentity(req) {

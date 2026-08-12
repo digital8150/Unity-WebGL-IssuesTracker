@@ -29,12 +29,12 @@ The C# side appends buffered logs + custom state, serializes to JSON, and hands 
 
 ## Authenticated Arcade SDK v2
 
-SDK v2 adds account-backed leaderboards, dynamic config reads, and optional cloud saves. In the dashboard's **Server Integration → SDK v2** section, enable SDK v2 and copy both generated files into the matching Unity paths:
+SDK v2 adds signed-in player leaderboards, dynamic config reads, and optional cloud saves. In the dashboard's **LiveOps settings → SDK v2** section, choose SDK v2 and copy both generated files into the matching Unity paths. Use this path instead of the Legacy API `ServerBridge.cs` path:
 
 - `Assets/Scripts/ArcadeSdk.cs`
 - `Assets/Plugins/WebGL/ArcadeSdk.jslib`
 
-Add `ArcadeSdk` to a bootstrap-scene GameObject. The component automatically corrects the GameObject name to `ArcadeSdk`, which is required for the play page's `SendMessage` credential injection. Wait for `ArcadeSdk.Instance.OnReady` before making account-backed calls.
+Add `ArcadeSdk` to a bootstrap-scene GameObject. The component automatically corrects the GameObject name to `ArcadeSdk`, which is required for the play page's `SendMessage` credential injection. Wait for `ArcadeSdk.Instance.OnReady` before making signed-in player calls.
 
 ```csharp
 using ArcadeBackend;

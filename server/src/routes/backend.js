@@ -11,6 +11,7 @@ import { generateSecret, issueSessionToken, isTimestampFresh } from '../services
 import { GAME_DEV_TOKEN_TTL_S, signGameToken } from '../services/gameToken.js';
 import { rateLimitMiddleware, clientIp } from '../services/rateLimiter.js';
 import { generateArcadeSdk, generateServerBridge } from '../services/codegen.js';
+import { getLiveOpsMode, isLiveOpsEnabled, LIVEOPS_MODES, serializeLiveOpsBackend } from '../services/liveOps.js';
 
 const router = Router();
 
@@ -146,7 +147,7 @@ router.get('/:gameId/backend', requireAuth, requireApproved, async (req, res, ne
     ]);
 
     res.json({
-      serverBackend: game.serverBackend,
+      serverBackend: serializeLiveOpsBackend(game.serverBackend),
       leaderboards,
       config,
     });
@@ -160,14 +161,22 @@ router.patch('/:gameId/backend', requireAuth, requireApproved, async (req, res, 
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
 
-    const { leaderboardEnabled, configEnabled, v2Enabled, cloudSaveEnabled } = req.body ?? {};
+    const { leaderboardEnabled, configEnabled, v2Enabled, cloudSaveEnabled, liveOpsEnabled, liveOpsMode } = req.body ?? {};
     if (!game.serverBackend) game.serverBackend = {};
+    if (liveOpsMode !== undefined && !LIVEOPS_MODES.includes(liveOpsMode)) {
+      return res.status(400).json({ error: 'liveOpsMode must be legacy or v2' });
+    }
     if (leaderboardEnabled !== undefined) game.serverBackend.leaderboardEnabled = Boolean(leaderboardEnabled);
     if (configEnabled !== undefined) game.serverBackend.configEnabled = Boolean(configEnabled);
     if (v2Enabled !== undefined) game.serverBackend.v2Enabled = Boolean(v2Enabled);
     if (cloudSaveEnabled !== undefined) game.serverBackend.cloudSaveEnabled = Boolean(cloudSaveEnabled);
+    if (liveOpsEnabled !== undefined) game.serverBackend.liveOpsEnabled = Boolean(liveOpsEnabled);
+    if (liveOpsMode !== undefined) {
+      game.serverBackend.liveOpsMode = liveOpsMode;
+      game.serverBackend.v2Enabled = liveOpsMode === 'v2';
+    }
     await game.save();
-    res.json({ serverBackend: game.serverBackend });
+    res.json({ serverBackend: serializeLiveOpsBackend(game.serverBackend) });
   } catch (err) {
     next(err);
   }
@@ -177,6 +186,9 @@ router.post('/:gameId/backend/v2/dev-token', requireAuth, requireApproved, async
   try {
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'v2') {
+      return res.status(400).json({ error: 'SDK v2 is not selected for this game' });
+    }
 
     // requireApproved checks the account status, but fetch the current user
     // again so a renamed account is reflected in every newly issued token.
@@ -220,6 +232,9 @@ router.get('/:gameId/backend/generated-code', requireAuth, requireApproved, asyn
   try {
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'legacy') {
+      return res.status(400).json({ error: 'Legacy API is not selected for this game' });
+    }
     if (!game.serverBackend?.secret) {
       return res.status(400).json({ error: 'Rotate a secret for this game before generating code' });
     }
@@ -240,6 +255,9 @@ router.get('/:gameId/backend/generated-sdk', requireAuth, requireApproved, async
   try {
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'v2') {
+      return res.status(400).json({ error: 'SDK v2 is not selected for this game' });
+    }
 
     const [leaderboards, config] = await Promise.all([
       Leaderboard.find({ gameId: game._id, enabled: true }).select('-entries'),
@@ -582,7 +600,12 @@ router.post(
     try {
       const game = await Game.findOne({ slug: req.params.gameSlug });
       if (!game) return res.status(404).json({ error: 'Game not found' });
-      if (!game.serverBackend?.secret || (!game.serverBackend.leaderboardEnabled && !game.serverBackend.configEnabled)) {
+      if (
+        !isLiveOpsEnabled(game.serverBackend)
+        || getLiveOpsMode(game.serverBackend) !== 'legacy'
+        || !game.serverBackend?.secret
+        || (!game.serverBackend.leaderboardEnabled && !game.serverBackend.configEnabled)
+      ) {
         return res.status(403).json({ error: 'Server backend not enabled for this game' });
       }
 

@@ -1,3 +1,5 @@
+import { getLiveOpsMode, isLiveOpsEnabled } from './liveOps.js';
+
 function publicAuthor(author) {
   return author?.name ? { name: String(author.name) } : null;
 }
@@ -49,9 +51,10 @@ function publicGameFields(game) {
 }
 
 export function toPublicSdkV2(game) {
+  const backend = game?.serverBackend;
   return {
-    enabled: game?.serverBackend?.v2Enabled === true,
-    cloudSaveEnabled: game?.serverBackend?.cloudSaveEnabled === true,
+    enabled: isLiveOpsEnabled(backend) && getLiveOpsMode(backend) === 'v2' && backend?.v2Enabled === true,
+    cloudSaveEnabled: isLiveOpsEnabled(backend) && getLiveOpsMode(backend) === 'v2' && backend?.cloudSaveEnabled === true,
   };
 }
 

@@ -1685,7 +1685,7 @@ export default function GameDetailPage() {
           </div>
         )}
 
-        {/* ── Server Integration ── */}
+        {/* ── LiveOps settings ── */}
         {tab === 'serverIntegration' && (
           <ServerIntegrationTab gameId={gameId} />
         )}

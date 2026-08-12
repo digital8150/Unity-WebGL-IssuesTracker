@@ -88,3 +88,11 @@ Keep this file short; detailed implementation history remains in git commits.
 - Updated server tests for provenance-separated cloud saves, deletion boundaries, loopback requests, comment ownership/creation, and shared fake-model helpers.
 - Verification this run: `cd server && npm test` — 122 passing, 0 failing; `cd web && npm run build` — succeeded; changed-server-module `node --check` and `git diff --check` — passed.
 - Manual Unity Editor and uploaded WebGL E2E verification remains outstanding.
+
+## 2026-08-12 — LiveOps settings
+
+- Reviewed `ArcadeSdk.cs` generation failure: checked-in preview image includes `COPY unity/`, but PR deployment builds with the host-installed `/usr/local/share/arcade-preview/Dockerfile`; verify that external asset after merge. No fix applied for this review-only item.
+- Renamed the dashboard tab to **LiveOps settings** and added a persisted master switch plus mutually exclusive Legacy API / SDK v2 mode selection.
+- Legacy mode now shows the shared secret and `ServerBridge.cs` generation only; SDK v2 mode shows `ArcadeSdk.cs`/`.jslib`, editor token, cloud saves, and shared resource definitions only.
+- Added backwards-compatible `liveOpsEnabled` / `liveOpsMode` resolution and runtime gates for public v1/v2 calls.
+- Verification: web build, server tests (124 passing), changed-server-module `node --check`, and `git diff --check`.

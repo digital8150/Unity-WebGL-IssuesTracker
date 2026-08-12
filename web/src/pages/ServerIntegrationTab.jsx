@@ -49,6 +49,22 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString();
 }
 
+function getIntegrationMode(serverBackend) {
+  if (serverBackend?.liveOpsMode === 'v2') return 'v2';
+  if (serverBackend?.liveOpsMode === 'legacy') return 'legacy';
+  return serverBackend?.v2Enabled ? 'v2' : 'legacy';
+}
+
+function hasLegacyBackendConfiguration(serverBackend) {
+  return Boolean(
+    serverBackend?.secret
+      || serverBackend?.leaderboardEnabled
+      || serverBackend?.configEnabled
+      || serverBackend?.v2Enabled
+      || serverBackend?.cloudSaveEnabled,
+  );
+}
+
 export default function ServerIntegrationTab({ gameId }) {
   const { t } = useI18n();
   const td = t.gameDetail;
@@ -99,17 +115,38 @@ export default function ServerIntegrationTab({ gameId }) {
   }, [gameId]);
 
   useEffect(() => {
-    if (backend?.serverBackend?.cloudSaveEnabled) loadCloudSaves(1);
-  }, [backend?.serverBackend?.cloudSaveEnabled, loadCloudSaves]);
+    if (
+      backend?.serverBackend?.cloudSaveEnabled
+      && getIntegrationMode(backend.serverBackend) === 'v2'
+    ) loadCloudSaves(1);
+  }, [backend?.serverBackend?.cloudSaveEnabled, backend?.serverBackend?.liveOpsMode, loadCloudSaves]);
 
-  async function handleToggle(field, value) {
+  async function updateBackend(fields) {
     setError('');
     try {
-      await updateGameBackend(gameId, { [field]: value });
+      await updateGameBackend(gameId, fields);
       await refresh();
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function handleToggle(field, value) {
+    await updateBackend({ [field]: value });
+  }
+
+  async function handleLiveOpsToggle(value) {
+    await updateBackend({ liveOpsEnabled: value });
+  }
+
+  async function handleModeChange(mode) {
+    setGenerated(null);
+    setGeneratedSdk(null);
+    setGenError('');
+    setSdkError('');
+    setEntriesModalLb(null);
+    setConfigModalCfg(null);
+    await updateBackend({ liveOpsMode: mode, v2Enabled: mode === 'v2' });
   }
 
   async function handleRotateSecret() {
@@ -187,8 +224,9 @@ export default function ServerIntegrationTab({ gameId }) {
 
   async function handleOpenEntries(lb) {
     setEntriesModalLb(lb);
-    if (entriesByLb[lb._id] === undefined) loadLegacyEntries(lb._id);
-    if (backend?.serverBackend?.v2Enabled && scoresByLb[lb._id] === undefined) loadScores(lb._id, 1);
+    const mode = getIntegrationMode(backend?.serverBackend);
+    if (mode === 'legacy' && entriesByLb[lb._id] === undefined) loadLegacyEntries(lb._id);
+    if (mode === 'v2' && scoresByLb[lb._id] === undefined) loadScores(lb._id, 1);
   }
 
   async function handleDeleteLegacyEntries(lbId) {
@@ -327,39 +365,125 @@ export default function ServerIntegrationTab({ gameId }) {
   const serverBackend = backend.serverBackend ?? {};
   const leaderboards = backend.leaderboards ?? [];
   const config = backend.config ?? [];
+  const liveOpsEnabled = serverBackend.liveOpsEnabled === undefined
+    ? hasLegacyBackendConfiguration(serverBackend)
+    : Boolean(serverBackend.liveOpsEnabled);
+  const integrationMode = getIntegrationMode(serverBackend);
 
   return (
-    <div className="gd-section">
-      <p className="gi-intro">{td.siIntro}</p>
-      {error && <div className="gd-error">{error}</div>}
-
-      {/* v1 secret */}
-      <div className="gd-subsection">
-        <h3 className="gd-section-title">{td.siSecretTitle}</h3>
-        <p className="gi-step-warn">{td.siSecurityNotice}</p>
-        <div className="gd-upload-row">
-          <input
-            type="text"
-            className="form-input"
-            readOnly
-            value={serverBackend.secret || td.siSecretNotProvisioned}
-            style={{ flex: 1, fontFamily: 'monospace' }}
-          />
-          <button className="btn btn-ghost" onClick={handleRotateSecret}>{td.siSecretRotate}</button>
+    <div className="gd-section si-shell">
+      <div className="si-masthead">
+        <div className="si-masthead-copy">
+          <p className="si-overline">LIVEOPS / GAME SERVICES</p>
+          <h2 className="si-page-title">{td.siPageTitle}</h2>
+          <p className="si-intro">{td.siIntro}</p>
         </div>
-      </div>
-
-      {/* v1 leaderboards */}
-      <div className="gd-subsection" style={{ marginTop: 24 }}>
-        <label className="gd-upload-row">
+        <label className={`si-master-card${liveOpsEnabled ? ' is-on' : ''}`}>
+          <span className="si-master-copy">
+            <strong>{td.siMasterToggle}</strong>
+            <small>{liveOpsEnabled ? td.siMasterOn : td.siMasterOff}</small>
+          </span>
           <input
             type="checkbox"
-            checked={Boolean(serverBackend.leaderboardEnabled)}
-            onChange={(e) => handleToggle('leaderboardEnabled', e.target.checked)}
+            checked={liveOpsEnabled}
+            onChange={(e) => handleLiveOpsToggle(e.target.checked)}
+            aria-label={td.siMasterToggle}
           />
-          <h3 className="gd-section-title" style={{ margin: 0 }}>{td.siLeaderboardTitle}</h3>
-          <span>{td.siLeaderboardEnable}</span>
+          <span className="si-switch" aria-hidden="true"><span /></span>
         </label>
+      </div>
+      {error && <div className="gd-error">{error}</div>}
+
+      {liveOpsEnabled && (
+        <>
+          <section className="si-mode-section" aria-labelledby="liveops-mode-title">
+            <div className="si-section-number">01</div>
+            <div className="si-mode-copy">
+              <p className="si-overline">{td.siModeKicker}</p>
+              <h2 id="liveops-mode-title">{td.siModeTitle}</h2>
+              <p>{td.siModeDesc}</p>
+            </div>
+            <div className="si-mode-grid" role="radiogroup" aria-label={td.siModeTitle}>
+              <label className={`si-mode-card${integrationMode === 'legacy' ? ' is-selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="liveops-mode"
+                  value="legacy"
+                  checked={integrationMode === 'legacy'}
+                  onChange={() => handleModeChange('legacy')}
+                />
+                <span className="si-mode-mark">V1</span>
+                <span className="si-mode-card-copy">
+                  <strong>{td.siLegacyTitle}</strong>
+                  <small>{td.siLegacyDesc}</small>
+                  <em>{td.siLegacyFiles}</em>
+                </span>
+              </label>
+              <label className={`si-mode-card${integrationMode === 'v2' ? ' is-selected' : ''}`}>
+                <input
+                  type="radio"
+                  name="liveops-mode"
+                  value="v2"
+                  checked={integrationMode === 'v2'}
+                  onChange={() => handleModeChange('v2')}
+                />
+                <span className="si-mode-mark is-v2">V2</span>
+                <span className="si-mode-card-copy">
+                  <strong>{td.siV2Title}</strong>
+                  <small>{td.siV2ChoiceDesc}</small>
+                  <em>{td.siV2Files}</em>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <div className="si-content-divider" />
+
+          {integrationMode === 'legacy' && (
+            <div className="gd-subsection si-legacy-secret">
+              <div className="si-subsection-heading">
+                <div>
+                  <p className="si-overline">{td.siLegacyTitle}</p>
+                  <h3 className="gd-section-title">{td.siSecretTitle}</h3>
+                </div>
+                <span className="si-resource-badge">{td.siLegacyActive}</span>
+              </div>
+              <p className="gi-step-warn">{td.siSecurityNotice}</p>
+              <div className="gd-upload-row">
+                <input
+                  type="text"
+                  className="form-input"
+                  readOnly
+                  value={serverBackend.secret || td.siSecretNotProvisioned}
+                  style={{ flex: 1, fontFamily: 'monospace' }}
+                />
+                <button className="btn btn-ghost" onClick={handleRotateSecret}>{td.siSecretRotate}</button>
+              </div>
+            </div>
+          )}
+
+      {/* Shared data definitions; the delivery path changes with the selected mode. */}
+      <div className="gd-subsection si-data-subsection" style={{ marginTop: 24 }}>
+        {integrationMode === 'legacy' ? (
+          <label className="gd-upload-row">
+            <input
+              type="checkbox"
+              checked={Boolean(serverBackend.leaderboardEnabled)}
+              onChange={(e) => handleToggle('leaderboardEnabled', e.target.checked)}
+            />
+            <h3 className="gd-section-title" style={{ margin: 0 }}>{td.siLeaderboardTitle}</h3>
+            <span>{td.siLeaderboardEnable}</span>
+          </label>
+        ) : (
+          <div className="si-subsection-heading">
+            <div>
+              <p className="si-overline">{td.siV2Kicker}</p>
+              <h3 className="gd-section-title">{td.siLeaderboardTitle}</h3>
+              <p className="si-subsection-desc">{td.siV2ResourceDesc}</p>
+            </div>
+            <span className="si-resource-badge">{td.siV2Active}</span>
+          </div>
+        )}
 
         {leaderboards.length === 0 ? (
           <p className="gd-empty-text">{td.siLeaderboardEmpty}</p>
@@ -412,18 +536,28 @@ export default function ServerIntegrationTab({ gameId }) {
         </form>
       </div>
 
-      {/* v1 config */}
-      <div className="gd-subsection" style={{ marginTop: 24 }}>
-        <label className="gd-upload-row">
-          <input
-            type="checkbox"
-            aria-label={td.siConfigEnable}
-            checked={Boolean(serverBackend.configEnabled)}
-            onChange={(e) => handleToggle('configEnabled', e.target.checked)}
-          />
-          <h3 className="gd-section-title" style={{ margin: 0 }}>{td.siConfigTitle}</h3>
-          <span>{td.siConfigEnable}</span>
-        </label>
+      <div className="gd-subsection si-data-subsection" style={{ marginTop: 24 }}>
+        {integrationMode === 'legacy' ? (
+          <label className="gd-upload-row">
+            <input
+              type="checkbox"
+              aria-label={td.siConfigEnable}
+              checked={Boolean(serverBackend.configEnabled)}
+              onChange={(e) => handleToggle('configEnabled', e.target.checked)}
+            />
+            <h3 className="gd-section-title" style={{ margin: 0 }}>{td.siConfigTitle}</h3>
+            <span>{td.siConfigEnable}</span>
+          </label>
+        ) : (
+          <div className="si-subsection-heading">
+            <div>
+              <p className="si-overline">{td.siV2Kicker}</p>
+              <h3 className="gd-section-title">{td.siConfigTitle}</h3>
+              <p className="si-subsection-desc">{td.siV2ResourceDesc}</p>
+            </div>
+            <span className="si-resource-badge">{td.siV2Active}</span>
+          </div>
+        )}
 
         {config.length === 0 ? (
           <p className="gd-empty-text">{td.siConfigEmpty}</p>
@@ -457,47 +591,48 @@ export default function ServerIntegrationTab({ gameId }) {
         </form>
       </div>
 
-      {/* v1 generated bridge */}
-      <div className="gd-subsection" style={{ marginTop: 24 }}>
-        <h3 className="gd-section-title">{td.siGeneratedCodeTitle}</h3>
-        <button className="btn btn-ghost" onClick={handleGenerateCode}>{td.siGeneratedCodeRefresh}</button>
-        {genError && <div className="gd-error">{genError}</div>}
-        {generated && (
-          <>
-            {(generated.files ?? []).map((file) => <CodeBlock key={file.filename} filename={file.filename} code={file.code} />)}
-            <h3 className="gd-section-title" style={{ marginTop: 16 }}>{td.siGuideTitle}</h3>
-            {(generated.docs ?? []).map((doc, index) => (
-              <div key={index} className="gi-step">
-                <h4>{doc.title}</h4>
-                <p className="gi-step-desc">{doc.body}</p>
-                {doc.snippet && <CodeBlock filename={`example-${index}.cs`} code={doc.snippet} />}
-              </div>
-            ))}
-          </>
-        )}
-      </div>
+      {integrationMode === 'legacy' && (
+        <div className="gd-subsection si-generated-section" style={{ marginTop: 24 }}>
+          <div className="si-subsection-heading">
+            <div>
+              <p className="si-overline">{td.siLegacyTitle}</p>
+              <h3 className="gd-section-title">{td.siGeneratedCodeTitle}</h3>
+              <p className="si-subsection-desc">{td.siLegacyGeneratedDesc}</p>
+            </div>
+            <button className="btn btn-ghost" onClick={handleGenerateCode}>{td.siGeneratedCodeGenerate}</button>
+          </div>
+          {genError && <div className="gd-error">{genError}</div>}
+          {generated && (
+            <>
+              {(generated.files ?? []).map((file) => <CodeBlock key={file.filename} filename={file.filename} code={file.code} />)}
+              <h3 className="gd-section-title" style={{ marginTop: 16 }}>{td.siGuideTitle}</h3>
+              {(generated.docs ?? []).map((doc, index) => (
+                <div key={index} className="gi-step">
+                  <h4>{doc.title}</h4>
+                  <p className="gi-step-desc">{doc.body}</p>
+                  {doc.snippet && <CodeBlock filename={`example-${index}.cs`} code={doc.snippet} />}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
-      {/* v2 account-backed SDK */}
-      <div className="si-v2-panel" style={{ marginTop: 32 }}>
+      {/* SDK v2 delivery and signed-in player services */}
+      {integrationMode === 'v2' && (
+        <div className="si-v2-panel" style={{ marginTop: 32 }}>
         <div className="si-v2-heading">
           <div>
             <p className="si-v2-kicker">{td.siV2Kicker}</p>
             <h2 className="gd-section-title">{td.siV2Title}</h2>
             <p className="si-v2-intro">{td.siV2Intro}</p>
           </div>
-          <span className={`si-v2-status${serverBackend.v2Enabled ? ' is-on' : ''}`}>
-            {serverBackend.v2Enabled ? td.siV2On : td.siV2Off}
+          <span className="si-v2-status is-on">
+            {td.siV2On}
           </span>
         </div>
 
         <div className="si-v2-toggle-grid">
-          <label className="si-v2-toggle-card">
-            <input type="checkbox" checked={Boolean(serverBackend.v2Enabled)} onChange={(e) => handleToggle('v2Enabled', e.target.checked)} />
-            <span>
-              <strong>{td.siV2Enabled}</strong>
-              <small>{td.siV2EnabledDesc}</small>
-            </span>
-          </label>
           <label className="si-v2-toggle-card">
             <input type="checkbox" checked={Boolean(serverBackend.cloudSaveEnabled)} onChange={(e) => handleToggle('cloudSaveEnabled', e.target.checked)} />
             <span>
@@ -507,7 +642,7 @@ export default function ServerIntegrationTab({ gameId }) {
           </label>
         </div>
 
-        {serverBackend.v2Enabled && <div className="si-v2-warning">{td.siV2MigrationWarning}</div>}
+        <div className="si-v2-warning">{td.siV2ModeNotice}</div>
 
         <div className="si-v2-block">
           <div className="si-v2-block-heading">
@@ -602,14 +737,17 @@ export default function ServerIntegrationTab({ gameId }) {
               <p className="si-v2-empty-note">{td.siV2CloudSavesEmpty}</p>
             )}
           </div>
-        )}
-      </div>
+         )}
+        </div>
+      )}
+       </>
+      )}
 
-      {entriesModalLb && (
+      {liveOpsEnabled && entriesModalLb && (
         <LeaderboardEntriesModal
           lb={entriesModalLb}
           entries={entriesByLb[entriesModalLb._id]}
-          v2Enabled={Boolean(serverBackend.v2Enabled)}
+          v2Enabled={integrationMode === 'v2'}
           v2Data={scoresByLb[entriesModalLb._id]}
           v2Loading={Boolean(scoresLoadingByLb[entriesModalLb._id])}
           td={td}
@@ -621,7 +759,7 @@ export default function ServerIntegrationTab({ gameId }) {
         />
       )}
 
-      {configModalCfg && (
+      {liveOpsEnabled && configModalCfg && (
         <Suspense
           fallback={<Modal title={`${configModalCfg.key} · ${td.siEdit}`} onClose={() => setConfigModalCfg(null)} wide><p className="gd-empty-text">{td.loading}</p></Modal>}
         >

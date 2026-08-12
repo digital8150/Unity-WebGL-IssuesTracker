@@ -58,6 +58,10 @@ const gameSchema = new mongoose.Schema(
       configEnabled: { type: Boolean, default: false },
       secret: { type: String, default: '' },
       secretRotatedAt: { type: Date, default: null },
+      // Explicit LiveOps controls. They intentionally have no defaults so
+      // older documents can still be recognized from their existing flags.
+      liveOpsEnabled: { type: Boolean },
+      liveOpsMode: { type: String, enum: ['legacy', 'v2'] },
       v2Enabled: { type: Boolean, default: false },
       cloudSaveEnabled: { type: Boolean, default: false },
       v2DevTokenIssuedAt: { type: Date, default: null },

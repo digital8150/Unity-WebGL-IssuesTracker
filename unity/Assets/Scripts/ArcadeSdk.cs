@@ -194,7 +194,7 @@ namespace ArcadeBackend
             var token = ResolveEditorToken();
             if (string.IsNullOrEmpty(token))
             {
-                Debug.LogWarning("[ArcadeSdk] 에디터 개발 토큰이 없습니다. 대시보드 → 서버와 통합 → SDK v2에서 발급하세요.");
+                Debug.LogWarning("[ArcadeSdk] 에디터 개발 토큰이 없습니다. 대시보드 → LiveOps 설정 → SDK v2에서 발급하세요.");
                 yield break;
             }
 
