@@ -15,5 +15,6 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 COPY server/ ./
 COPY --from=web-build /src/web/dist /app/web/dist
+COPY unity/ /app/unity/
 
 CMD ["npm", "start"]

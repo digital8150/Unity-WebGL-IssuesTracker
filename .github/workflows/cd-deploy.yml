@@ -21,13 +21,20 @@ jobs:
             
             # 2. 최신 코드 가져오기
             git pull origin main
+
+            # Keep the trusted PR Preview build input in sync with main.
+            # The preview controller is installed outside this checkout and
+            # intentionally reads this root-owned Dockerfile. Without this
+            # copy, generated SDK delivery cannot read /app/unity/*.cs.
+            sudo install -d -m 755 /usr/local/share/arcade-preview
+            sudo install -o root -g root -m 0644 deploy/preview/Dockerfile /usr/local/share/arcade-preview/Dockerfile
             
-            # 3. Web 프론트엔드 의존성 설치 및 빌드
+            # 4. Web 프론트엔드 의존성 설치 및 빌드
             cd web
             npm install
             npm run build
             
-            # 4. Server 백엔드 이동, 의존성 설치 및 PM2 재시작
+            # 5. Server 백엔드 이동, 의존성 설치 및 PM2 재시작
             cd ../server
             npm install
             pm2 restart arcade-server
