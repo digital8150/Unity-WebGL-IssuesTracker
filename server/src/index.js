@@ -14,7 +14,7 @@ import blogRouter from './routes/blog.js';
 import translationsRouter from './routes/translations.js';
 import seoRouter from './routes/seo.js';
 import apiV2Router from './routes/apiV2.js';
-import { createBuildFileHandler, createContentFileHandler, createThumbnailFileHandler } from './services/buildFiles.js';
+import { createBlogImageFileHandler, createBuildFileHandler, createContentFileHandler, createThumbnailFileHandler } from './services/buildFiles.js';
 import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
@@ -63,27 +63,7 @@ app.get('/builds/:buildId/*', createBuildFileHandler(STORAGE_ROOT));
 app.get('/content/:gameId/:channel/*', createContentFileHandler(CONTENT_ROOT));
 app.get('/thumbnails/:filename', createThumbnailFileHandler(THUMBNAIL_ROOT));
 
-const BLOG_IMAGE_MIME = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  gif: 'image/gif',
-  mp4: 'video/mp4',
-};
-
-app.get('/blog-images/:filename', async (req, res, next) => {
-  try {
-    const fname = req.params.filename;
-    if (!fname || fname.includes('..') || fname.includes('/')) return res.status(400).end();
-    const filePath = path.join(BLOG_IMAGE_ROOT, fname);
-    try { await fs.access(filePath); } catch { return res.status(404).end(); }
-    const ext = fname.split('.').pop().toLowerCase();
-    res.setHeader('Content-Type', BLOG_IMAGE_MIME[ext] || 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    createReadStream(filePath).pipe(res);
-  } catch (err) { next(err); }
-});
+app.get('/blog-images/:filename', createBlogImageFileHandler(BLOG_IMAGE_ROOT));
 
 // Public SEO pages must be mounted before Apache's static SPA fallback.
 app.use(seoRouter({

@@ -5,7 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import express from 'express';
 
-import { createBuildFileHandler, createContentFileHandler } from '../src/services/buildFiles.js';
+import { createBlogImageFileHandler, createBuildFileHandler, createContentFileHandler } from '../src/services/buildFiles.js';
 
 async function startServer(storageRoot) {
   const app = express();
@@ -215,5 +215,43 @@ test('If-None-Match takes precedence over If-Modified-Since on revalidated conte
   } finally {
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await fs.rm(contentRoot, { recursive: true, force: true });
+  }
+});
+
+test('blog images are served with their mime type rather than failing', async () => {
+  const blogRoot = path.resolve('storage', 'blog-image-handler-test');
+  await fs.rm(blogRoot, { recursive: true, force: true });
+  await fs.mkdir(blogRoot, { recursive: true });
+  await fs.writeFile(path.join(blogRoot, 'photo.jpg'), 'jpeg-bytes');
+  await fs.writeFile(path.join(blogRoot, 'clip.mp4'), 'mp4-bytes');
+
+  const app = express();
+  app.get('/blog-images/:filename', createBlogImageFileHandler(blogRoot));
+  app.use((error, _req, res, _next) => res.status(error.status || 500).json({ error: error.message }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+
+  try {
+    // Regression: this handler previously called an unimported createReadStream,
+    // so every blog image returned 500 instead of its bytes.
+    const jpeg = await fetch(`http://127.0.0.1:${port}/blog-images/photo.jpg`);
+    assert.equal(jpeg.status, 200);
+    assert.equal(jpeg.headers.get('content-type'), 'image/jpeg');
+    assert.equal(jpeg.headers.get('content-length'), String(Buffer.byteLength('jpeg-bytes')));
+    assert.equal(await jpeg.text(), 'jpeg-bytes');
+
+    const mp4 = await fetch(`http://127.0.0.1:${port}/blog-images/clip.mp4`);
+    assert.equal(mp4.status, 200);
+    assert.equal(mp4.headers.get('content-type'), 'video/mp4');
+
+    const missing = await fetch(`http://127.0.0.1:${port}/blog-images/nope.png`);
+    assert.equal(missing.status, 404);
+
+    const traversal = await fetch(`http://127.0.0.1:${port}/blog-images/..%2Fsecret.txt`);
+    assert.equal(traversal.status, 400);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await fs.rm(blogRoot, { recursive: true, force: true });
   }
 });
