@@ -17,6 +17,9 @@ const buildSchema = new mongoose.Schema(
     canvasWidth:  { type: Number, default: 1920 },
     canvasHeight: { type: Number, default: 1080 },
     storageBytes: { type: Number, default: 0 },
+    streamingAssetsFileCount: { type: Number, default: 0 },
+    streamingAssetsBytes: { type: Number, default: 0 },
+    streamingAssetsUpdatedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );

@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { createReadStream } from 'node:fs';
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
@@ -14,6 +13,7 @@ import blogRouter from './routes/blog.js';
 import translationsRouter from './routes/translations.js';
 import seoRouter from './routes/seo.js';
 import apiV2Router from './routes/apiV2.js';
+import { createBuildFileHandler, createThumbnailFileHandler } from './services/buildFiles.js';
 import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
@@ -56,43 +56,8 @@ app.use('/api/blog', blogRouter);
 app.use('/api/admin/translations', translationsRouter);
 app.use('/api/v2', apiV2Router());
 
-function baseMime(filename) {
-  if (filename.endsWith('.wasm')) return 'application/wasm';
-  if (filename.endsWith('.data')) return 'application/octet-stream';
-  if (filename.endsWith('.js')) return 'application/javascript';
-  if (filename.endsWith('.html')) return 'text/html';
-  return 'application/octet-stream';
-}
-
-app.get('/builds/:buildId/*', async (req, res, next) => {
-  try {
-    const filename = req.params[0];
-    if (!filename || filename.includes('..')) return res.status(400).end();
-    const filePath = path.join(STORAGE_ROOT, req.params.buildId, filename);
-    try { await fs.access(filePath); } catch { return res.status(404).end(); }
-    const bare = filename.replace(/\.(br|gz)$/, '');
-    const encoding = filename.endsWith('.br') ? 'br' : filename.endsWith('.gz') ? 'gzip' : null;
-    res.setHeader('Content-Type', baseMime(bare));
-    if (encoding) res.setHeader('Content-Encoding', encoding);
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-    createReadStream(filePath).pipe(res);
-  } catch (err) { next(err); }
-});
-
-const THUMB_MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
-
-app.get('/thumbnails/:filename', async (req, res, next) => {
-  try {
-    const fname = req.params.filename;
-    if (!fname || fname.includes('..') || fname.includes('/')) return res.status(400).end();
-    const filePath = path.join(THUMBNAIL_ROOT, fname);
-    try { await fs.access(filePath); } catch { return res.status(404).end(); }
-    const ext = fname.split('.').pop().toLowerCase();
-    res.setHeader('Content-Type', THUMB_MIME[ext] || 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
-    createReadStream(filePath).pipe(res);
-  } catch (err) { next(err); }
-});
+app.get('/builds/:buildId/*', createBuildFileHandler(STORAGE_ROOT));
+app.get('/thumbnails/:filename', createThumbnailFileHandler(THUMBNAIL_ROOT));
 
 const BLOG_IMAGE_MIME = {
   png: 'image/png',
