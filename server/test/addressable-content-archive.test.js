@@ -298,3 +298,40 @@ test('assetArchiveError attaches a status code that defaults to 413', () => {
   const custom = assetArchiveError('nope', 400);
   assert.equal(custom.status, 400);
 });
+
+test('wrapper stripping requires one shared wrapper directory', async () => {
+  const tmpRoot = await mkTmp();
+  const wrapperNames = ['serverdata', 'streamingassets'];
+  try {
+    // Two different wrapper trees in one zip must not be flattened into a
+    // shared path space — that would collide same-named files and drop one.
+    const mixedZip = path.join(tmpRoot, 'mixed.zip');
+    const mixedDest = path.join(tmpRoot, 'mixed-dest');
+    await fs.writeFile(mixedZip, makeZip([
+      ['ServerData/WebGL/a.bundle', 'remote'],
+      ['StreamingAssets/WebGL/a.bundle', 'local'],
+    ]));
+    const mixed = await extractArchive(mixedZip, mixedDest, { wrapperNames });
+    assert.deepEqual(mixed.relPaths.sort(), [
+      'ServerData/WebGL/a.bundle',
+      'StreamingAssets/WebGL/a.bundle',
+    ]);
+
+    // A lone root-level file named after a wrapper would strip to an empty
+    // path and be dropped, so it must keep its name instead.
+    const bareZip = path.join(tmpRoot, 'bare.zip');
+    const bareDest = path.join(tmpRoot, 'bare-dest');
+    await fs.writeFile(bareZip, makeZip([['ServerData', 'not a directory']]));
+    const bare = await extractArchive(bareZip, bareDest, { wrapperNames });
+    assert.deepEqual(bare.relPaths, ['ServerData']);
+
+    // The ordinary single-wrapper zip still gets stripped.
+    const wrappedZip = path.join(tmpRoot, 'wrapped.zip');
+    const wrappedDest = path.join(tmpRoot, 'wrapped-dest');
+    await fs.writeFile(wrappedZip, makeZip([['ServerData/WebGL/a.bundle', 'remote']]));
+    const wrapped = await extractArchive(wrappedZip, wrappedDest, { wrapperNames });
+    assert.deepEqual(wrapped.relPaths, ['WebGL/a.bundle']);
+  } finally {
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+});

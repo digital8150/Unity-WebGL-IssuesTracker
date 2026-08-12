@@ -21,7 +21,17 @@ const router = Router();
 export const CONTENT_ROOT = path.resolve('storage', 'content');
 const CONTENT_PUBLIC_ORIGIN = (process.env.SITE_ORIGIN || 'https://arcade.codingbot.kr').replace(/\/$/, '');
 const CONTENT_CHANNEL_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
-const CONTENT_SWAP_ARTIFACT_PREFIXES = ['.content-tmp-', '.content-old-'];
+// Swap artifacts live beside the channel directories under the game root, so
+// their prefixes must carry the channel. A shared prefix would let an upload to
+// one channel sweep away an in-flight extraction for a different channel — the
+// per-channel lock does not serialize those, because the channels differ.
+// `isAssetSwapArtifactPath` still matches these by the leading `.content-tmp-`.
+function contentSwapPrefixes(channel) {
+  return {
+    tempPrefix: `.content-tmp-${channel}-`,
+    oldPrefix: `.content-old-${channel}-`,
+  };
+}
 const CONTENT_MAX_FILE_INSPECTOR_LIMIT = 500;
 const contentReplaceLocks = new Map();
 
@@ -99,6 +109,23 @@ function parsePageParam(value, fallback, maximum = Number.MAX_SAFE_INTEGER) {
   return parsed;
 }
 
+// A zip the developer cannot open is their problem, not a server fault. Cap
+// violations already carry a status, and filesystem errno failures (ENOSPC,
+// EACCES, …) are genuine server errors — everything else here is adm-zip
+// failing to parse the upload, which is a 400 rather than a 500.
+async function extractContent(zipPath, gameRoot, options, mode) {
+  try {
+    return mode === 'replace'
+      ? await extractAndSwapArchive(zipPath, gameRoot, options)
+      : await extractAndMergeArchive(zipPath, gameRoot, options);
+  } catch (error) {
+    if (error?.status || error?.code) throw error;
+    const badZip = new Error('Content zip could not be read');
+    badZip.status = 400;
+    throw badZip;
+  }
+}
+
 async function saveContentStats(gameId, channel, stats) {
   let content = await AddressableContent.findOne({ gameId, channel });
   if (!content) content = new AddressableContent({ gameId, channel });
@@ -157,26 +184,20 @@ router.put(
 
       const gameRoot = path.join(CONTENT_ROOT, String(game._id));
       await fs.mkdir(gameRoot, { recursive: true });
-      await sweepSwapArtifacts(gameRoot, CONTENT_SWAP_ARTIFACT_PREFIXES);
+      const { tempPrefix, oldPrefix } = contentSwapPrefixes(channel);
+      await sweepSwapArtifacts(gameRoot, [tempPrefix, oldPrefix]);
 
       const archiveOptions = {
         prefix: '',
         wrapperNames: ['serverdata', 'streamingassets'],
         label: 'Addressables content',
       };
-      const extractionOptions = { extractOptions: archiveOptions };
-      const extracted = mode === 'replace'
-        ? await extractAndSwapArchive(req.file.path, gameRoot, {
-          liveDirName: channel,
-          tempPrefix: '.content-tmp-',
-          oldPrefix: '.content-old-',
-          extractOptions: archiveOptions,
-        })
-        : await extractAndMergeArchive(req.file.path, gameRoot, {
-          liveDirName: channel,
-          tempPrefix: '.content-tmp-',
-          ...extractionOptions,
-        });
+      const extracted = await extractContent(req.file.path, gameRoot, {
+        liveDirName: channel,
+        tempPrefix,
+        oldPrefix,
+        extractOptions: archiveOptions,
+      }, mode);
 
       const targetRoot = channelPath(game._id, channel);
       const stats = await calculateDirectoryStats(targetRoot);

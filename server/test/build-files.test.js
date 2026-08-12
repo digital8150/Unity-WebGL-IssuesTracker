@@ -176,3 +176,44 @@ test('content handler supports single-range requests and falls back to 200 for m
     await fs.rm(contentRoot, { recursive: true, force: true });
   }
 });
+
+test('If-None-Match takes precedence over If-Modified-Since on revalidated content', async () => {
+  const contentRoot = path.resolve('storage', 'content-conditional-test');
+  const channelDir = path.join(contentRoot, CONTENT_GAME_ID, CONTENT_CHANNEL, 'WebGL');
+  await fs.rm(contentRoot, { recursive: true, force: true });
+  await fs.mkdir(channelDir, { recursive: true });
+  await fs.writeFile(path.join(channelDir, 'catalog_a.json'), '{"v":1}');
+
+  const server = await startContentServer(contentRoot);
+  const { port } = server.address();
+  const url = `http://127.0.0.1:${port}/content/${CONTENT_GAME_ID}/${CONTENT_CHANNEL}/WebGL/catalog_a.json`;
+  try {
+    const first = await fetch(url);
+    const etag = first.headers.get('etag');
+    const lastModified = first.headers.get('last-modified');
+    assert.ok(etag);
+
+    // A matching validator still revalidates.
+    const matched = await fetch(url, { headers: { 'if-none-match': etag } });
+    assert.equal(matched.status, 304);
+
+    // Rewriting within the same clock second leaves Last-Modified unchanged, so
+    // honoring If-Modified-Since alongside a stale ETag would serve a 304 for
+    // content the client does not have. RFC 9110 requires ignoring the date.
+    await fs.writeFile(path.join(channelDir, 'catalog_a.json'), '{"v":2}');
+    const stale = await fetch(url, {
+      headers: { 'if-none-match': etag, 'if-modified-since': lastModified },
+    });
+    assert.equal(stale.status, 200);
+    assert.equal(await stale.text(), '{"v":2}');
+
+    // Without If-None-Match the date validator still applies on its own.
+    const dateOnly = await fetch(url, {
+      headers: { 'if-modified-since': stale.headers.get('last-modified') },
+    });
+    assert.equal(dateOnly.status, 304);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await fs.rm(contentRoot, { recursive: true, force: true });
+  }
+});

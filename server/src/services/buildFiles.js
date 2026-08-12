@@ -34,6 +34,28 @@ function isAssetSwapArtifactPath(filename) {
   ));
 }
 
+// `pipe` does not forward source errors, so a read failure mid-response would
+// otherwise surface as an unhandled 'error' event and take the process down.
+function streamFile(filePath, res, next, options) {
+  const stream = createReadStream(filePath, options);
+  stream.on('error', (error) => {
+    if (res.headersSent) res.destroy(error);
+    else next(error);
+  });
+  stream.pipe(res);
+}
+
+// RFC 9110: If-Modified-Since must be ignored when If-None-Match is present.
+// Honoring both would return 304 on an ETag miss whenever the file changed
+// twice within the same second, since Last-Modified only has second precision.
+function isNotModified(req, etag, mtimeMs) {
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (ifNoneMatch !== undefined) return matchesEtag(ifNoneMatch, etag);
+  const ifModifiedSince = req.headers['if-modified-since'];
+  const parsed = typeof ifModifiedSince === 'string' ? Date.parse(ifModifiedSince) : NaN;
+  return !Number.isNaN(parsed) && parsed >= Math.floor(mtimeMs / 1000) * 1000;
+}
+
 function matchesEtag(header, etag) {
   if (header === '*') return true;
   if (typeof header !== 'string') return false;
@@ -70,11 +92,7 @@ export function createBuildFileHandler(storageRoot) {
         res.setHeader('ETag', etag);
         res.setHeader('Last-Modified', stat.mtime.toUTCString());
 
-        const ifModifiedSince = req.headers['if-modified-since'];
-        const parsedIfModifiedSince = typeof ifModifiedSince === 'string' ? Date.parse(ifModifiedSince) : NaN;
-        const notModifiedSince = !Number.isNaN(parsedIfModifiedSince)
-          && parsedIfModifiedSince >= Math.floor(stat.mtimeMs / 1000) * 1000;
-        if (matchesEtag(req.headers['if-none-match'], etag) || notModifiedSince) {
+        if (isNotModified(req, etag, stat.mtimeMs)) {
           return res.status(304).end();
         }
       } else {
@@ -82,7 +100,7 @@ export function createBuildFileHandler(storageRoot) {
       }
 
       res.setHeader('Content-Length', stat.size);
-      createReadStream(filePath).pipe(res);
+      streamFile(filePath, res, next);
     } catch (err) {
       next(err);
     }
@@ -162,11 +180,7 @@ export function createContentFileHandler(contentRoot) {
         const etag = `W/"${stat.size}-${stat.mtimeMs}"`;
         res.setHeader('ETag', etag);
         res.setHeader('Last-Modified', stat.mtime.toUTCString());
-        const ifModifiedSince = req.headers['if-modified-since'];
-        const parsedIfModifiedSince = typeof ifModifiedSince === 'string' ? Date.parse(ifModifiedSince) : NaN;
-        const notModifiedSince = !Number.isNaN(parsedIfModifiedSince)
-          && parsedIfModifiedSince >= Math.floor(stat.mtimeMs / 1000) * 1000;
-        if (matchesEtag(req.headers['if-none-match'], etag) || notModifiedSince) {
+        if (isNotModified(req, etag, stat.mtimeMs)) {
           return res.status(304).end();
         }
       }
@@ -181,12 +195,12 @@ export function createContentFileHandler(contentRoot) {
         res.status(206);
         res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${stat.size}`);
         res.setHeader('Content-Length', length);
-        createReadStream(filePath, { start: range.start, end: range.end }).pipe(res);
+        streamFile(filePath, res, next, { start: range.start, end: range.end });
         return;
       }
 
       res.setHeader('Content-Length', stat.size);
-      createReadStream(filePath).pipe(res);
+      streamFile(filePath, res, next);
     } catch (error) {
       next(error);
     }
@@ -211,7 +225,7 @@ export function createThumbnailFileHandler(thumbnailRoot) {
       res.setHeader('Content-Type', THUMB_MIME[ext] || 'application/octet-stream');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('Content-Length', stat.size);
-      createReadStream(filePath).pipe(res);
+      streamFile(filePath, res, next);
     } catch (err) {
       next(err);
     }

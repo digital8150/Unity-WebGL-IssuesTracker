@@ -41,13 +41,13 @@ These were open questions; they are settled here so implementation does not stal
 
 **Public URL** (this is the string the dashboard shows the developer):
 
-```
+```text
 https://arcade.codingbot.kr/content/<gameId>/<channel>/
 ```
 
 The developer sets their Addressables profile **RemoteLoadPath** to:
 
-```
+```text
 https://arcade.codingbot.kr/content/<gameId>/<channel>/[BuildTarget]
 ```
 
@@ -56,7 +56,7 @@ and **RemoteBuildPath** to the usual `ServerData/[BuildTarget]`. They then zip
 
 **On-disk layout**, mirroring `STORAGE_ROOT` in `games.js:66`:
 
-```
+```text
 server/storage/content/<gameId>/<channel>/WebGL/*.bundle
 server/storage/content/<gameId>/<channel>/WebGL/catalog_*.json
 ```
@@ -152,13 +152,16 @@ Also: **delete the content directory when the game is deleted.** Add the
 deleted game leaks its entire Addressables payload.
 
 > ⚠️ **Pre-existing bug found while writing this plan, not caused by it.** `DELETE /:gameId`
-> currently removes only `GameArticle` documents, the `Game`, and its translations. It does
-> **not** delete `Build` documents, `Issue` documents, `storage/builds/<buildId>/` directories,
-> or thumbnail files. Deleting a game therefore orphans its entire build payload on disk
+> removed only `GameArticle` documents, the `Game`, and its translations. It did **not**
+> delete `Build` documents, `Issue` documents, `storage/builds/<buildId>/` directories, or
+> thumbnail files. Deleting a game therefore orphaned its entire build payload on disk
 > permanently — and because `/api/auth/usage` (`auth.js:131`) scopes its aggregation to
-> currently-owned games, that orphaned disk usage stops counting against the owner's quota.
-> Fixing this is out of scope here, but the content-cleanup code should be written so the
-> broader fix can reuse it. Worth filing separately.
+> currently-owned games, that orphaned disk usage stopped counting against the owner's quota.
+>
+> **Resolved as part of this work** rather than deferred: the deletion path now removes build
+> and content directories and thumbnail files, plus `Build`, `Issue`, `AddressableContent`,
+> `GameConfig`, `Leaderboard`, `LeaderboardScore`, and `CloudSave` documents. Deletion is
+> therefore expected to leave no payload behind for the game.
 
 **Effort: ~0.75 day.**
 
@@ -177,7 +180,7 @@ Start from `createBuildFileHandler` (`buildFiles.js:35`) and change four things.
 
 ### 5a. MIME
 
-```
+```text
 .bundle            → application/octet-stream
 .json              → application/json
 .hash              → text/plain
@@ -220,7 +223,7 @@ improvement to the existing build path with no behavioral risk.
 
 ### 5d. Range requests — the only genuinely new code
 
-```
+```text
 Always: res.setHeader('Accept-Ranges', 'bytes')
 
 If req.headers.range matches /^bytes=(\d*)-(\d*)$/:

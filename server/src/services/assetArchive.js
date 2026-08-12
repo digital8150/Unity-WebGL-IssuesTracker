@@ -40,8 +40,15 @@ function normalizedEntryParts(entryName) {
 function shouldStripWrapper(entries, wrapperNames) {
   const names = new Set((wrapperNames || []).map((name) => String(name).toLowerCase()));
   if (!names.size || !entries.length) return false;
-  const firstSegments = entries.map((entry) => normalizedEntryParts(entry.entryName)[0] || '');
-  return firstSegments.every((segment) => names.has(segment.toLowerCase()));
+  const parts = entries.map((entry) => normalizedEntryParts(entry.entryName));
+  // Strip only a wrapper every entry actually shares, and only when each entry
+  // has something beneath it. Accepting any name from the set would merge two
+  // distinct wrapper trees into one path space, and a bare root-level file
+  // named after a wrapper would strip to an empty path and be dropped.
+  if (parts.some((entryParts) => entryParts.length < 2)) return false;
+  const wrapper = parts[0][0].toLowerCase();
+  if (!names.has(wrapper)) return false;
+  return parts.every((entryParts) => entryParts[0].toLowerCase() === wrapper);
 }
 
 function isHashedBundle(filename) {
@@ -220,9 +227,21 @@ async function walkFiles(rootDir) {
   return result;
 }
 
+// Addressables resolves bundles through the catalog, so the catalog must never
+// become live ahead of the payload it names. `walkFiles` returns entries
+// alphabetically, which puts `catalog_*.json` before most bundle filenames and
+// would leave a window where a client reads a catalog whose bundles are not on
+// disk yet. Installing metadata last closes that window for merge uploads.
+const CATALOG_METADATA_PATTERN = /^catalog.*\.(json|bin|hash)$|\.hash$/i;
+
+function metadataLast(files) {
+  const isMetadata = (file) => CATALOG_METADATA_PATTERN.test(path.posix.basename(file.relative));
+  return [...files.filter((file) => !isMetadata(file)), ...files.filter(isMetadata)];
+}
+
 export async function mergeArchiveTree(tempDir, liveDir) {
   const files = await walkFiles(tempDir);
-  for (const file of files) {
+  for (const file of metadataLast(files)) {
     const destination = path.join(liveDir, ...file.relative.split('/'));
     await fs.mkdir(path.dirname(destination), { recursive: true });
     await moveFile(file.filePath, destination);

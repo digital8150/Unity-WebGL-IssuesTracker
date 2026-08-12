@@ -104,6 +104,7 @@ export default function GameContentTab({ gameId }) {
     setFilesOffset(0);
     setFilesHasMore(false);
     setFilesError('');
+    setFilesLoading(false);
     setLastUploadResult(null);
   }, [activeChannel]);
 
@@ -144,19 +145,27 @@ export default function GameContentTab({ gameId }) {
     setUploadPhase('canceled');
   }
 
+  // Switching channels mid-flight would otherwise let the previous channel's
+  // page resolve into the current channel's list.
+  const activeChannelRef = useRef(activeChannel);
+  useEffect(() => { activeChannelRef.current = activeChannel; }, [activeChannel]);
+
   const loadFiles = useCallback(async (offset) => {
     if (!channelValid) return;
+    const requestedChannel = activeChannel;
     setFilesLoading(true);
     setFilesError('');
     try {
-      const data = await getGameContentFiles(gameId, activeChannel, { offset, limit: FILES_PAGE_SIZE });
+      const data = await getGameContentFiles(gameId, requestedChannel, { offset, limit: FILES_PAGE_SIZE });
+      if (activeChannelRef.current !== requestedChannel) return;
       setFiles((prev) => (offset === 0 ? data.files : [...prev, ...data.files]));
       setFilesOffset(offset + data.files.length);
       setFilesHasMore(Boolean(data.hasMore));
     } catch (err) {
+      if (activeChannelRef.current !== requestedChannel) return;
       setFilesError(err.message);
     } finally {
-      setFilesLoading(false);
+      if (activeChannelRef.current === requestedChannel) setFilesLoading(false);
     }
   }, [gameId, activeChannel, channelValid]);
 
