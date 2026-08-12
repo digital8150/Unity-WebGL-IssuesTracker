@@ -5,6 +5,7 @@ const { SITE_ORIGIN = 'https://arcade.codingbot.kr' } = process.env;
 const DEFAULT_SITE_ORIGIN = 'https://arcade.codingbot.kr';
 const ARCADE_SDK_CS = fileURLToPath(new URL('../../../unity/Assets/Scripts/ArcadeSdk.cs', import.meta.url));
 const ARCADE_SDK_JSLIB = fileURLToPath(new URL('../../../unity/Assets/Plugins/WebGL/ArcadeSdk.jslib', import.meta.url));
+const arcadeSdkFileCache = new Map();
 
 const XOR_KEY = 0x5a;
 
@@ -330,8 +331,11 @@ ${leaderboardEntryStruct}
 }
 
 function readArcadeSdkFile(filename, path) {
+  if (arcadeSdkFileCache.has(path)) return arcadeSdkFileCache.get(path);
   try {
-    return fs.readFileSync(path, 'utf8');
+    const source = fs.readFileSync(path, 'utf8');
+    arcadeSdkFileCache.set(path, source);
+    return source;
   } catch (error) {
     const wrapped = new Error(`Arcade SDK asset is unavailable: ${filename}`);
     wrapped.cause = error;

@@ -49,7 +49,7 @@ async function request(server, path, token) {
   const address = server.address();
   return new Promise((resolve, reject) => {
     const requestObject = http.request({
-      host: address.address,
+      host: '127.0.0.1',
       port: address.port,
       path,
       method: 'GET',

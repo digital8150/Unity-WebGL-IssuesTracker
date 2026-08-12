@@ -114,8 +114,9 @@ function saveIdentity(body, existing) {
       gameId: body.gameId ?? existing?.gameId,
       userId: body.userId ?? existing?.userId,
       slot: body.slot ?? existing?.slot,
+      isDev: body.isDev ?? existing?.isDev,
     },
-    ['gameId', 'userId', 'slot'],
+    ['gameId', 'userId', 'slot', 'isDev'],
   );
 }
 

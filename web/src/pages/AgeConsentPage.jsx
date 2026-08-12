@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
@@ -20,12 +20,12 @@ export default function AgeConsentPage() {
     ? '/dashboard'
     : (typeof location.state?.from === 'string' ? location.state.from : '/');
 
-  if (!user) return null;
+  useEffect(() => {
+    if (user?.ageConfirmedAt) navigate(destination, { replace: true });
+  }, [destination, navigate, user?.ageConfirmedAt]);
 
-  if (user.ageConfirmedAt) {
-    navigate(destination, { replace: true });
-    return null;
-  }
+  if (!user) return null;
+  if (user.ageConfirmedAt) return null;
 
   async function handleConfirm() {
     setSaving(true);

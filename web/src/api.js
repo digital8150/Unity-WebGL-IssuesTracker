@@ -258,8 +258,8 @@ export async function getCloudSaves(gameId, page = 1) {
   return request(`/api/games/${gameId}/backend/saves?page=${encodeURIComponent(page)}`);
 }
 
-export async function deleteCloudSave(gameId, saveId) {
-  return request(`/api/games/${gameId}/backend/saves/${saveId}`, { method: 'DELETE' });
+export async function deleteCloudSave(gameId, saveId, isDev = false) {
+  return request(`/api/games/${gameId}/backend/saves/${saveId}?devOnly=${isDev ? 'true' : 'false'}`, { method: 'DELETE' });
 }
 
 export async function deleteDevCloudSaves(gameId) {

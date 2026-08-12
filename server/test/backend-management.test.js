@@ -265,7 +265,7 @@ async function request(server, path, { userId = 'owner', method = 'GET' } = {}) 
   const address = server.address();
   return new Promise((resolve, reject) => {
     const requestObject = http.request({
-      host: address.address,
+      host: '127.0.0.1',
       port: address.port,
       path,
       method,
@@ -332,7 +332,18 @@ test('score and save deletion never crosses game or leaderboard boundaries', asy
 
   const row = await request(server, '/api/games/game-a/backend/saves/save-b-1', { method: 'DELETE' });
   assert.equal(row.status, 404);
-  assert.deepEqual(models.calls.saveDelete.at(-1), { _id: 'save-b-1', gameId: 'game-a' });
+  assert.deepEqual(models.calls.saveDelete.at(-1), { _id: 'save-b-1', gameId: 'game-a', isDev: false });
+
+  const productionFromDev = await request(server, '/api/games/game-a/backend/saves/save-a-1?devOnly=true', { method: 'DELETE' });
+  assert.equal(productionFromDev.status, 404);
+  assert.deepEqual(models.calls.saveDelete.at(-1), { _id: 'save-a-1', gameId: 'game-a', isDev: true });
+
+  const devFromProduction = await request(server, '/api/games/game-a/backend/saves/save-a-2', { method: 'DELETE' });
+  assert.equal(devFromProduction.status, 404);
+  assert.deepEqual(models.calls.saveDelete.at(-1), { _id: 'save-a-2', gameId: 'game-a', isDev: false });
+
+  const devSaveDeleted = await request(server, '/api/games/game-a/backend/saves/save-a-2?devOnly=true', { method: 'DELETE', userId: 'collaborator' });
+  assert.deepEqual(devSaveDeleted, { status: 200, body: { ok: true } });
 
   const saveDeleted = await request(server, '/api/games/game-a/backend/saves/save-a-1', { method: 'DELETE', userId: 'collaborator' });
   assert.deepEqual(saveDeleted, { status: 200, body: { ok: true } });

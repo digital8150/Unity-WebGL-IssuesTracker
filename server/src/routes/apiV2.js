@@ -157,6 +157,10 @@ function scoreSortSpec(sort) {
   return sort === 'asc' ? { score: 1, bestAt: 1 } : { score: -1, bestAt: 1 };
 }
 
+function saveFilter(gameId, userId, slot, isDev) {
+  return { gameId, userId, slot, isDev: Boolean(isDev) };
+}
+
 async function rankForRow(ScoreModel, leaderboard, gameId, row, fallbackRank) {
   if (
     typeof ScoreModel.countDocuments !== 'function'
@@ -304,23 +308,21 @@ function conflictFromDecision(decision) {
 
 async function writeSave({ SaveModel, gameId, userId, slot, body, existing, isDev }) {
   const size = Buffer.byteLength(body.data, 'utf8');
+  const identity = saveFilter(gameId, userId, slot, isDev);
   // Never let client-supplied identity/provenance fields influence the CAS
   // decision. The token is the sole source of game/user scope.
   const decision = resolveSaveWrite({
     existing,
     body: {
-      gameId,
-      userId,
-      slot,
+      ...identity,
       data: body.data,
       size,
-      isDev: Boolean(isDev),
       ...(body.rev === undefined ? {} : { rev: body.rev }),
     },
   });
   if (conflictFromDecision(decision)) return { conflict: true };
 
-  const base = { gameId, userId, slot, data: body.data, size, isDev: Boolean(isDev) };
+  const base = { ...identity, data: body.data, size };
   const mode = decision?.mode ?? decision?.action;
   const isCreate = !existing && (mode === 'create' || decision?.create === true || decision?.insert === true || body.rev === 0 || body.rev === undefined);
   if (isCreate) {
@@ -329,9 +331,7 @@ async function writeSave({ SaveModel, gameId, userId, slot, body, existing, isDe
   }
 
   const filter = decision?.filter ?? decision?.query ?? {
-    gameId,
-    userId,
-    slot,
+    ...identity,
     ...(body.rev === undefined ? {} : { rev: body.rev }),
   };
   const update = decision?.update ?? {
@@ -342,7 +342,7 @@ async function writeSave({ SaveModel, gameId, userId, slot, body, existing, isDe
   if (result?.matchedCount === 0) {
     return { conflict: true };
   }
-  const save = await findOne(SaveModel, { gameId, userId, slot });
+  const save = await findOne(SaveModel, identity);
   return { save };
 }
 
@@ -366,7 +366,7 @@ export function apiV2Router({ models = {} } = {}) {
         if (!user) return statusError(res, 401, 'User not found');
         if (user.status === 'rejected') return statusError(res, 403, 'Account rejected', 'account_rejected');
 
-        const displayName = String(user.name ?? req.user.name ?? user.email ?? 'User');
+        const displayName = String(user.name ?? req.user.name ?? 'User');
         const token = signGameToken({
           userId: req.user.sub,
           gameId: req.v2Game._id,
@@ -441,13 +441,7 @@ export function apiV2Router({ models = {} } = {}) {
 
         const current = await findOne(ScoreModel, { leaderboardId: leaderboard._id, gameId, userId });
         if (!current) return res.status(201).json({ ok: true, rank: -1 });
-        const allRows = await findMany(ScoreModel, { leaderboardId: leaderboard._id, gameId }, { sort: scoreSortSpec(leaderboard.sort) });
-        const sorted = [...(allRows ?? [])].sort((a, b) => compareScores(a, b, leaderboard.sort));
-        const ranked = rankSortedRows(sorted, leaderboard.sort);
-        const currentRank = ranked.find((entry) => idString(entry.row.userId) === idString(userId));
-        const rank = currentRank
-          ? await rankForRow(ScoreModel, leaderboard, gameId, currentRank.row, currentRank.rank)
-          : -1;
+        const rank = await rankForRow(ScoreModel, leaderboard, gameId, current, 1);
         return res.status(201).json({ ok: true, rank });
       } catch (error) {
         return next(error);
@@ -474,9 +468,10 @@ export function apiV2Router({ models = {} } = {}) {
         });
         const sorted = [...(rows ?? [])].sort((a, b) => compareScores(a, b, leaderboard.sort));
         const ranked = rankSortedRows(sorted.slice(0, limit), leaderboard.sort);
-        const entries = await Promise.all(ranked.map(async ({ row, rank }) => (
-          publicScore(row, await rankForRow(ScoreModel, leaderboard, gameId, row, rank), userId)
-        )));
+        const rankOffset = ranked.length
+          ? (await rankForRow(ScoreModel, leaderboard, gameId, ranked[0].row, ranked[0].rank)) - ranked[0].rank
+          : 0;
+        const entries = ranked.map(({ row, rank }) => publicScore(row, rank + rankOffset, userId));
         return res.json({ entries });
       } catch (error) {
         return next(error);
@@ -500,7 +495,7 @@ export function apiV2Router({ models = {} } = {}) {
 
         const rank = await rankForRow(ScoreModel, leaderboard, gameId, score, 1);
         const entry = publicScore(score, rank, userId);
-        return res.json({ entry, ...entry });
+        return res.json({ entry, rank });
       } catch (error) {
         return next(error);
       }
@@ -534,7 +529,8 @@ export function apiV2Router({ models = {} } = {}) {
       try {
         if (!validateSaveSlot(req, res)) return;
         const { gameId, userId } = tokenIdentity(req);
-        const save = await findOne(SaveModel, { gameId, userId, slot: req.params.slot });
+        const filter = saveFilter(gameId, userId, req.params.slot, req.gameToken.dev);
+        const save = await findOne(SaveModel, filter);
         if (!save) return statusError(res, 404, 'Save not found');
         return res.json(serializeSave(save));
       } catch (error) {
@@ -556,10 +552,12 @@ export function apiV2Router({ models = {} } = {}) {
 
         const { gameId, userId } = tokenIdentity(req);
         const slot = req.params.slot;
-        const existing = await findOne(SaveModel, { gameId, userId, slot });
+        const isDev = Boolean(req.gameToken.dev);
+        const filter = saveFilter(gameId, userId, slot, isDev);
+        const existing = await findOne(SaveModel, filter);
         const mayCreate = req.body.rev === undefined || req.body.rev === 0;
         if (!existing && mayCreate && typeof SaveModel.countDocuments === 'function') {
-          const slotCount = await SaveModel.countDocuments({ gameId, userId });
+          const slotCount = await SaveModel.countDocuments({ gameId, userId, isDev });
           if (slotCount >= MAX_SAVE_SLOTS) return statusError(res, 409, 'Save slot limit reached', 'save_slots_full');
         }
 
@@ -570,33 +568,37 @@ export function apiV2Router({ models = {} } = {}) {
           slot,
           body: req.body,
           existing,
-          isDev: Boolean(req.gameToken.dev),
+          isDev,
         });
         if (result.conflict) {
-          const current = await findOne(SaveModel, { gameId, userId, slot });
+          const current = await findOne(SaveModel, filter);
           return saveConflict(res, current);
         }
-        const save = result.save ?? await findOne(SaveModel, { gameId, userId, slot });
+        const save = result.save ?? await findOne(SaveModel, filter);
         return res.json(serializeSave(save));
       } catch (error) {
         if (error?.code === 11000) {
           if (req.body?.rev === undefined) {
             const { gameId, userId } = tokenIdentity(req);
+            const isDev = Boolean(req.gameToken?.dev);
+            const filter = saveFilter(gameId, userId, req.params.slot, isDev);
             const data = req.body?.data;
             const size = typeof data === 'string' ? Buffer.byteLength(data, 'utf8') : 0;
             await modelOperation('updateOne', SaveModel,
-              { gameId, userId, slot: req.params.slot },
+              filter,
               {
-                $set: { data, size, isDev: Boolean(req.gameToken?.dev) },
+                $set: { data, size, isDev },
                 $inc: { rev: 1 },
               });
-            const saved = await findOne(SaveModel, { gameId, userId, slot: req.params.slot });
+            const saved = await findOne(SaveModel, filter);
             return res.json(serializeSave(saved));
           }
+          const isDev = Boolean(req.gameToken?.dev);
           const current = await findOne(SaveModel, {
             gameId: req.gameToken?.gid,
             userId: req.gameToken?.sub,
             slot: req.params.slot,
+            isDev,
           });
           return saveConflict(res, current);
         }
@@ -614,7 +616,7 @@ export function apiV2Router({ models = {} } = {}) {
       try {
         if (!validateSaveSlot(req, res)) return;
         const { gameId, userId } = tokenIdentity(req);
-        const result = await modelOperation('deleteOne', SaveModel, { gameId, userId, slot: req.params.slot });
+        const result = await modelOperation('deleteOne', SaveModel, saveFilter(gameId, userId, req.params.slot, req.gameToken.dev));
         if (result?.deletedCount === 0) return statusError(res, 404, 'Save not found');
         return res.json({ ok: true });
       } catch (error) {

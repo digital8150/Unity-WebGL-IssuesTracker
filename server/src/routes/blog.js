@@ -1,9 +1,9 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import multer from 'multer';
 import BlogPost from '../models/BlogPost.js';
-import User from '../models/User.js';
 import { requireAuth, requireApproved, requireAdmin, optionalAuth } from '../middleware/auth.js';
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { BLOG_IMAGE_MAX_BYTES, convertGifToMp4 } from '../services/blogMedia.js';
@@ -11,6 +11,7 @@ import Translation from '../models/Translation.js';
 import SiteSettings from '../models/SiteSettings.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
+import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
@@ -19,36 +20,13 @@ const blogUpload = multer({
   limits: { fileSize: BLOG_IMAGE_MAX_BYTES },
 });
 
-function sameId(left, right) {
-  const leftId = left?._id ?? left?.id ?? left;
-  const rightId = right?._id ?? right?.id ?? right;
-  return leftId !== null && leftId !== undefined
-    && rightId !== null && rightId !== undefined
-    && String(leftId) === String(rightId);
-}
-
 export function canDeleteBlogComment({ comment, userId, postAuthorId, role } = {}) {
   return role === 'admin'
     || (comment?.authorId && sameId(comment.authorId, userId))
     || sameId(postAuthorId, userId);
 }
 
-export function serializeBlogComment(comment, fallbackAuthorName = '') {
-  if (!comment) return comment;
-  const value = comment?.toObject ? comment.toObject() : { ...comment };
-  const populatedName = value.authorId && typeof value.authorId === 'object'
-    ? String(value.authorId.name ?? '').trim()
-    : '';
-  const storedName = String(value.authorName ?? '').trim();
-  const currentName = value.authorId && String(fallbackAuthorName ?? '').trim();
-  const { authorId, ...serialized } = value;
-  const publicAuthorId = authorId?._id ?? authorId;
-  return {
-    ...serialized,
-    ...(publicAuthorId ? { authorId: String(publicAuthorId) } : {}),
-    authorName: populatedName || currentName || storedName || 'Anonymous',
-  };
-}
+export const serializeBlogComment = serializeComment;
 
 function serializeBlogPost(post) {
   if (!post) return post;
@@ -59,17 +37,6 @@ function serializeBlogPost(post) {
       ? value.comments.map((comment) => serializeBlogComment(comment))
       : [],
   };
-}
-
-async function isAdminUser(req) {
-  if (req.user?.role !== undefined) return req.user.role === 'admin';
-  if (!req.user?.sub || User.db.readyState !== 1) return false;
-  try {
-    const user = await User.findById(req.user.sub).select('role').lean();
-    return user?.role === 'admin';
-  } catch {
-    return false;
-  }
 }
 
 function escapeRegex(value) {
@@ -160,6 +127,7 @@ router.post(
       }
 
       const comment = {
+        _id: new mongoose.Types.ObjectId(),
         body: commentBody.trim(),
         authorId: req.user?.sub ?? null,
       };
@@ -176,7 +144,7 @@ router.post(
       ).select('comments').populate('comments.authorId', 'name');
 
       if (!post) return res.status(404).json({ error: 'Post not found' });
-      const added = post.comments[post.comments.length - 1];
+      const added = post.comments.id(comment._id);
       res.status(201).json({ comment: serializeBlogComment(added, req.user?.name || req.user?.email || 'User') });
     } catch (err) {
       next(err);

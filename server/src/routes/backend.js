@@ -455,7 +455,8 @@ router.get('/:gameId/backend/saves', requireAuth, requireApproved, async (req, r
 
     const page = parseManagementPage(req.query.page);
     const skip = (page - 1) * MANAGEMENT_PAGE_SIZE;
-    const filter = { gameId: game._id };
+    const devOnly = String(req.query.devOnly).toLowerCase() === 'true';
+    const filter = { gameId: game._id, ...(devOnly ? { isDev: true } : {}) };
     const [total, saves] = await Promise.all([
       CloudSave.countDocuments(filter),
       CloudSave.find(filter)
@@ -499,7 +500,8 @@ router.delete('/:gameId/backend/saves/:saveId', requireAuth, requireApproved, as
     const game = await loadManagementGame(req, res);
     if (!game) return;
 
-    const result = await CloudSave.deleteOne({ _id: req.params.saveId, gameId: game._id });
+    const isDev = String(req.query.devOnly).toLowerCase() === 'true';
+    const result = await CloudSave.deleteOne({ _id: req.params.saveId, gameId: game._id, isDev });
     if (result.deletedCount === 0) return res.status(404).json({ error: 'Save not found' });
     res.json({ ok: true });
   } catch (err) {

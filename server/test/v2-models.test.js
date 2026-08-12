@@ -34,9 +34,9 @@ test('LeaderboardScore exposes the best-score and display-order indexes', () => 
   assert.ok(score.bestAt instanceof Date);
 });
 
-test('CloudSave validates slot names and has a unique game/user/slot index', async () => {
+test('CloudSave validates slot names and has a unique game/user/slot/provenance index', async () => {
   assert.deepEqual(indexMap(CloudSave), [
-    { keys: { gameId: 1, userId: 1, slot: 1 }, options: { unique: true } },
+    { keys: { gameId: 1, userId: 1, slot: 1, isDev: 1 }, options: { unique: true } },
   ]);
 
   const base = { gameId: id(), userId: id(), data: '{}', size: 2 };

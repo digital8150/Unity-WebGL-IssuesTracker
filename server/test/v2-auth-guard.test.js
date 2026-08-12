@@ -6,63 +6,9 @@ import express from 'express';
 
 import { apiV2Router } from '../src/routes/apiV2.js';
 import { signGameToken } from '../src/services/gameToken.js';
+import { matches, query, sameId } from './helpers/fake-models.js';
 
 process.env.JWT_SECRET ||= 'v2-route-test-site-secret';
-
-function query(value) {
-  let current = value;
-  const chain = {
-    select() {
-      return chain;
-    },
-    sort(specification) {
-      if (Array.isArray(current) && specification) {
-        current = [...current].sort((left, right) => {
-          for (const [field, direction] of Object.entries(specification)) {
-            const a = left?.[field] instanceof Date ? left[field].getTime() : left?.[field];
-            const b = right?.[field] instanceof Date ? right[field].getTime() : right?.[field];
-            if (a === b) continue;
-            return (a < b ? -1 : 1) * Number(direction);
-          }
-          return 0;
-        });
-      }
-      return chain;
-    },
-    limit(valueLimit) {
-      if (Array.isArray(current)) current = current.slice(0, valueLimit);
-      return chain;
-    },
-    lean() {
-      return Promise.resolve(current);
-    },
-    exec() {
-      return Promise.resolve(current);
-    },
-    then(resolve, reject) {
-      return Promise.resolve(current).then(resolve, reject);
-    },
-  };
-  return chain;
-}
-
-function sameId(left, right) {
-  return String(left?._id ?? left?.id ?? left) === String(right?._id ?? right?.id ?? right);
-}
-
-function matches(document, filter) {
-  if (!document) return false;
-  return Object.entries(filter ?? {}).every(([field, expected]) => {
-    if (field === '$or') return expected.some((branch) => matches(document, branch));
-    const actual = document[field];
-    if (expected && typeof expected === 'object' && !Array.isArray(expected)) {
-      if ('$lt' in expected && !(actual < expected.$lt)) return false;
-      if ('$gt' in expected && !(actual > expected.$gt)) return false;
-      return true;
-    }
-    return sameId(actual, expected);
-  });
-}
 
 function fakeModels() {
   const users = [{ _id: 'user-a', status: 'approved', name: 'Alice', email: 'alice@example.test' }];

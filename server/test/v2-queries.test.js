@@ -107,27 +107,24 @@ test('save writes implement force, create-only, and CAS decisions', () => {
   assert.equal(staleCas.response.rev, 3);
 });
 
-test('save provenance is mutable data, never part of the unique identity', () => {
-  const decision = resolveSaveWrite({
-    existing: {
-      gameId: 'game-id',
-      userId: 'user-id',
-      slot: 'main',
-      data: '{}',
-      size: 2,
-      rev: 1,
-      isDev: false,
-    },
-    body: {
-      gameId: 'game-id',
-      userId: 'user-id',
-      slot: 'main',
-      data: '{"dev":true}',
-      size: 12,
-      isDev: true,
-    },
+test('save provenance is part of the identity and separates dev and production saves', () => {
+  const identity = { gameId: 'game-id', userId: 'user-id', slot: 'main' };
+  const productionDocument = { ...identity, isDev: false, data: '{}', size: 2 };
+  const devDocument = { ...identity, isDev: true, data: '{"dev":true}', size: 12 };
+
+  const devOperation = resolveSaveWrite({
+    body: { ...devDocument },
+  });
+  const productionOperation = resolveSaveWrite({
+    body: { ...productionDocument },
   });
 
-  assert.deepEqual(decision.filter, { gameId: 'game-id', userId: 'user-id', slot: 'main' });
-  assert.equal(decision.update.$set.isDev, true);
+  assert.deepEqual(devOperation.filter, { ...identity, isDev: true });
+  assert.deepEqual(productionOperation.filter, { ...identity, isDev: false });
+  assert.equal(devOperation.filter.isDev, true);
+  assert.equal(productionOperation.filter.isDev, false);
+  assert.notEqual(devOperation.filter.isDev, productionDocument.isDev);
+  assert.notEqual(productionOperation.filter.isDev, devDocument.isDev);
+  assert.equal(devOperation.update.$setOnInsert.isDev, true);
+  assert.equal(productionOperation.update.$setOnInsert.isDev, false);
 });

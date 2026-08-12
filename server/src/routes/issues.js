@@ -1,23 +1,16 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { Issue } from '../models/Issue.js';
 import Game from '../models/Game.js';
-import User from '../models/User.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { requireTurnstile } from '../middleware/turnstile.js';
 import { sendDiscordNotification } from '../services/discord.js';
+import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 
 const router = Router();
 
 const ALLOWED_STATUSES  = ['open', 'in-progress', 'resolved', 'closed'];
 const ALLOWED_PRIORITIES = ['none', 'low', 'medium', 'high'];
-
-function sameId(left, right) {
-  const leftId = left?._id ?? left?.id ?? left;
-  const rightId = right?._id ?? right?.id ?? right;
-  return leftId !== null && leftId !== undefined
-    && rightId !== null && rightId !== undefined
-    && String(leftId) === String(rightId);
-}
 
 export function canDeleteIssueComment({ comment, userId, game, role } = {}) {
   if (role === 'admin') return true;
@@ -27,22 +20,7 @@ export function canDeleteIssueComment({ comment, userId, game, role } = {}) {
     || (Array.isArray(game.collaborators) && game.collaborators.some((collaborator) => sameId(collaborator, userId)));
 }
 
-export function serializeIssueComment(comment, fallbackAuthorName = '') {
-  if (!comment) return comment;
-  const value = comment?.toObject ? comment.toObject() : { ...comment };
-  const populatedName = value.authorId && typeof value.authorId === 'object'
-    ? String(value.authorId.name ?? '').trim()
-    : '';
-  const storedName = String(value.authorName ?? '').trim();
-  const currentName = value.authorId && String(fallbackAuthorName ?? '').trim();
-  const { authorId, ...serialized } = value;
-  const publicAuthorId = authorId?._id ?? authorId;
-  return {
-    ...serialized,
-    ...(publicAuthorId ? { authorId: String(publicAuthorId) } : {}),
-    authorName: populatedName || currentName || storedName || 'Anonymous',
-  };
-}
+export const serializeIssueComment = serializeComment;
 
 function serializeIssue(issue) {
   if (!issue) return issue;
@@ -53,17 +31,6 @@ function serializeIssue(issue) {
       ? value.comments.map((comment) => serializeIssueComment(comment))
       : [],
   };
-}
-
-async function isAdminUser(req) {
-  if (req.user?.role !== undefined) return req.user.role === 'admin';
-  if (!req.user?.sub || User.db.readyState !== 1) return false;
-  try {
-    const user = await User.findById(req.user.sub).select('role').lean();
-    return user?.role === 'admin';
-  } catch {
-    return false;
-  }
 }
 
 // ── Create issue (public — testers don't need auth) ───────────────────────────
@@ -190,6 +157,7 @@ router.post('/:id/comments', optionalAuth, async (req, res, next) => {
     }
 
     const comment = {
+      _id: new mongoose.Types.ObjectId(),
       body: commentBody.trim(),
       authorId: req.user?.sub ?? null,
     };
@@ -204,7 +172,7 @@ router.post('/:id/comments', optionalAuth, async (req, res, next) => {
       { new: true },
     ).populate('comments.authorId', 'name');
     if (!issue) return res.status(404).json({ error: 'Not found' });
-    const added = issue.comments[issue.comments.length - 1];
+    const added = issue.comments.id(comment._id);
     res.status(201).json({ comment: serializeIssueComment(added, req.user?.name || req.user?.email || 'User') });
   } catch (err) {
     next(err);

@@ -97,7 +97,7 @@ namespace ArcadeBackend
             }
         }
 
-        /// <summary>Submits a score and returns the current rank, or -1 on failure.</summary>
+        /// <summary>Submits a score and passes the current rank as the second callback argument, or -1 on failure.</summary>
         public void SubmitScore(string leaderboardKey, long score, Action<bool, int> onComplete = null)
         {
             StartCoroutine(SubmitScoreRoutine(leaderboardKey, score, onComplete));
@@ -234,25 +234,34 @@ namespace ArcadeBackend
                 yield break;
             }
 
+            MeResponse hydrated = null;
+            Exception parseException = null;
             try
             {
-                var hydrated = JsonUtility.FromJson<MeResponse>(response.body);
-                if (hydrated == null || string.IsNullOrEmpty(hydrated.userId))
-                {
-                    Debug.LogError("[ArcadeSdk] /api/v2/me 응답이 올바르지 않습니다.");
-                    InvalidateCredential();
-                    yield break;
-                }
-
-                userId = hydrated.userId;
-                displayName = hydrated.displayName ?? string.Empty;
-                MarkReady();
+                hydrated = JsonUtility.FromJson<MeResponse>(response.body);
             }
             catch (Exception exception)
             {
-                Debug.LogError("[ArcadeSdk] /api/v2/me 응답을 읽지 못했습니다: " + exception.Message);
-                InvalidateCredential();
+                parseException = exception;
             }
+
+            if (parseException != null)
+            {
+                Debug.LogError("[ArcadeSdk] /api/v2/me 응답을 읽지 못했습니다: " + parseException.Message);
+                InvalidateCredential();
+                yield break;
+            }
+
+            if (hydrated == null || string.IsNullOrEmpty(hydrated.userId))
+            {
+                Debug.LogError("[ArcadeSdk] /api/v2/me 응답이 올바르지 않습니다.");
+                InvalidateCredential();
+                yield break;
+            }
+
+            userId = hydrated.userId;
+            displayName = hydrated.displayName ?? string.Empty;
+            MarkReady();
         }
 
         private IEnumerator EnsureCredential(Action<bool> onReady)

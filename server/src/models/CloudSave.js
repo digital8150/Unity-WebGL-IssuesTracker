@@ -27,7 +27,7 @@ const cloudSaveSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-cloudSaveSchema.index({ gameId: 1, userId: 1, slot: 1 }, { unique: true });
+cloudSaveSchema.index({ gameId: 1, userId: 1, slot: 1, isDev: 1 }, { unique: true });
 
 export { cloudSaveSchema };
 export default mongoose.model('CloudSave', cloudSaveSchema);

@@ -206,6 +206,7 @@ void Start() {
 | `POST` | `/api/games/:gameId/backend/v2/dev-token` | Bearer(developer) | Unity Editor용 7일 개발 토큰 발급·재발급 |
 
 ### 인증 기반 게임 API v2
+
 | Method | Path | Auth | 설명 |
 |--------|------|------|------|
 | `POST` | `/api/v2/games/:gameSlug/play-token` | Site Bearer | 게임 범위 15분 토큰 발급 |

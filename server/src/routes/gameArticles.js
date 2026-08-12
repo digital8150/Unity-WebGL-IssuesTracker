@@ -9,6 +9,7 @@ import { optionalAuth, requireAuth, requireApproved } from '../middleware/auth.j
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { isPublishedTranslation, loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
+import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 
 const router = express.Router();
 
@@ -21,14 +22,6 @@ function isAuthorized(game, userId) {
     || game.collaborators.some((collaborator) => String(collaborator?._id ?? collaborator) === String(userId));
 }
 
-function sameId(left, right) {
-  const leftId = left?._id ?? left?.id ?? left;
-  const rightId = right?._id ?? right?.id ?? right;
-  return leftId !== null && leftId !== undefined
-    && rightId !== null && rightId !== undefined
-    && String(leftId) === String(rightId);
-}
-
 export function canDeleteGameArticleComment({ comment, userId, game, role } = {}) {
   return role === 'admin'
     || (comment?.authorId && sameId(comment.authorId, userId))
@@ -36,22 +29,7 @@ export function canDeleteGameArticleComment({ comment, userId, game, role } = {}
       || (Array.isArray(game.collaborators) && game.collaborators.some((collaborator) => sameId(collaborator, userId)))));
 }
 
-export function serializeGameArticleComment(comment, fallbackAuthorName = '') {
-  if (!comment) return comment;
-  const value = comment?.toObject ? comment.toObject() : { ...comment };
-  const populatedName = value.authorId && typeof value.authorId === 'object'
-    ? String(value.authorId.name ?? '').trim()
-    : '';
-  const storedName = String(value.authorName ?? '').trim();
-  const currentName = value.authorId && String(fallbackAuthorName ?? '').trim();
-  const { authorId, ...serialized } = value;
-  const publicAuthorId = authorId?._id ?? authorId;
-  return {
-    ...serialized,
-    ...(publicAuthorId ? { authorId: String(publicAuthorId) } : {}),
-    authorName: populatedName || currentName || storedName || 'Anonymous',
-  };
-}
+export const serializeGameArticleComment = serializeComment;
 
 function serializeGameArticle(article) {
   if (!article) return article;
@@ -62,17 +40,6 @@ function serializeGameArticle(article) {
       ? value.comments.map((comment) => serializeGameArticleComment(comment))
       : [],
   };
-}
-
-async function isAdminUser(req) {
-  if (req.user?.role !== undefined) return req.user.role === 'admin';
-  if (!req.user?.sub || User.db.readyState !== 1) return false;
-  try {
-    const user = await User.findById(req.user.sub).select('role').lean();
-    return user?.role === 'admin';
-  } catch {
-    return false;
-  }
 }
 
 function canManageArticle(game, article, user) {

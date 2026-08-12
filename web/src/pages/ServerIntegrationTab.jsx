@@ -179,6 +179,7 @@ export default function ServerIntegrationTab({ gameId }) {
       setScoresByLb((prev) => ({ ...prev, [lbId]: pageInfo(data, page) }));
     } catch (err) {
       setError(err.message);
+      setScoresByLb((prev) => ({ ...prev, [lbId]: pageInfo(null, page) }));
     } finally {
       setScoresLoadingByLb((prev) => ({ ...prev, [lbId]: false }));
     }
@@ -299,10 +300,10 @@ export default function ServerIntegrationTab({ gameId }) {
     }
   }
 
-  async function handleDeleteSave(saveId) {
+  async function handleDeleteSave(saveId, isDev) {
     setError('');
     try {
-      await deleteCloudSave(gameId, saveId);
+      await deleteCloudSave(gameId, saveId, isDev);
       await loadCloudSaves(cloudSaves?.page ?? 1);
     } catch (err) {
       setError(err.message);
@@ -379,6 +380,7 @@ export default function ServerIntegrationTab({ gameId }) {
                   <label className="si-inline-check">
                     <input
                       type="checkbox"
+                      aria-label={td.siLeaderboardEnable}
                       checked={Boolean(lb.enabled)}
                       onChange={(e) => handleUpdateLeaderboard(lb._id, { enabled: e.target.checked })}
                     />
@@ -415,6 +417,7 @@ export default function ServerIntegrationTab({ gameId }) {
         <label className="gd-upload-row">
           <input
             type="checkbox"
+            aria-label={td.siConfigEnable}
             checked={Boolean(serverBackend.configEnabled)}
             onChange={(e) => handleToggle('configEnabled', e.target.checked)}
           />
@@ -587,7 +590,7 @@ export default function ServerIntegrationTab({ gameId }) {
                           <td>{save.size ?? 0} B</td>
                           <td>{save.rev ?? '—'}</td>
                           <td>{formatDate(save.updatedAt)}</td>
-                          <td><button className="btn btn-ghost gd-delete-btn" onClick={() => handleDeleteSave(save._id)}>{td.siV2CloudSaveDelete}</button></td>
+                          <td><button className="btn btn-ghost gd-delete-btn" onClick={() => handleDeleteSave(save._id, save.isDev)}>{td.siV2CloudSaveDelete}</button></td>
                         </tr>
                       ))}
                     </tbody>
@@ -705,8 +708,8 @@ function LeaderboardEntriesModal({
     <Modal title={title} onClose={onClose} wide>
       {(showV2 || showLegacy) && (
         <div className="si-modal-tabs" role="tablist">
-          {showV2 && <button className={`si-modal-tab${tab === 'v2' ? ' active' : ''}`} onClick={() => setTab('v2')}>{td.siV2ScoresTab}</button>}
-          {showLegacy && <button className={`si-modal-tab${tab === 'legacy' ? ' active' : ''}`} onClick={() => setTab('legacy')}>{td.siV2LegacyTab}</button>}
+          {showV2 && <button role="tab" aria-selected={tab === 'v2'} className={`si-modal-tab${tab === 'v2' ? ' active' : ''}`} onClick={() => setTab('v2')}>{td.siV2ScoresTab}</button>}
+          {showLegacy && <button role="tab" aria-selected={tab === 'legacy'} className={`si-modal-tab${tab === 'legacy' ? ' active' : ''}`} onClick={() => setTab('legacy')}>{td.siV2LegacyTab}</button>}
         </div>
       )}
 

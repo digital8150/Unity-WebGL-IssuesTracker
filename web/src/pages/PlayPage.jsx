@@ -20,6 +20,7 @@ import './PlayPage.css';
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 const TOKEN_REFRESH_MS = 9 * 60 * 1000;
 const TOKEN_REQUEST_DEBOUNCE_MS = 2 * 1000;
+const TOKEN_RETRY_MS = 5 * 1000;
 
 function formatReviewDate(date, lang) {
   if (!date) return '';
@@ -139,7 +140,14 @@ export default function PlayPage() {
           scheduleRefresh();
         })
         .catch((error) => {
-          if (!disposed) console.warn('[ArcadeSdk] play token request failed', error);
+          if (!disposed) {
+            console.warn('[ArcadeSdk] play token request failed', error);
+            window.clearTimeout(refreshTimer);
+            refreshTimer = window.setTimeout(() => {
+              refreshTimer = null;
+              if (!disposed) requestToken();
+            }, TOKEN_RETRY_MS);
+          }
         })
         .finally(() => {
           requestInFlight = null;
@@ -354,7 +362,7 @@ export default function PlayPage() {
       }
     : {
         eyebrow: 'ARCADE ID',
-        title: 'Sign in to play',
+        title: 'Sign in to play this game',
         description: 'Sign in with your Arcade ID to keep your scores and cloud saves with you.',
         action: 'Sign in',
         note: 'You will come straight back to this game.',

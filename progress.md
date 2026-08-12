@@ -40,6 +40,7 @@ Keep this file short; detailed implementation history remains in git commits.
 - Add Vitest coverage for `web/`; keep `node --test` coverage growing in `server/`.
 - Add production rate limiting for `POST /api/issues` and server-side upload type validation.
 - Run browser/SEO bootstrap checks with JavaScript disabled or API access blocked, plus a real Unity WebGL E2E pass.
+- Run the pending Unity Editor + uploaded WebGL E2E pass for token invalidation/refresh, score and save round trips, and responsive login-gate checks.
 - Add `/en` Apache routing only when translation publishing is enabled; preserve the `/en` prefix for SSR bootstrap validation.
 - Replace in-memory HMAC nonce/rate-limit state if deployment becomes multi-instance.
 - Submit and monitor the production sitemap in Google Search Console.
@@ -73,3 +74,17 @@ Keep this file short; detailed implementation history remains in git commits.
 - Added manager/admin score/save APIs with game scoping, pagination, and cloud-save body redaction.
 - Verification: `server/npm test` (122 passing), `web/npm run build`, changed-module `node --check`, SDK bridge syntax check, and `git diff --check`.
 - Remaining before merge: manual Unity Editor + uploaded WebGL E2E, including token reissue invalidation, 15-minute refresh, score/save round trips, and responsive login gate checks.
+
+## 2026-08-12 — review fixes
+
+- Rewrote player-facing and dashboard SDK v2 copy in both locales: removed internal architecture jargon ("account-backed"/"계정 기반"), leaked implementation rationale, and untranslated English labels in the `ko` block. `ARCADE ID` is retained as intentional branding.
+- Made `isDev` part of the CloudSave unique identity so editor development-token saves can never overwrite or be deleted alongside real saves. Reverses the earlier "provenance is mutable" decision.
+- Dropped the `user.email` fallback from play-token display names, which could expose a private email on a public leaderboard.
+- Removed leaderboard rank query fan-out on both the submit and read paths.
+- Fixed a CS1626 compile error in `ArcadeSdk.cs` (`yield break` inside a try/catch).
+- Fixed render-phase navigation in `AgeConsentPage`, added play-token refresh retry, and stopped a repeating request loop in the leaderboard modal.
+- Extracted shared comment helpers into `server/src/services/comments.js`; comment reads now target a pre-generated id instead of the array tail.
+- Added `unity/` to the preview image so generated-SDK delivery works there.
+- Updated server tests for provenance-separated cloud saves, deletion boundaries, loopback requests, comment ownership/creation, and shared fake-model helpers.
+- Verification this run: `cd server && npm test` — 122 passing, 0 failing; `cd web && npm run build` — succeeded; changed-server-module `node --check` and `git diff --check` — passed.
+- Manual Unity Editor and uploaded WebGL E2E verification remains outstanding.

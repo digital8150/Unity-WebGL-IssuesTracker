@@ -1377,7 +1377,7 @@
   border-left: 3px solid var(--color-warning);
   border-radius: var(--radius-sm);
   background: var(--color-warning-soft);
-  color: #8a4500;
+  color: var(--color-warning);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -1482,7 +1482,7 @@
   border: 1px solid color-mix(in srgb, var(--color-warning) 45%, var(--color-hairline));
   border-radius: var(--radius-full);
   background: var(--color-warning-soft);
-  color: #8a4500;
+  color: var(--color-warning);
   font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 700;
@@ -1546,6 +1546,7 @@
   .si-sdk-files { grid-template-columns: 1fr; }
   .si-v2-actions { justify-content: flex-start; }
   .si-dev-token-input-row { flex-direction: column; }
+  .si-modal-body { padding: var(--space-lg) var(--space-md); }
   .si-modal-tabs { margin-inline: calc(var(--space-md) * -1); }
 }
 
