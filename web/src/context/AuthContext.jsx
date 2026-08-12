@@ -33,8 +33,10 @@ export function AuthProvider({ children }) {
     setUser(userData);
   }, []);
 
+  const isDeveloper = user?.status === 'approved';
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, loading, isDeveloper, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

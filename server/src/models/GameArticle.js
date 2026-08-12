@@ -13,6 +13,7 @@ export const MAX_GAME_ARTICLE_COMMENTS = 500;
 
 const commentSchema = new mongoose.Schema({
   body: { type: String, required: true, trim: true, maxlength: 2000 },
+  authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   authorName: { type: String, trim: true, maxlength: 100, default: 'Anonymous' },
   createdAt: { type: Date, default: () => new Date() },
 });

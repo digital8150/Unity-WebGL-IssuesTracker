@@ -29,6 +29,7 @@ const BrowserSchema = new Schema(
 const CommentSchema = new Schema(
   {
     body: { type: String, required: true, maxlength: 5000 },
+    authorId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     authorName: { type: String, default: '' },
   },
   { timestamps: true },

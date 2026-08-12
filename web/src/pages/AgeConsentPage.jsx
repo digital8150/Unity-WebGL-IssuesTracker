@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { confirmAge } from '../api.js';
@@ -11,22 +12,27 @@ export default function AgeConsentPage() {
   const { user, login } = useAuth();
   const { t } = useI18n();
   const navigate = usePageNavigate();
+  const location = useLocation();
   const [checked, setChecked] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  if (!user) return null;
+  const destination = user?.status === 'approved'
+    ? '/dashboard'
+    : (typeof location.state?.from === 'string' ? location.state.from : '/');
 
-  if (user.ageConfirmedAt) {
-    navigate(user.status === 'approved' ? '/dashboard' : '/pending', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (user?.ageConfirmedAt) navigate(destination, { replace: true });
+  }, [destination, navigate, user?.ageConfirmedAt]);
+
+  if (!user) return null;
+  if (user.ageConfirmedAt) return null;
 
   async function handleConfirm() {
     setSaving(true);
     try {
       const { user: fresh } = await confirmAge();
       login(localStorage.getItem('token'), fresh);
-      navigate(fresh.status === 'approved' ? '/dashboard' : '/pending', { replace: true });
+      navigate(fresh.status === 'approved' ? '/dashboard' : destination, { replace: true });
     } finally {
       setSaving(false);
     }

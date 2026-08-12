@@ -1,4 +1,5 @@
 import express from 'express';
+import mongoose from 'mongoose';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import multer from 'multer';
@@ -10,6 +11,7 @@ import Translation from '../models/Translation.js';
 import SiteSettings from '../models/SiteSettings.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
+import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
@@ -17,6 +19,25 @@ const blogUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: BLOG_IMAGE_MAX_BYTES },
 });
+
+export function canDeleteBlogComment({ comment, userId, postAuthorId, role } = {}) {
+  return role === 'admin'
+    || (comment?.authorId && sameId(comment.authorId, userId))
+    || sameId(postAuthorId, userId);
+}
+
+export const serializeBlogComment = serializeComment;
+
+function serializeBlogPost(post) {
+  if (!post) return post;
+  const value = post?.toObject ? post.toObject() : { ...post };
+  return {
+    ...value,
+    comments: Array.isArray(value.comments)
+      ? value.comments.map((comment) => serializeBlogComment(comment))
+      : [],
+  };
+}
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -56,15 +77,18 @@ router.get('/', async (req, res, next) => {
         .skip(skip)
         .limit(limit)
         .populate('author', 'name')
+        .populate('comments.authorId', 'name')
         .select('-content')
         .lean(),
       BlogPost.countDocuments(filter),
     ]);
 
+    const serializedPosts = posts.map(serializeBlogPost);
+
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
-    const rows = await loadTranslations('BlogPost', posts.map((post) => post._id), req.query.locale, Translation);
-    const translatedPosts = posts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), req.query.locale, publishEnabled), 'BlogPost'));
-    const translations = Object.fromEntries(posts.map((post) => [String(post._id), publicTranslationMeta(rows.get(String(post._id)), req.query.locale, publishEnabled)]));
+    const rows = await loadTranslations('BlogPost', serializedPosts.map((post) => post._id), req.query.locale, Translation);
+    const translatedPosts = serializedPosts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), req.query.locale, publishEnabled), 'BlogPost'));
+    const translations = Object.fromEntries(serializedPosts.map((post) => [String(post._id), publicTranslationMeta(rows.get(String(post._id)), req.query.locale, publishEnabled)]));
     res.json({ posts: translatedPosts, translation: translations, translations, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     next(err);
@@ -76,11 +100,13 @@ router.get('/:slug', async (req, res, next) => {
   try {
     const post = await BlogPost.findOne({ slug: req.params.slug, published: true })
       .populate('author', 'name')
+      .populate('comments.authorId', 'name')
       .lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
+    const serializedPost = serializeBlogPost(post);
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
-    const row = (await loadTranslations('BlogPost', [post._id], req.query.locale, Translation)).get(String(post._id));
-    res.json({ post: mergeTranslation(post, publicTranslation(row, req.query.locale, publishEnabled), 'BlogPost'), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
+    const row = (await loadTranslations('BlogPost', [serializedPost._id], req.query.locale, Translation)).get(String(serializedPost._id));
+    res.json({ post: mergeTranslation(serializedPost, publicTranslation(row, req.query.locale, publishEnabled), 'BlogPost'), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }
@@ -100,19 +126,26 @@ router.post(
         return res.status(400).json({ error: 'Comment body is required' });
       }
 
-      const authorName = req.user
-        ? (req.user.name || req.user.email || 'User')
-        : (typeof guestName === 'string' && guestName.trim() ? guestName.trim() : 'Anonymous');
+      const comment = {
+        _id: new mongoose.Types.ObjectId(),
+        body: commentBody.trim(),
+        authorId: req.user?.sub ?? null,
+      };
+      if (!req.user) {
+        comment.authorName = typeof guestName === 'string' && guestName.trim()
+          ? guestName.trim()
+          : 'Anonymous';
+      }
 
       const post = await BlogPost.findOneAndUpdate(
         { slug: req.params.slug, published: true },
-        { $push: { comments: { body: commentBody.trim(), authorName } } },
+        { $push: { comments: comment } },
         { new: true },
-      ).select('comments');
+      ).select('comments').populate('comments.authorId', 'name');
 
       if (!post) return res.status(404).json({ error: 'Post not found' });
-      const added = post.comments[post.comments.length - 1];
-      res.status(201).json({ comment: added });
+      const added = post.comments.id(comment._id);
+      res.status(201).json({ comment: serializeBlogComment(added, req.user?.name || req.user?.email || 'User') });
     } catch (err) {
       next(err);
     }
@@ -125,12 +158,24 @@ router.delete(
   requireAuth,
   async (req, res, next) => {
     try {
-      const post = await BlogPost.findOneAndUpdate(
-        { slug: req.params.slug },
+      const post = await BlogPost.findOne({ slug: req.params.slug }).select('author comments');
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      const comment = (post.comments ?? []).find((item) => sameId(item?._id, req.params.commentId));
+      if (!comment) return res.status(404).json({ error: 'Comment not found' });
+      const admin = await isAdminUser(req);
+      if (!canDeleteBlogComment({
+        comment,
+        userId: req.user.sub,
+        postAuthorId: post.author,
+        role: admin ? 'admin' : req.user.role,
+      })) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      await BlogPost.findOneAndUpdate(
+        { _id: post._id },
         { $pull: { comments: { _id: req.params.commentId } } },
         { new: true },
       );
-      if (!post) return res.status(404).json({ error: 'Post not found' });
       res.json({ ok: true });
     } catch (err) {
       next(err);
@@ -195,16 +240,18 @@ router.get(
       const posts = await BlogPost.find(filter)
         .sort({ createdAt: -1 })
         .populate('author', 'name')
+        .populate('comments.authorId', 'name')
         .select('-content')
         .lean();
+      const serializedPosts = posts.map(serializeBlogPost);
       const rows = await Translation.find({
         refType: 'BlogPost',
-        refId: { $in: posts.map((post) => post._id) },
+        refId: { $in: serializedPosts.map((post) => post._id) },
         locale: 'en',
       }).select('refId status origin noindex').lean();
       const byRefId = new Map(rows.map((row) => [String(row.refId), row]));
       res.json({
-        posts: posts.map((post) => ({
+        posts: serializedPosts.map((post) => ({
           ...post,
           translationStatus: byRefId.get(String(post._id)) ?? null,
         })),
@@ -221,12 +268,16 @@ router.get(
   requireAuth, requireApproved,
   async (req, res, next) => {
     try {
-      const post = await BlogPost.findById(req.params.id).populate('author', 'name').lean();
+      const post = await BlogPost.findById(req.params.id)
+        .populate('author', 'name')
+        .populate('comments.authorId', 'name')
+        .lean();
       if (!post) return res.status(404).json({ error: 'Post not found' });
-      if (req.user.role !== 'admin' && String(post.author?._id ?? post.author) !== req.user.sub) {
+      const serializedPost = serializeBlogPost(post);
+      if (req.user.role !== 'admin' && String(serializedPost.author?._id ?? serializedPost.author) !== req.user.sub) {
         return res.status(403).json({ error: 'Forbidden' });
       }
-      res.json({ post });
+      res.json({ post: serializedPost });
     } catch (err) {
       next(err);
     }
@@ -298,9 +349,11 @@ router.patch(
 
       const post = await BlogPost.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true })
         .populate('author', 'name')
+        .populate('comments.authorId', 'name')
         .lean();
-      enqueue({ refType: 'BlogPost', refId: post._id, source: post }).catch((error) => console.error('[translation enqueue]', error));
-      res.json({ post });
+      const serializedPost = serializeBlogPost(post);
+      enqueue({ refType: 'BlogPost', refId: serializedPost._id, source: serializedPost }).catch((error) => console.error('[translation enqueue]', error));
+      res.json({ post: serializedPost });
     } catch (err) {
       if (err.code === 11000) return res.status(409).json({ error: 'Slug already exists' });
       next(err);

@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import UnityGame from '../components/UnityGame.jsx';
 import PageLink from '../components/PageLink.jsx';
-import { getArcadeGames, getPlayInfo, listPublicGameArticles } from '../api.js';
+import { getArcadeGames, getPlayInfo, issuePlayToken, listPublicGameArticles } from '../api.js';
 import { useI18n } from '../i18n.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import BrandLogo from '../components/BrandLogo.jsx';
 import Footer from '../components/Footer.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
@@ -17,6 +18,9 @@ import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx
 import './PlayPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
+const TOKEN_REFRESH_MS = 9 * 60 * 1000;
+const TOKEN_REQUEST_DEBOUNCE_MS = 2 * 1000;
+const TOKEN_RETRY_MS = 5 * 1000;
 
 function formatReviewDate(date, lang) {
   if (!date) return '';
@@ -43,6 +47,7 @@ function toBuildInfo(bootstrap) {
     thumbnailUrl: game.thumbnailUrl || '',
     visibility: game.visibility || 'private',
     reviewInfo: game.reviewInfo || null,
+    sdkV2: game.sdkV2 || { enabled: false, cloudSaveEnabled: false },
     developerName: game.developerName ?? null,
     buildId: build.id,
     buildVersion: build.version ?? null,
@@ -55,6 +60,7 @@ function toBuildInfo(bootstrap) {
 export default function PlayPage() {
   const { gameSlug, buildId } = useParams();
   const { lang, t } = useI18n();
+  const { user, loading: authLoading } = useAuth() ?? {};
 
   const bootstrap = readSsrData(buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug');
   const initialBuildInfo = toBuildInfo(bootstrap);
@@ -73,6 +79,7 @@ export default function PlayPage() {
   const sendMessageFn = useRef(null);
   const gameWrapRef = useRef(null);
   const isWaitingForReport = useRef(false);
+  const tokenRef = useRef(null);
 
   useEffect(() => {
     if (bootstrapBuildPendingRef.current) {
@@ -94,6 +101,92 @@ export default function PlayPage() {
       })
       .catch((err) => setLoadError(err.message));
   }, [gameSlug, buildId, lang]);
+
+  useEffect(() => {
+    const sdkV2Enabled = buildInfo?.sdkV2?.enabled === true;
+    const shouldConnect = Boolean(gameSlug && sdkV2Enabled && !authLoading && user);
+
+    tokenRef.current = null;
+    if (!shouldConnect) return undefined;
+
+    let disposed = false;
+    let refreshTimer = null;
+    let debounceTimer = null;
+    let lastRequestAt = 0;
+    let requestInFlight = null;
+
+    const pushCredential = () => {
+      const nextToken = tokenRef.current;
+      if (!nextToken || !sendMessageFn.current) return;
+      sendMessageFn.current('ArcadeSdk', 'SetCredential', JSON.stringify(nextToken));
+    };
+
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        requestToken();
+      }, TOKEN_REFRESH_MS);
+    };
+
+    const refreshToken = () => {
+      if (disposed || requestInFlight) return requestInFlight;
+      lastRequestAt = Date.now();
+      requestInFlight = issuePlayToken(gameSlug)
+        .then((nextToken) => {
+          if (!nextToken?.token) throw new Error('Play token response did not include a token');
+          if (disposed) return;
+          tokenRef.current = nextToken;
+          pushCredential();
+          scheduleRefresh();
+        })
+        .catch((error) => {
+          if (!disposed) {
+            console.warn('[ArcadeSdk] play token request failed', error);
+            window.clearTimeout(refreshTimer);
+            refreshTimer = window.setTimeout(() => {
+              refreshTimer = null;
+              if (!disposed) requestToken();
+            }, TOKEN_RETRY_MS);
+          }
+        })
+        .finally(() => {
+          requestInFlight = null;
+        });
+      return requestInFlight;
+    };
+
+    const requestToken = () => {
+      if (disposed) return;
+      const waitMs = TOKEN_REQUEST_DEBOUNCE_MS - (Date.now() - lastRequestAt);
+      if (waitMs > 0) {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+          debounceTimer = null;
+          refreshToken();
+        }, waitMs);
+        return;
+      }
+      refreshToken();
+    };
+
+    // Unity may announce readiness before its React wrapper reports isLoaded;
+    // the callback remains available until either side is ready.
+    window.__arcadeSdkReady = pushCredential;
+    // Unity can also ask the page for a replacement after a 401. Keep this
+    // browser-owned request path debounced so repeated SDK calls cannot stampede
+    // the play-token endpoint.
+    window.__arcadeSdkRequestToken = requestToken;
+    requestToken();
+
+    return () => {
+      disposed = true;
+      tokenRef.current = null;
+      window.clearTimeout(refreshTimer);
+      window.clearTimeout(debounceTimer);
+      if (window.__arcadeSdkReady === pushCredential) delete window.__arcadeSdkReady;
+      if (window.__arcadeSdkRequestToken === requestToken) delete window.__arcadeSdkRequestToken;
+    };
+  }, [gameSlug, buildInfo?.sdkV2?.enabled, authLoading, user]);
 
   useEffect(() => {
     if (bootstrapArticlesPendingRef.current) {
@@ -240,6 +333,11 @@ export default function PlayPage() {
     }, 2000);
   };
 
+  const pushCredential = () => {
+    if (!tokenRef.current || !sendMessageFn.current) return;
+    sendMessageFn.current('ArcadeSdk', 'SetCredential', JSON.stringify(tokenRef.current));
+  };
+
   const toggleFullscreen = async () => {
     if (!gameWrapRef.current) return;
     if (document.fullscreenElement) {
@@ -251,6 +349,31 @@ export default function PlayPage() {
   };
 
   const transitionName = gameTransitionName(gameSlug);
+  const sdkV2Enabled = buildInfo?.sdkV2?.enabled === true;
+  const showAuthLoading = sdkV2Enabled && Boolean(authLoading);
+  const showLoginGate = sdkV2Enabled && !authLoading && !user;
+  const loginGateFallback = lang === 'ko'
+    ? {
+        eyebrow: 'ARCADE ID',
+        title: '로그인하고 게임을 플레이하세요',
+        description: 'Arcade ID로 로그인하면 게임 기록과 클라우드 세이브를 안전하게 이어갈 수 있습니다.',
+        action: '로그인하기',
+        note: '로그인 후 이 페이지로 돌아옵니다.',
+      }
+    : {
+        eyebrow: 'ARCADE ID',
+        title: 'Sign in to play this game',
+        description: 'Sign in with your Arcade ID to keep your scores and cloud saves with you.',
+        action: 'Sign in',
+        note: 'You will come straight back to this game.',
+      };
+  const loginGateCopy = {
+    eyebrow: t.play.loginRequiredEyebrow ?? loginGateFallback.eyebrow,
+    title: t.play.loginRequiredTitle ?? loginGateFallback.title,
+    description: t.play.loginRequiredDescription ?? loginGateFallback.description,
+    action: t.play.loginRequiredAction ?? t.nav.login ?? loginGateFallback.action,
+    note: t.play.loginRequiredNote ?? loginGateFallback.note,
+  };
 
   if (!gameSlug) return (
     <div className="play-state" style={{ viewTransitionName: transitionName }}>
@@ -337,14 +460,50 @@ export default function PlayPage() {
             className="play-canvas-frame"
             style={{ ...gameContainerStyle, viewTransitionName: transitionName }}
           >
-            <UnityGame
-              {...urls}
-              onReady={(fn) => { sendMessageFn.current = fn; }}
-              gameOverTitle={t.play.gameOver}
-              gameOverReload={t.play.reload}
-              clickToActivate={t.play.clickToActivate}
-              unityErrorTitle={t.play.unityErrorTitle}
-            />
+            {showLoginGate ? (
+              <div className="play-login-gate" role="region" aria-label={loginGateCopy.title}>
+                <div className="play-login-gate-glow" aria-hidden="true" />
+                <div className="play-login-gate-content">
+                  <div className="play-login-gate-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" focusable="false">
+                      <path d="M15 21v-4a9 9 0 0 1 18 0v4" />
+                      <rect x="10" y="20" width="28" height="20" rx="5" />
+                      <path d="M24 28v5" />
+                    </svg>
+                  </div>
+                  <p className="play-login-gate-eyebrow">{loginGateCopy.eyebrow}</p>
+                  <h2>{loginGateCopy.title}</h2>
+                  <p className="play-login-gate-description">{loginGateCopy.description}</p>
+                  <PageLink
+                    to="/login"
+                    state={{ from: canonicalPath }}
+                    className="play-login-gate-action"
+                  >
+                    <span>{loginGateCopy.action}</span>
+                    <span aria-hidden="true">↗</span>
+                  </PageLink>
+                  <p className="play-login-gate-note">{loginGateCopy.note}</p>
+                </div>
+                <div className="play-login-gate-grid" aria-hidden="true" />
+              </div>
+            ) : showAuthLoading ? (
+              <div className="play-login-gate play-login-gate-loading" aria-busy="true">
+                <div className="play-login-gate-content">
+                  <span className="play-login-gate-spinner" aria-hidden="true" />
+                  <p className="play-login-gate-eyebrow">ARCADE ID</p>
+                  <p className="play-login-gate-loading-label">{t.loading}</p>
+                </div>
+              </div>
+            ) : (
+              <UnityGame
+                {...urls}
+                onReady={(fn) => { sendMessageFn.current = fn; pushCredential(); }}
+                gameOverTitle={t.play.gameOver}
+                gameOverReload={t.play.reload}
+                clickToActivate={t.play.clickToActivate}
+                unityErrorTitle={t.play.unityErrorTitle}
+              />
+            )}
           </div>
         </div>
       </section>

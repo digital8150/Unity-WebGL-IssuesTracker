@@ -210,6 +210,14 @@ export async function getGeneratedCode(gameId) {
   return request(`/api/games/${gameId}/backend/generated-code`);
 }
 
+export async function getGeneratedSdk(gameId, locale = 'ko') {
+  return request(withLocale(`/api/games/${gameId}/backend/generated-sdk`, locale));
+}
+
+export async function issueV2DevToken(gameId) {
+  return request(`/api/games/${gameId}/backend/v2/dev-token`, { method: 'POST' });
+}
+
 export async function createLeaderboard(gameId, fields) {
   return request(`/api/games/${gameId}/backend/leaderboards`, { method: 'POST', body: JSON.stringify(fields) });
 }
@@ -228,6 +236,34 @@ export async function getLeaderboardEntries(gameId, lbId) {
 
 export async function deleteLeaderboardEntry(gameId, lbId, entryId) {
   return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/entries/${entryId}`, { method: 'DELETE' });
+}
+
+export async function getLeaderboardScores(gameId, lbId, page = 1) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/scores?page=${encodeURIComponent(page)}`);
+}
+
+export async function deleteLeaderboardScore(gameId, lbId, scoreId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/scores/${scoreId}`, { method: 'DELETE' });
+}
+
+export async function deleteDevLeaderboardScores(gameId, lbId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/scores?devOnly=true`, { method: 'DELETE' });
+}
+
+export async function deleteLegacyLeaderboardEntries(gameId, lbId) {
+  return request(`/api/games/${gameId}/backend/leaderboards/${lbId}/entries`, { method: 'DELETE' });
+}
+
+export async function getCloudSaves(gameId, page = 1) {
+  return request(`/api/games/${gameId}/backend/saves?page=${encodeURIComponent(page)}`);
+}
+
+export async function deleteCloudSave(gameId, saveId, isDev = false) {
+  return request(`/api/games/${gameId}/backend/saves/${saveId}?devOnly=${isDev ? 'true' : 'false'}`, { method: 'DELETE' });
+}
+
+export async function deleteDevCloudSaves(gameId) {
+  return request(`/api/games/${gameId}/backend/saves?devOnly=true`, { method: 'DELETE' });
 }
 
 export async function createConfigKey(gameId, fields) {
@@ -326,6 +362,10 @@ export async function getPlayInfo(gameSlug, buildId = null, locale = 'ko') {
     ? `/api/games/play/${gameSlug}/${buildId}`
     : `/api/games/play/${gameSlug}`;
   return request(withLocale(path, locale));
+}
+
+export async function issuePlayToken(gameSlug) {
+  return request(`/api/v2/games/${gameSlug}/play-token`, { method: 'POST' });
 }
 
 // ── Blog (public) ─────────────────────────────────────────────────────────────

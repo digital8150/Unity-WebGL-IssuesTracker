@@ -1,17 +1,23 @@
 import { Router } from 'express';
 import Game from '../models/Game.js';
+import User from '../models/User.js';
 import Leaderboard from '../models/Leaderboard.js';
 import GameConfig from '../models/GameConfig.js';
+import LeaderboardScore from '../models/LeaderboardScore.js';
+import CloudSave from '../models/CloudSave.js';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { verifyGameHmac } from '../middleware/gameHmac.js';
 import { generateSecret, issueSessionToken, isTimestampFresh } from '../services/gameSecret.js';
+import { GAME_DEV_TOKEN_TTL_S, signGameToken } from '../services/gameToken.js';
 import { rateLimitMiddleware, clientIp } from '../services/rateLimiter.js';
-import { generateServerBridge } from '../services/codegen.js';
+import { generateArcadeSdk, generateServerBridge } from '../services/codegen.js';
+import { getLiveOpsMode, isLiveOpsEnabled, LIVEOPS_MODES, serializeLiveOpsBackend } from '../services/liveOps.js';
 
 const router = Router();
 
 const KEY_RE = /^[a-z0-9][a-z0-9_-]*$/;
 const CONFIG_KEY_RE = /^[a-z0-9][a-z0-9_.-]*$/;
+const MANAGEMENT_PAGE_SIZE = 50;
 
 function isOwner(game, userId) {
   return game.ownerId.toString() === String(userId);
@@ -19,7 +25,38 @@ function isOwner(game, userId) {
 
 function isAuthorized(game, userId) {
   if (isOwner(game, userId)) return true;
-  return game.collaborators.some((c) => (c._id ?? c).toString() === String(userId));
+  return (game.collaborators ?? []).some((c) => (c._id ?? c).toString() === String(userId));
+}
+
+function isManagementAuthorized(game, user) {
+  return user?.role === 'admin' || isAuthorized(game, user?.sub);
+}
+
+function timestampMilliseconds(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1000;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return timestampMilliseconds(numeric);
+    return Date.parse(value);
+  }
+  return NaN;
+}
+
+// JWT timestamps have one-second precision. Move the marker to a strictly
+// later second on every issuance so a same-second reissue revokes its parent.
+export function nextV2DevTokenIssuedAt(previous, now = Date.now()) {
+  const nowMilliseconds = timestampMilliseconds(now);
+  const nowSeconds = Number.isFinite(nowMilliseconds)
+    ? Math.floor(nowMilliseconds / 1000)
+    : Math.floor(Date.now() / 1000);
+  const previousMilliseconds = timestampMilliseconds(previous);
+  const previousSeconds = Number.isFinite(previousMilliseconds)
+    ? Math.floor(previousMilliseconds / 1000)
+    : -1;
+  return Math.max(nowSeconds, previousSeconds + 1);
 }
 
 async function loadAuthorizedGame(req, res) {
@@ -29,6 +66,72 @@ async function loadAuthorizedGame(req, res) {
     return null;
   }
   return game;
+}
+
+async function loadManagementGame(req, res) {
+  const game = await Game.findById(req.params.gameId);
+  if (!game || !isManagementAuthorized(game, req.user)) {
+    res.status(404).json({ error: 'Game not found' });
+    return null;
+  }
+  return game;
+}
+
+function parseManagementPage(value) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function pageInfo(page, total, limit = MANAGEMENT_PAGE_SIZE) {
+  return {
+    page,
+    limit,
+    total,
+    pages: Math.max(1, Math.ceil(total / limit)),
+  };
+}
+
+function idString(value) {
+  const id = value?._id ?? value?.id ?? value;
+  return id === null || id === undefined ? null : String(id);
+}
+
+function serializeScore(score, rank) {
+  return {
+    _id: idString(score?._id),
+    userId: idString(score?.userId),
+    rank,
+    displayName: String(score?.displayName ?? ''),
+    score: score?.score,
+    playCount: score?.playCount ?? 0,
+    isDev: Boolean(score?.isDev),
+    updatedAt: score?.updatedAt ?? null,
+  };
+}
+
+function serializeSave(save) {
+  return {
+    _id: idString(save?._id),
+    userId: idString(save?.userId),
+    slot: String(save?.slot ?? ''),
+    size: save?.size,
+    rev: save?.rev,
+    isDev: Boolean(save?.isDev),
+    createdAt: save?.createdAt ?? null,
+    updatedAt: save?.updatedAt ?? null,
+  };
+}
+
+async function loadManagementLeaderboard(req, res, game) {
+  const leaderboard = await Leaderboard.findOne({
+    _id: req.params.lbId,
+    gameId: game._id,
+  });
+  if (!leaderboard) {
+    res.status(404).json({ error: 'Leaderboard not found' });
+    return null;
+  }
+  return leaderboard;
 }
 
 // ── Dashboard: backend settings ────────────────────────────────────────────────
@@ -44,7 +147,7 @@ router.get('/:gameId/backend', requireAuth, requireApproved, async (req, res, ne
     ]);
 
     res.json({
-      serverBackend: game.serverBackend,
+      serverBackend: serializeLiveOpsBackend(game.serverBackend),
       leaderboards,
       config,
     });
@@ -58,11 +161,72 @@ router.patch('/:gameId/backend', requireAuth, requireApproved, async (req, res, 
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
 
-    const { leaderboardEnabled, configEnabled } = req.body ?? {};
+    const { leaderboardEnabled, configEnabled, v2Enabled, cloudSaveEnabled, liveOpsEnabled, liveOpsMode } = req.body ?? {};
+    if (!game.serverBackend) game.serverBackend = {};
+    const existingLegacySecret = game.serverBackend.secret;
+    if (liveOpsMode !== undefined && !LIVEOPS_MODES.includes(liveOpsMode)) {
+      return res.status(400).json({ error: 'liveOpsMode must be legacy or v2' });
+    }
     if (leaderboardEnabled !== undefined) game.serverBackend.leaderboardEnabled = Boolean(leaderboardEnabled);
     if (configEnabled !== undefined) game.serverBackend.configEnabled = Boolean(configEnabled);
+    if (v2Enabled !== undefined) game.serverBackend.v2Enabled = Boolean(v2Enabled);
+    if (cloudSaveEnabled !== undefined) game.serverBackend.cloudSaveEnabled = Boolean(cloudSaveEnabled);
+    if (liveOpsEnabled !== undefined) game.serverBackend.liveOpsEnabled = Boolean(liveOpsEnabled);
+    if (liveOpsMode !== undefined) {
+      game.serverBackend.liveOpsMode = liveOpsMode;
+      game.serverBackend.v2Enabled = liveOpsMode === 'v2';
+    }
+
+    // Pin the inferred mode when the master switch is explicitly changed.
+    // This lets a user turn off a legacy game after the compatibility fallback
+    // has recognized it, without changing the API generation.
+    if (
+      liveOpsEnabled !== undefined
+      && liveOpsMode === undefined
+      && !LIVEOPS_MODES.includes(game.serverBackend.liveOpsMode)
+    ) {
+      game.serverBackend.liveOpsMode = getLiveOpsMode(game.serverBackend);
+    }
+
+    // Changing LiveOps controls must never rotate or replace the legacy HMAC
+    // secret. Keep the old value even if a subdocument is re-materialized.
+    if (existingLegacySecret && !game.serverBackend.secret) {
+      game.serverBackend.secret = existingLegacySecret;
+    }
     await game.save();
-    res.json({ serverBackend: game.serverBackend });
+    res.json({ serverBackend: serializeLiveOpsBackend(game.serverBackend) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:gameId/backend/v2/dev-token', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadAuthorizedGame(req, res);
+    if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'v2') {
+      return res.status(400).json({ error: 'SDK v2 is not selected for this game' });
+    }
+
+    // requireApproved checks the account status, but fetch the current user
+    // again so a renamed account is reflected in every newly issued token.
+    const user = await User.findById(req.user.sub).select('name');
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    if (!game.serverBackend) game.serverBackend = {};
+    const issuedAtSeconds = nextV2DevTokenIssuedAt(game.serverBackend.v2DevTokenIssuedAt);
+    game.serverBackend.v2DevTokenIssuedAt = new Date(issuedAtSeconds * 1000);
+    await game.save();
+
+    const token = signGameToken({
+      userId: req.user.sub,
+      gameId: game._id,
+      displayName: user.name,
+      dev: true,
+      issuedAt: issuedAtSeconds,
+    });
+    const expiresAt = new Date((issuedAtSeconds + GAME_DEV_TOKEN_TTL_S) * 1000).toISOString();
+    res.json({ token, expiresAt });
   } catch (err) {
     next(err);
   }
@@ -86,6 +250,9 @@ router.get('/:gameId/backend/generated-code', requireAuth, requireApproved, asyn
   try {
     const game = await loadAuthorizedGame(req, res);
     if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'legacy') {
+      return res.status(400).json({ error: 'Legacy API is not selected for this game' });
+    }
     if (!game.serverBackend?.secret) {
       return res.status(400).json({ error: 'Rotate a secret for this game before generating code' });
     }
@@ -97,6 +264,107 @@ router.get('/:gameId/backend/generated-code', requireAuth, requireApproved, asyn
 
     const generated = generateServerBridge(game, { leaderboards, config });
     res.json(generated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:gameId/backend/generated-sdk', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadAuthorizedGame(req, res);
+    if (!game) return;
+    if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'v2') {
+      return res.status(400).json({ error: 'SDK v2 is not selected for this game' });
+    }
+
+    const [leaderboards, config] = await Promise.all([
+      Leaderboard.find({ gameId: game._id, enabled: true }).select('-entries'),
+      GameConfig.find({ gameId: game._id, enabled: true }),
+    ]);
+
+    const generated = generateArcadeSdk(game, {
+      leaderboards,
+      config,
+      locale: req.query.locale === 'en' ? 'en' : 'ko',
+    });
+    res.json(generated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:gameId/backend/leaderboards/:lbId/scores', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const page = parseManagementPage(req.query.page);
+    const skip = (page - 1) * MANAGEMENT_PAGE_SIZE;
+    const sortDirection = leaderboard.sort === 'asc' ? 1 : -1;
+    const filter = { gameId: game._id, leaderboardId: leaderboard._id };
+    const [total, scores] = await Promise.all([
+      LeaderboardScore.countDocuments(filter),
+      LeaderboardScore.find(filter)
+        .select('_id userId displayName score playCount isDev updatedAt')
+        .sort({ score: sortDirection, bestAt: 1, _id: 1 })
+        .skip(skip)
+        .limit(MANAGEMENT_PAGE_SIZE)
+        .lean(),
+    ]);
+
+    res.json({
+      scores: scores.map((score, index) => serializeScore(score, skip + index + 1)),
+      ...pageInfo(page, total),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function deleteDevScores(req, res, next) {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const result = await LeaderboardScore.deleteMany({
+      gameId: game._id,
+      leaderboardId: leaderboard._id,
+      isDev: true,
+    });
+    res.json({ ok: true, deletedCount: result.deletedCount ?? 0 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.delete('/:gameId/backend/leaderboards/:lbId/scores', requireAuth, requireApproved, async (req, res, next) => {
+  if (String(req.query.devOnly).toLowerCase() !== 'true') {
+    return res.status(400).json({ error: 'Set devOnly=true to delete test scores' });
+  }
+  return deleteDevScores(req, res, next);
+});
+
+router.delete('/:gameId/backend/leaderboards/:lbId/scores/:scoreId', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const result = await LeaderboardScore.deleteOne({
+      _id: req.params.scoreId,
+      gameId: game._id,
+      leaderboardId: leaderboard._id,
+    });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Score not found' });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }
@@ -184,6 +452,25 @@ router.get('/:gameId/backend/leaderboards/:lbId/entries', requireAuth, requireAp
   }
 });
 
+router.delete('/:gameId/backend/leaderboards/:lbId/entries', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const leaderboard = await loadManagementLeaderboard(req, res, game);
+    if (!leaderboard) return;
+
+    const deletedCount = Array.isArray(leaderboard.entries) ? leaderboard.entries.length : 0;
+    await Leaderboard.updateOne(
+      { _id: leaderboard._id, gameId: game._id },
+      { $set: { entries: [] } },
+    );
+    res.json({ ok: true, deletedCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.delete('/:gameId/backend/leaderboards/:lbId/entries/:entryId', requireAuth, requireApproved, async (req, res, next) => {
   try {
     const game = await loadAuthorizedGame(req, res);
@@ -195,6 +482,67 @@ router.delete('/:gameId/backend/leaderboards/:lbId/entries/:entryId', requireAut
       { new: true },
     );
     if (!leaderboard) return res.status(404).json({ error: 'Leaderboard not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:gameId/backend/saves', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const page = parseManagementPage(req.query.page);
+    const skip = (page - 1) * MANAGEMENT_PAGE_SIZE;
+    const devOnly = String(req.query.devOnly).toLowerCase() === 'true';
+    const filter = { gameId: game._id, ...(devOnly ? { isDev: true } : {}) };
+    const [total, saves] = await Promise.all([
+      CloudSave.countDocuments(filter),
+      CloudSave.find(filter)
+        .select('-data')
+        .sort({ updatedAt: -1, _id: 1 })
+        .skip(skip)
+        .limit(MANAGEMENT_PAGE_SIZE)
+        .lean(),
+    ]);
+
+    res.json({
+      saves: saves.map(serializeSave),
+      ...pageInfo(page, total),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function deleteDevSaves(req, res, next) {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const result = await CloudSave.deleteMany({ gameId: game._id, isDev: true });
+    res.json({ ok: true, deletedCount: result.deletedCount ?? 0 });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.delete('/:gameId/backend/saves', requireAuth, requireApproved, async (req, res, next) => {
+  if (String(req.query.devOnly).toLowerCase() !== 'true') {
+    return res.status(400).json({ error: 'Set devOnly=true to delete test saves' });
+  }
+  return deleteDevSaves(req, res, next);
+});
+
+router.delete('/:gameId/backend/saves/:saveId', requireAuth, requireApproved, async (req, res, next) => {
+  try {
+    const game = await loadManagementGame(req, res);
+    if (!game) return;
+
+    const isDev = String(req.query.devOnly).toLowerCase() === 'true';
+    const result = await CloudSave.deleteOne({ _id: req.params.saveId, gameId: game._id, isDev });
+    if (result.deletedCount === 0) return res.status(404).json({ error: 'Save not found' });
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -274,7 +622,12 @@ router.post(
     try {
       const game = await Game.findOne({ slug: req.params.gameSlug });
       if (!game) return res.status(404).json({ error: 'Game not found' });
-      if (!game.serverBackend?.secret || (!game.serverBackend.leaderboardEnabled && !game.serverBackend.configEnabled)) {
+      if (
+        !isLiveOpsEnabled(game.serverBackend)
+        || getLiveOpsMode(game.serverBackend) !== 'legacy'
+        || !game.serverBackend?.secret
+        || (!game.serverBackend.leaderboardEnabled && !game.serverBackend.configEnabled)
+      ) {
         return res.status(403).json({ error: 'Server backend not enabled for this game' });
       }
 

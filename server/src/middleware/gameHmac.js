@@ -1,6 +1,7 @@
 import Game from '../models/Game.js';
 import { hmacHex, sha256Hex, timingSafeEqualHex, verifySessionToken, isTimestampFresh } from '../services/gameSecret.js';
 import { consumeNonce } from '../services/rateLimiter.js';
+import { getLiveOpsMode, isLiveOpsEnabled } from '../services/liveOps.js';
 
 // Verifies the X-Arcade-* signed-request headers against a game resolved from
 // req.params.gameSlug. On success sets req.game and req.sessionPayload.
@@ -14,6 +15,9 @@ export function verifyGameHmac({ requireFeature = null, consumeNonce: shouldCons
     try {
       const game = await Game.findOne({ slug: req.params.gameSlug });
       if (!game) return res.status(404).json({ error: 'Game not found' });
+      if (!isLiveOpsEnabled(game.serverBackend) || getLiveOpsMode(game.serverBackend) !== 'legacy') {
+        return res.status(403).json({ error: 'Legacy API is not enabled for this game' });
+      }
       if (!game.serverBackend?.secret) {
         return res.status(403).json({ error: 'Server backend not provisioned for this game' });
       }

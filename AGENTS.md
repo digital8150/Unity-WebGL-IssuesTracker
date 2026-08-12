@@ -12,7 +12,7 @@ This repo is becoming **`web-gl-game-issue-tracking-platform`** — a hosted, mu
 Key implications for any change:
 - Builds are **per-project, per-version artifacts** stored on the server (filesystem or object storage) and served dynamically — they are **not** baked into the React app bundle anymore.
 - Every issue report must be **associated with a `gameId` + `buildId`** so reports stay scoped to the right project.
-- The platform is **multi-tenant**: dashboard routes need auth (developer accounts), but the `/play/<...>` route and the `POST /api/issues` ingestion endpoint stay public (testers should not need accounts).
+- The platform is **multi-tenant**: dashboard routes need approved developer accounts. Play-page metadata and `POST /api/issues` stay public, while games with `serverBackend.v2Enabled` require any signed-in member before mounting the Unity canvas.
 - Discord webhook config moves from a global env var to **per-game settings** stored on the Game document. Keep the env var as a fallback / global default.
 
 ## Progress tracking
@@ -23,7 +23,7 @@ Key implications for any change:
 
 Monorepo with three independent workspaces. There is no root `package.json` — install and run each side separately.
 
-- `unity/` — drop-in C# integration (`IssueTrackerIntegration.cs`) and WebGL bridge (`IssueTracker.jslib`). Intended to be copied into a downstream Unity project so the developer's game can emit issue payloads; this folder is **not** itself a Unity project (no `ProjectSettings/` etc.).
+- `unity/` — drop-in issue-report and authenticated Arcade SDK C# integrations with their WebGL bridges. Intended to be copied into a downstream Unity project; this folder is **not** itself a Unity project (no `ProjectSettings/` etc.).
 - `web/` — Vite + React host. Contains the **developer dashboard** (upload builds, view reports, manage games), the **tester play view** (`/play/<...>` embeds the uploaded WebGL build via `react-unity-webgl`), and the dedicated **report page** (`/report/<gameSlug>[/:buildId]`).
 - `server/` — Express + Mongoose API. Handles auth, build upload + storage, signed/public build serving, issue ingestion, and per-game Discord webhook fan-out.
 
@@ -42,7 +42,7 @@ npm run build
 npm run preview
 ```
 
-No test suite or linter is configured yet. If you add one, prefer Vitest for `web/` and `node --test` for `server/`.
+The server test suite uses `node --test` (`server/test/**/*.test.js`). No frontend test runner or linter is configured yet; prefer Vitest when adding web coverage.
 
 ## End-to-end data flow (the architecture that spans files)
 
@@ -57,9 +57,20 @@ The bug-report path crosses four runtimes — Unity C# → emscripten jslib → 
 
 If you change the payload shape, update the C# `BuildAndSend` serializer, `PlayPage`/`ReportPage`, the Mongoose schema (`server/src/models/Issue.js`), the Discord embed builder, the API validation, and any other React consumer. The Mongoose schema uses `Schema.Types.Mixed` for `customState`, `browser.webgl`, `screen`, and `viewport` on purpose — game state shape is per-project and should stay schemaless.
 
+## Authenticated Arcade SDK v2 flow
+
+The account-backed leaderboard/cloud-save path has a separate short-lived credential contract:
+
+1. Public play metadata exposes only `sdkV2.enabled` and `sdkV2.cloudSaveEnabled`. When v2 is enabled, `PlayPage.jsx` keeps the rest of the public page visible but replaces the Unity canvas with a login gate for signed-out visitors.
+2. For a signed-in member, the play page exchanges the site JWT at `POST /api/v2/games/:gameSlug/play-token`. The returned 15-minute game token is scoped to one `gid`; it is refreshed every nine minutes.
+3. `ArcadeSdk.jslib` announces Unity readiness through `window.__arcadeSdkReady` and requests refresh through `window.__arcadeSdkRequestToken`. React injects `{ token, userId, displayName, expiresAt }` with `SendMessage("ArcadeSdk", "SetCredential", json)` and handles either Unity-first or token-first startup order.
+4. `ArcadeSdk.cs` sends the game token as `Authorization: Bearer` to `/api/v2`. A 401 clears the credential and permits exactly one refresh/retry. GameObject name `ArcadeSdk` and the `Assets/Plugins/WebGL/ArcadeSdk.jslib` path are part of the runtime contract.
+5. Account scores live in `LeaderboardScore`, separate from legacy `Leaderboard.entries`. Cloud saves live in `CloudSave`; their JSON body is opaque and must never be rendered as HTML in dashboard tooling.
+6. Dashboard-generated SDK delivery reads the static files under `unity/` and substitutes only `ApiBaseUrl`. v2 code generation must never embed the site JWT, a game secret, or the v1 XOR/HMAC machinery.
+
 ## Conventions to preserve
 
-- **C# follows Microsoft C# Coding Conventions** (PascalCase types/methods/properties, camelCase fields/locals, namespace `IssueTracker`, XML doc comments on public surface). When extending `IssueTrackerIntegration.cs`, match the existing style — do **not** introduce Unity-style `m_` prefixes or other deviations.
+- **C# follows Microsoft C# Coding Conventions** (PascalCase types/methods/properties, camelCase fields/locals, XML doc comments on public surface). Use namespace `IssueTracker` for report capture and `ArcadeBackend` for SDK v2. Do **not** introduce Unity-style `m_` prefixes or other deviations.
 - **The Unity C# JSON writer is deliberately hand-rolled** to avoid pulling in Newtonsoft and to keep `customState` keys ordering predictable. Don't replace it with `JsonUtility` (which can't handle `Dictionary<string, object>`) without a strong reason.
 - **Custom state is opaque to the server.** Treat it as `Mixed`/JSON; don't add per-game fields to the schema.
 - **Discord notifications are env-gated and per-game.** `sendDiscordNotification` no-ops when neither the game-level webhook nor `DISCORD_WEBHOOK_URL` is set — preserve that behavior. The env var is the global fallback; per-game settings on the `Game` document win when present.

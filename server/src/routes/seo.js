@@ -291,7 +291,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
   }
 
   async function renderBlogPost(req, res, next, locale) {
-    const post = await blogPostModel.findOne({ slug: req.params.slug, published: true }).populate('author', 'name').lean();
+    const post = await blogPostModel.findOne({ slug: req.params.slug, published: true })
+      .populate('author', 'name')
+      .populate('comments.authorId', 'name')
+      .lean();
     if (!post) return next();
     const policy = await getPolicy(locale);
     const translation = await findTranslation('BlogPost', post._id, locale);
@@ -341,7 +344,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
   async function renderGameArticle(req, res, next, locale) {
     const game = await gameModel.findOne({ slug: req.params.gameSlug }).select('_id name slug description thumbnailUrl visibility').lean();
     if (!game || game.visibility !== 'public') return next();
-    const article = await gameArticleModel.findOne({ gameId: game._id, slug: req.params.articleSlug, published: true }).populate('author', 'name').lean();
+    const article = await gameArticleModel.findOne({ gameId: game._id, slug: req.params.articleSlug, published: true })
+      .populate('author', 'name')
+      .populate('comments.authorId', 'name')
+      .lean();
     if (!article) return next();
     const policy = await getPolicy(locale);
     const [gameTranslation, translation] = await Promise.all([

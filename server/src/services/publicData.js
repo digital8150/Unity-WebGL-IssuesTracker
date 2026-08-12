@@ -1,12 +1,19 @@
+import { getLiveOpsMode, isLiveOpsEnabled } from './liveOps.js';
+
 function publicAuthor(author) {
   return author?.name ? { name: String(author.name) } : null;
 }
 
 function publicComment(comment) {
+  const populatedName = comment?.authorId && typeof comment.authorId === 'object'
+    ? String(comment.authorId.name ?? '').trim()
+    : '';
+  const authorId = publicId(comment?.authorId);
   return {
     _id: comment?._id,
     body: String(comment?.body ?? ''),
-    authorName: String(comment?.authorName ?? 'Anonymous'),
+    ...(authorId ? { authorId } : {}),
+    authorName: populatedName || String(comment?.authorName ?? '').trim() || 'Anonymous',
     createdAt: comment?.createdAt ?? null,
   };
 }
@@ -40,6 +47,14 @@ function publicGameFields(game) {
     slug: String(game?.slug ?? ''),
     description: String(game?.description ?? ''),
     thumbnailUrl: String(game?.thumbnailUrl ?? ''),
+  };
+}
+
+export function toPublicSdkV2(game) {
+  const backend = game?.serverBackend;
+  return {
+    enabled: isLiveOpsEnabled(backend) && getLiveOpsMode(backend) === 'v2' && backend?.v2Enabled === true,
+    cloudSaveEnabled: isLiveOpsEnabled(backend) && getLiveOpsMode(backend) === 'v2' && backend?.cloudSaveEnabled === true,
   };
 }
 
@@ -147,6 +162,7 @@ export function toPublicPlayGame(game) {
     visibility: game.visibility || 'private',
     reviewInfo: publicReviewInfo(game.reviewInfo),
     developerName: game.developerName ?? game.ownerId?.name ?? null,
+    sdkV2: toPublicSdkV2(game),
   };
 }
 

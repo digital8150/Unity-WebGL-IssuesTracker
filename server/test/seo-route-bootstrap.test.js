@@ -76,7 +76,7 @@ const game = {
   ownerId: { _id: 'owner-id', name: 'Developer', email: 'owner@example.com' },
   collaborators: ['collaborator-id'],
   discordWebhookUrl: 'https://discord.example/webhook-secret',
-  serverBackend: { secret: 'backend-secret' },
+  serverBackend: { secret: 'backend-secret', v2Enabled: true, cloudSaveEnabled: true },
   reviewInfo: {
     enabled: true,
     title: 'Game title',
@@ -222,4 +222,17 @@ test('public route bootstrap payloads contain no private or administrative field
     const leakedKeys = collectKeys(payload.data).filter((key) => forbiddenKeys.has(key));
     assert.deepEqual(leakedKeys, [], `${testCase.url} leaked private bootstrap fields`);
   }
+});
+
+test('play bootstrap exposes only the public SDK v2 feature flags', async () => {
+  const response = await getAppResponse('/play/public-game');
+  const payload = parseBootstrap(await response.text());
+
+  assert.deepEqual(payload.data.game.sdkV2, {
+    enabled: true,
+    cloudSaveEnabled: true,
+  });
+  assert.deepEqual(Object.keys(payload.data.game.sdkV2).sort(), ['cloudSaveEnabled', 'enabled']);
+  assert.equal('serverBackend' in payload.data.game, false);
+  assert.equal('secret' in payload.data.game, false);
 });
