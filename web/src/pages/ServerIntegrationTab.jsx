@@ -65,6 +65,28 @@ function hasLegacyBackendConfiguration(serverBackend) {
   );
 }
 
+function hasLegacyCompatibilityData(serverBackend) {
+  return Boolean(
+    serverBackend?.secret
+      || serverBackend?.leaderboardEnabled
+      || serverBackend?.configEnabled,
+  );
+}
+
+function hasExplicitLiveOpsMode(serverBackend) {
+  return serverBackend?.liveOpsMode === 'legacy' || serverBackend?.liveOpsMode === 'v2';
+}
+
+function resolveLiveOpsEnabled(serverBackend) {
+  if (
+    serverBackend?.liveOpsEnabled === false
+    && !hasExplicitLiveOpsMode(serverBackend)
+    && hasLegacyCompatibilityData(serverBackend)
+  ) return true;
+  if (serverBackend?.liveOpsEnabled !== undefined) return Boolean(serverBackend.liveOpsEnabled);
+  return hasLegacyBackendConfiguration(serverBackend);
+}
+
 export default function ServerIntegrationTab({ gameId }) {
   const { lang, t } = useI18n();
   const td = t.gameDetail;
@@ -146,7 +168,7 @@ export default function ServerIntegrationTab({ gameId }) {
     setSdkError('');
     setEntriesModalLb(null);
     setConfigModalCfg(null);
-    await updateBackend({ liveOpsMode: mode, v2Enabled: mode === 'v2' });
+    await updateBackend({ liveOpsEnabled: true, liveOpsMode: mode, v2Enabled: mode === 'v2' });
   }
 
   async function handleRotateSecret() {
@@ -365,9 +387,7 @@ export default function ServerIntegrationTab({ gameId }) {
   const serverBackend = backend.serverBackend ?? {};
   const leaderboards = backend.leaderboards ?? [];
   const config = backend.config ?? [];
-  const liveOpsEnabled = serverBackend.liveOpsEnabled === undefined
-    ? hasLegacyBackendConfiguration(serverBackend)
-    : Boolean(serverBackend.liveOpsEnabled);
+  const liveOpsEnabled = resolveLiveOpsEnabled(serverBackend);
   const integrationMode = getIntegrationMode(serverBackend);
 
   return (
@@ -449,6 +469,7 @@ export default function ServerIntegrationTab({ gameId }) {
                 <span className="si-resource-badge">{td.siLegacyActive}</span>
               </div>
               <p className="gi-step-warn">{td.siSecurityNotice}</p>
+              <p className="si-secret-preserved">{td.siSecretPreserved}</p>
               <div className="gd-upload-row">
                 <input
                   type="text"

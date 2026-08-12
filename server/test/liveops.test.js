@@ -23,3 +23,31 @@ test('the explicit LiveOps switch and selected mode take precedence', () => {
   assert.equal(isLiveOpsEnabled(enabledLegacy), true);
   assert.equal(getLiveOpsMode(enabledLegacy), 'legacy');
 });
+
+test('legacy HMAC configuration survives an unmarked materialized false switch', () => {
+  const backend = {
+    liveOpsEnabled: false,
+    secret: 'legacy-secret',
+    leaderboardEnabled: true,
+  };
+
+  assert.equal(isLiveOpsEnabled(backend), true);
+  assert.equal(getLiveOpsMode(backend), 'legacy');
+  assert.deepEqual(serializeLiveOpsBackend(backend), {
+    ...backend,
+    liveOpsEnabled: true,
+    liveOpsMode: 'legacy',
+  });
+});
+
+test('an explicitly selected and disabled mode remains disabled', () => {
+  const backend = {
+    liveOpsEnabled: false,
+    liveOpsMode: 'legacy',
+    secret: 'legacy-secret',
+    leaderboardEnabled: true,
+  };
+
+  assert.equal(isLiveOpsEnabled(backend), false);
+  assert.equal(serializeLiveOpsBackend(backend).secret, 'legacy-secret');
+});

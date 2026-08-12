@@ -102,3 +102,10 @@ Keep this file short; detailed implementation history remains in git commits.
 - Made every dashboard code block collapsible; generated SDK files start collapsed with copy/download controls still available.
 - Localized SDK v2 game-specific example titles, descriptions, and log snippets by dashboard locale (`ko`/`en`).
 - Verification: web build, server tests (124 passing), changed-server-module `node --check`, and `git diff --check`.
+
+## 2026-08-12 — Legacy HMAC compatibility
+
+- Treat legacy HMAC configuration as enabled when a newer schema materialized `liveOpsEnabled: false` without an explicit mode.
+- Pin the inferred mode only when the master switch is explicitly changed, and preserve the existing `serverBackend.secret` through all LiveOps/mode updates.
+- Added Legacy secret-preservation guidance and route/service regression coverage.
+- Verification: web build, server tests (127 passing), changed-server-module `node --check`, and `git diff --check`.

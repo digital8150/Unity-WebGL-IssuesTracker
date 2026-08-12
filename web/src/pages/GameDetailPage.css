@@ -1871,6 +1871,13 @@
   margin-top: 16px;
 }
 
+.si-secret-preserved {
+  margin: 12px 0 0;
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .si-generated-section .gi-code-wrapper {
   margin-top: 16px;
 }

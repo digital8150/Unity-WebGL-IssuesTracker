@@ -1,19 +1,37 @@
 export const LIVEOPS_MODES = ['legacy', 'v2'];
 
+function hasLegacyBackendConfiguration(serverBackend) {
+  return Boolean(
+    serverBackend?.secret
+      || serverBackend?.leaderboardEnabled
+      || serverBackend?.configEnabled,
+  );
+}
+
+function hasExplicitLiveOpsMode(serverBackend) {
+  return LIVEOPS_MODES.includes(serverBackend?.liveOpsMode);
+}
+
 /**
  * Resolve the persisted LiveOps switch while keeping older games working.
  * Games created before the switch was introduced have no liveOpsEnabled field;
- * their existing backend flags are treated as an enabled integration.
+ * their existing backend flags are treated as an enabled integration. A
+ * legacy document may also contain a materialized `false` without a mode when
+ * it was saved through a newer schema; the existing HMAC configuration still
+ * takes precedence until an explicit mode is recorded.
  */
 export function isLiveOpsEnabled(serverBackend) {
   if (serverBackend?.liveOpsEnabled !== undefined && serverBackend?.liveOpsEnabled !== null) {
+    if (
+      serverBackend.liveOpsEnabled === false
+      && !hasExplicitLiveOpsMode(serverBackend)
+      && hasLegacyBackendConfiguration(serverBackend)
+    ) return true;
     return serverBackend.liveOpsEnabled === true;
   }
 
   return Boolean(
-    serverBackend?.secret
-      || serverBackend?.leaderboardEnabled
-      || serverBackend?.configEnabled
+    hasLegacyBackendConfiguration(serverBackend)
       || serverBackend?.v2Enabled
       || serverBackend?.cloudSaveEnabled,
   );

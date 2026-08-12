@@ -196,6 +196,7 @@ function makeModels() {
   };
 
   return {
+    games,
     users,
     scores,
     saves,
@@ -261,15 +262,21 @@ async function startServer() {
   });
 }
 
-async function request(server, path, { userId = 'owner', method = 'GET' } = {}) {
+async function request(server, path, { userId = 'owner', method = 'GET', body } = {}) {
   const address = server.address();
+  const payload = body === undefined ? null : JSON.stringify(body);
   return new Promise((resolve, reject) => {
+    const headers = { authorization: `Bearer ${jwt.sign({ sub: userId }, process.env.JWT_SECRET)}` };
+    if (payload !== null) {
+      headers['content-type'] = 'application/json';
+      headers['content-length'] = Buffer.byteLength(payload);
+    }
     const requestObject = http.request({
       host: '127.0.0.1',
       port: address.port,
       path,
       method,
-      headers: { authorization: `Bearer ${jwt.sign({ sub: userId }, process.env.JWT_SECRET)}` },
+      headers,
     }, (response) => {
       let raw = '';
       response.setEncoding('utf8');
@@ -277,9 +284,46 @@ async function request(server, path, { userId = 'owner', method = 'GET' } = {}) 
       response.on('end', () => resolve({ status: response.statusCode, body: raw ? JSON.parse(raw) : null }));
     });
     requestObject.on('error', reject);
-    requestObject.end();
+    requestObject.end(payload);
   });
 }
+
+test('legacy HMAC settings are inferred and their secret survives LiveOps changes', async (t) => {
+  const models = makeModels();
+  const game = models.games[0];
+  game.serverBackend = {
+    liveOpsEnabled: false,
+    secret: 'legacy-secret',
+    leaderboardEnabled: true,
+    configEnabled: true,
+    v2Enabled: false,
+  };
+  let saveCount = 0;
+  game.save = async () => { saveCount += 1; };
+  const restore = patchModels(models);
+  t.after(restore);
+  const server = await startServer();
+  t.after(() => server.close());
+
+  const enabled = await request(server, '/api/games/game-a/backend', {
+    method: 'PATCH',
+    body: { liveOpsEnabled: true, liveOpsMode: 'legacy', v2Enabled: false },
+  });
+  assert.equal(enabled.status, 200);
+  assert.equal(enabled.body.serverBackend.secret, 'legacy-secret');
+  assert.equal(game.serverBackend.secret, 'legacy-secret');
+
+  const disabled = await request(server, '/api/games/game-a/backend', {
+    method: 'PATCH',
+    body: { liveOpsEnabled: false },
+  });
+  assert.equal(disabled.status, 200);
+  assert.equal(disabled.body.serverBackend.liveOpsEnabled, false);
+  assert.equal(disabled.body.serverBackend.liveOpsMode, 'legacy');
+  assert.equal(disabled.body.serverBackend.secret, 'legacy-secret');
+  assert.equal(game.serverBackend.secret, 'legacy-secret');
+  assert.equal(saveCount, 2);
+});
 
 test('leaderboard management is scoped, paginated, stable, and admin-capable', async (t) => {
   const models = makeModels();

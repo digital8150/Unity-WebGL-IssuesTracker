@@ -163,6 +163,7 @@ router.patch('/:gameId/backend', requireAuth, requireApproved, async (req, res, 
 
     const { leaderboardEnabled, configEnabled, v2Enabled, cloudSaveEnabled, liveOpsEnabled, liveOpsMode } = req.body ?? {};
     if (!game.serverBackend) game.serverBackend = {};
+    const existingLegacySecret = game.serverBackend.secret;
     if (liveOpsMode !== undefined && !LIVEOPS_MODES.includes(liveOpsMode)) {
       return res.status(400).json({ error: 'liveOpsMode must be legacy or v2' });
     }
@@ -174,6 +175,23 @@ router.patch('/:gameId/backend', requireAuth, requireApproved, async (req, res, 
     if (liveOpsMode !== undefined) {
       game.serverBackend.liveOpsMode = liveOpsMode;
       game.serverBackend.v2Enabled = liveOpsMode === 'v2';
+    }
+
+    // Pin the inferred mode when the master switch is explicitly changed.
+    // This lets a user turn off a legacy game after the compatibility fallback
+    // has recognized it, without changing the API generation.
+    if (
+      liveOpsEnabled !== undefined
+      && liveOpsMode === undefined
+      && !LIVEOPS_MODES.includes(game.serverBackend.liveOpsMode)
+    ) {
+      game.serverBackend.liveOpsMode = getLiveOpsMode(game.serverBackend);
+    }
+
+    // Changing LiveOps controls must never rotate or replace the legacy HMAC
+    // secret. Keep the old value even if a subdocument is re-materialized.
+    if (existingLegacySecret && !game.serverBackend.secret) {
+      game.serverBackend.secret = existingLegacySecret;
     }
     await game.save();
     res.json({ serverBackend: serializeLiveOpsBackend(game.serverBackend) });
