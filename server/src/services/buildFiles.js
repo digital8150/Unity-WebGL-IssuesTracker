@@ -9,6 +9,15 @@ const THUMB_MIME = {
   gif: 'image/gif',
 };
 
+const BLOG_IMAGE_MIME = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp4: 'video/mp4',
+};
+
 function baseMime(filename) {
   if (filename.endsWith('.wasm')) return 'application/wasm';
   if (filename.endsWith('.data')) return 'application/octet-stream';
@@ -36,7 +45,7 @@ function isAssetSwapArtifactPath(filename) {
 
 // `pipe` does not forward source errors, so a read failure mid-response would
 // otherwise surface as an unhandled 'error' event and take the process down.
-function streamFile(filePath, res, next, options) {
+export function streamFile(filePath, res, next, options) {
   const stream = createReadStream(filePath, options);
   stream.on('error', (error) => {
     if (res.headersSent) res.destroy(error);
@@ -223,6 +232,35 @@ export function createThumbnailFileHandler(thumbnailRoot) {
 
       const ext = filename.split('.').pop().toLowerCase();
       res.setHeader('Content-Type', THUMB_MIME[ext] || 'application/octet-stream');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Length', stat.size);
+      streamFile(filePath, res, next);
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// Blog media lived inline in index.js when the other static handlers moved
+// here, which is how it ended up calling a `createReadStream` that index.js no
+// longer imported — a ReferenceError that surfaced as a 500 on every image.
+// Keeping it beside its siblings makes it testable and keeps the shape shared.
+export function createBlogImageFileHandler(blogImageRoot) {
+  return async (req, res, next) => {
+    try {
+      const filename = req.params.filename;
+      if (!filename || filename.includes('..') || filename.includes('/')) return res.status(400).end();
+      const filePath = path.join(blogImageRoot, filename);
+      let stat;
+      try {
+        stat = await fs.stat(filePath);
+      } catch {
+        return res.status(404).end();
+      }
+      if (!stat.isFile()) return res.status(404).end();
+
+      const ext = filename.split('.').pop().toLowerCase();
+      res.setHeader('Content-Type', BLOG_IMAGE_MIME[ext] || 'application/octet-stream');
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       res.setHeader('Content-Length', stat.size);
       streamFile(filePath, res, next);
