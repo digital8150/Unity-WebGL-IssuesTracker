@@ -54,6 +54,14 @@ Keep this file short; detailed implementation history remains in git commits.
 - Unity custom state remains schemaless; retain the hand-written C# JSON writer.
 - Leaderboards are per-game, HMAC-protected, and top-N bounded; current nonce/rate-limit state assumes one process.
 
+## 2026-08-12 — build caps, atomic swaps, cache validators, thumbnail versioning
+
+- Raised StreamingAssets extraction caps to 2 GB total / 256 MB per entry and preserved 413 propagation.
+- Added temp-directory extraction, rollback-capable swaps, per-build replace locks, stale swap cleanup, and hidden swap paths.
+- Added StreamingAssets ETag/Last-Modified revalidation while keeping Unity artifacts immutable-cacheable.
+- Versioned thumbnail filenames by content hash; uploads/deletes sweep legacy and orphaned files, with dashboard merge protection.
+- Verification: `server/npm test` (132 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.
+
 ## 2026-08-12 — Arcade ID / GBaaS Phase 0–1
 
 - Reframed pending/rejected accounts as regular members; developer approval now gates dashboard access only.
@@ -109,3 +117,10 @@ Keep this file short; detailed implementation history remains in git commits.
 - Pin the inferred mode only when the master switch is explicitly changed, and preserve the existing `serverBackend.secret` through all LiveOps/mode updates.
 - Added Legacy secret-preservation guidance and route/service regression coverage.
 - Verification: web build, server tests (127 passing), changed-server-module `node --check`, and `git diff --check`.
+
+## 2026-08-12 — Build upload feedback + StreamingAssets replacement
+
+- Added XHR multipart upload progress, transfer metrics, server-processing state, cancel/terminal states, and selected-file manifests to the Builds tab.
+- Added authorized StreamingAssets replacement endpoint with idempotent extraction, bounded zip handling, metadata, storage recomputation, and non-caching of replaced assets.
+- Added expandable StreamingAssets file summaries and route coverage for authorization, stale-file removal, deduplication, and storage totals.
+- Verification: `server/npm test` (128 passing), `web/npm run build`, changed-server-module `node --check`, and `git diff --check`.

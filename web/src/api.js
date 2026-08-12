@@ -30,6 +30,72 @@ async function requestRaw(path, options = {}, useUploadBase = false) {
   return body;
 }
 
+function uploadMultipart(path, formData, {
+  method = 'POST',
+  onProgress,
+  signal,
+} = {}) {
+  const token = localStorage.getItem('token');
+  const base = UPLOAD_BASE;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let settled = false;
+
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', abort);
+      callback(value);
+    };
+
+    const abort = () => {
+      xhr.abort();
+      const error = new Error('Request aborted');
+      error.name = 'AbortError';
+      finish(reject, error);
+    };
+
+    xhr.open(method, `${base}${path}`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    xhr.upload.onprogress = (event) => {
+      onProgress?.({
+        loaded: event.loaded,
+        total: event.lengthComputable ? event.total : 0,
+      });
+    };
+
+    xhr.onload = () => {
+      let body = {};
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch {
+        body = {};
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        finish(resolve, body);
+      } else {
+        finish(reject, new Error(body.error || `Request failed: ${xhr.status}`));
+      }
+    };
+    xhr.onerror = () => finish(reject, new Error('Network request failed'));
+    xhr.ontimeout = () => finish(reject, new Error('Request timed out'));
+    xhr.onabort = () => {
+      const error = new Error('Request aborted');
+      error.name = 'AbortError';
+      finish(reject, error);
+    };
+
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener('abort', abort, { once: true });
+    xhr.send(formData);
+  });
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function postIssue(payload) {
@@ -113,14 +179,31 @@ export async function deleteGameArticleComment(gameSlug, articleSlug, commentId)
 
 // ── Builds ────────────────────────────────────────────────────────────────────
 
-export async function uploadBuild(gameId, files, { version = '', canvasWidth = 1920, canvasHeight = 1080, streamingAssetsZip = null } = {}) {
+export function uploadBuild(gameId, files, {
+  version = '',
+  canvasWidth = 1920,
+  canvasHeight = 1080,
+  streamingAssetsZip = null,
+  onProgress,
+  signal,
+} = {}) {
   const fd = new FormData();
   fd.append('version', version);
   fd.append('canvasWidth',  String(canvasWidth));
   fd.append('canvasHeight', String(canvasHeight));
   for (const file of files) fd.append('files', file);
   if (streamingAssetsZip) fd.append('streamingAssetsZip', streamingAssetsZip);
-  return requestRaw(`/api/games/${gameId}/builds`, { method: 'POST', body: fd }, true);
+  return uploadMultipart(`/api/games/${gameId}/builds`, fd, { onProgress, signal });
+}
+
+export function replaceStreamingAssets(gameId, buildId, streamingAssetsZip, { onProgress, signal } = {}) {
+  const fd = new FormData();
+  fd.append('streamingAssetsZip', streamingAssetsZip);
+  return uploadMultipart(`/api/games/${gameId}/builds/${buildId}/streaming-assets`, fd, {
+    method: 'PUT',
+    onProgress,
+    signal,
+  });
 }
 
 export async function activateBuild(gameId, buildId) {

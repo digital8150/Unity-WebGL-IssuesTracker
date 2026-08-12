@@ -2,7 +2,7 @@ import React, { forwardRef, useState, useEffect, useRef, useMemo, useCallback, u
 import { useParams, useLocation, useBlocker } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getGame, uploadBuild, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
+import { getGame, uploadBuild, replaceStreamingAssets, activateBuild, deleteBuild, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
@@ -25,9 +25,18 @@ hljs.registerLanguage('csharp', hljsCsharp);
 hljs.registerLanguage('javascript', hljsJs);
 
 function formatBytes(bytes) {
-  if (!bytes) return null;
+  if (bytes === null || bytes === undefined || !Number.isFinite(Number(bytes))) return null;
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.ceil(seconds % 60);
+  return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
 }
 
 function fmtDate(iso, lang) {
@@ -500,7 +509,8 @@ const ArcadeSection = forwardRef(function ArcadeSection({
           const result = await updateGame(gameId, { name: name.trim() });
           const updated = result.game;
           const nextName = updated?.name ?? name.trim();
-          setGame((prev) => ({ ...prev, ...(updated || {}), name: nextName }));
+          const { thumbnailUrl: _serverThumbnailUrl, ...updatedWithoutThumbnail } = updated || {};
+          setGame((prev) => ({ ...prev, ...updatedWithoutThumbnail, name: nextName }));
           setName(nextName);
           setSavedSettings((prev) => ({ ...prev, name: nextName }));
         }
@@ -521,7 +531,8 @@ const ArcadeSection = forwardRef(function ArcadeSection({
         const nextName = updated?.name ?? name.trim();
         const nextVisibility = updated?.visibility ?? visibility;
         const nextDescription = updated?.description ?? description;
-        setGame((prev) => ({ ...prev, ...(updated || {}), name: nextName }));
+        const { thumbnailUrl: _serverThumbnailUrl, ...updatedWithoutThumbnail } = updated || {};
+        setGame((prev) => ({ ...prev, ...updatedWithoutThumbnail, name: nextName }));
         setName(nextName);
         setVisibility(nextVisibility);
         setDescription(nextDescription);
@@ -1249,11 +1260,22 @@ export default function GameDetailPage() {
 
   const [uploading,     setUploading]     = useState(false);
   const [uploadError,   setUploadError]   = useState('');
+  const [uploadPhase,   setUploadPhase]   = useState('idle');
+  const [uploadProgress, setUploadProgress] = useState({ loaded: 0, total: 0, rate: 0, eta: null });
   const [uploadVersion, setUploadVersion] = useState('');
   const [canvasWidth,   setCanvasWidth]   = useState('1920');
   const [canvasHeight,  setCanvasHeight]  = useState('1080');
+  const [selectedBuildFiles, setSelectedBuildFiles] = useState([]);
+  const [selectedStreamingZip, setSelectedStreamingZip] = useState(null);
   const fileInputRef = useRef(null);
   const streamingAssetsRef = useRef(null);
+  const uploadControllerRef = useRef(null);
+  const uploadStartedAtRef = useRef(0);
+
+  const [streamingUpload, setStreamingUpload] = useState(null);
+  const streamingUploadControllerRef = useRef(null);
+  const streamingUploadStartedAtRef = useRef(0);
+  const [expandedStreamingBuildId, setExpandedStreamingBuildId] = useState(null);
 
   const [deletingBuildId, setDeletingBuildId] = useState(null);
 
@@ -1305,33 +1327,134 @@ export default function GameDetailPage() {
       .finally(() => setLoading(false));
   }, [gameId]);
 
+  function handleBuildFilesChange(event) {
+    setSelectedBuildFiles(Array.from(event.target.files || []));
+    setUploadError('');
+    setUploadPhase('idle');
+  }
+
+  function handleStreamingZipChange(event) {
+    setSelectedStreamingZip(event.target.files?.[0] || null);
+    setUploadError('');
+    setUploadPhase('idle');
+  }
+
+  function updateUploadProgress({ loaded, total }) {
+    const elapsed = Math.max((Date.now() - uploadStartedAtRef.current) / 1000, 0.001);
+    const rate = loaded / elapsed;
+    setUploadProgress({
+      loaded,
+      total,
+      rate,
+      eta: total > loaded && rate > 0 ? (total - loaded) / rate : null,
+    });
+    setUploadPhase(total > 0 && loaded >= total ? 'processing' : 'transferring');
+  }
+
+  function resetUploadSelection() {
+    setSelectedBuildFiles([]);
+    setSelectedStreamingZip(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (streamingAssetsRef.current) streamingAssetsRef.current.value = '';
+  }
+
+  function handleCancelUpload() {
+    if (!uploadControllerRef.current) return;
+    uploadControllerRef.current.abort();
+    uploadControllerRef.current = null;
+    setUploading(false);
+    setUploadPhase('canceled');
+  }
+
   async function handleUpload(e) {
     e.preventDefault();
-    const files = fileInputRef.current?.files;
-    if (!files || !files.length) {
+    if (!selectedBuildFiles.length) {
       setUploadError(t.gameDetail.chooseFiles);
       return;
     }
     setUploadError('');
     setUploading(true);
+    setUploadPhase('transferring');
+    setUploadProgress({ loaded: 0, total: 0, rate: 0, eta: null });
+    uploadStartedAtRef.current = Date.now();
+    const controller = new AbortController();
+    uploadControllerRef.current = controller;
     try {
-      const { build } = await uploadBuild(gameId, Array.from(files), {
+      const { build } = await uploadBuild(gameId, selectedBuildFiles, {
         version:      uploadVersion,
         canvasWidth:  parseInt(canvasWidth,  10) || 1920,
         canvasHeight: parseInt(canvasHeight, 10) || 1080,
-        streamingAssetsZip: streamingAssetsRef.current?.files?.[0] || null,
+        streamingAssetsZip: selectedStreamingZip,
+        onProgress: updateUploadProgress,
+        signal: controller.signal,
       });
       setBuilds((prev) => [build, ...prev]);
       setUploadVersion('');
       setCanvasWidth('1920');
       setCanvasHeight('1080');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (streamingAssetsRef.current) streamingAssetsRef.current.value = '';
+      resetUploadSelection();
+      setUploadPhase('success');
     } catch (err) {
-      setUploadError(err.message);
+      if (err.name === 'AbortError') {
+        setUploadPhase('canceled');
+      } else {
+        setUploadError(err.message);
+        setUploadPhase('failure');
+      }
     } finally {
+      if (uploadControllerRef.current === controller) uploadControllerRef.current = null;
       setUploading(false);
     }
+  }
+
+  function updateStreamingUploadProgress(buildId, { loaded, total }) {
+    const elapsed = Math.max((Date.now() - streamingUploadStartedAtRef.current) / 1000, 0.001);
+    const rate = loaded / elapsed;
+    setStreamingUpload((current) => current?.buildId === buildId ? {
+      ...current,
+      phase: total > 0 && loaded >= total ? 'processing' : 'transferring',
+      progress: {
+        loaded,
+        total,
+        rate,
+        eta: total > loaded && rate > 0 ? (total - loaded) / rate : null,
+      },
+    } : current);
+  }
+
+  async function handleReplaceStreamingAssets(buildId, file) {
+    if (!file || streamingUploadControllerRef.current) return;
+    const controller = new AbortController();
+    streamingUploadControllerRef.current = controller;
+    streamingUploadStartedAtRef.current = Date.now();
+    setStreamingUpload({
+      buildId,
+      fileName: file.name,
+      phase: 'transferring',
+      progress: { loaded: 0, total: 0, rate: 0, eta: null },
+      error: '',
+    });
+    try {
+      const { build } = await replaceStreamingAssets(gameId, buildId, file, {
+        signal: controller.signal,
+        onProgress: (progress) => updateStreamingUploadProgress(buildId, progress),
+      });
+      setBuilds((prev) => prev.map((candidate) => candidate._id === buildId ? build : candidate));
+      setStreamingUpload((current) => current?.buildId === buildId ? { ...current, phase: 'success' } : current);
+    } catch (err) {
+      setStreamingUpload((current) => current?.buildId === buildId ? {
+        ...current,
+        phase: err.name === 'AbortError' ? 'canceled' : 'failure',
+        error: err.name === 'AbortError' ? '' : err.message,
+      } : current);
+    } finally {
+      if (streamingUploadControllerRef.current === controller) streamingUploadControllerRef.current = null;
+    }
+  }
+
+  function handleCancelStreamingUpload() {
+    streamingUploadControllerRef.current?.abort();
+    streamingUploadControllerRef.current = null;
   }
 
   async function handleActivate(buildId) {
@@ -1515,12 +1638,19 @@ export default function GameDetailPage() {
                     type="file"
                     multiple
                     accept=".js,.wasm,.data,.br,.gz,.html,.json"
+                    disabled={uploading}
+                    onChange={handleBuildFilesChange}
                     style={{ display: 'none' }}
                   />
                 </label>
                 <button type="submit" className="btn btn-primary btn-sm" disabled={uploading}>
-                  {uploading ? td.uploading : td.upload}
+                  {uploadPhase === 'processing' ? td.uploadProcessing : uploading ? td.uploading : td.upload}
                 </button>
+                {uploading && uploadPhase === 'transferring' && (
+                  <button type="button" className="btn btn-ghost btn-sm gd-upload-cancel" onClick={handleCancelUpload}>
+                    {td.uploadCancel}
+                  </button>
+                )}
               </div>
               <div className="gd-upload-row" style={{ marginTop: 8 }}>
                 <label className="btn btn-ghost gd-file-label">
@@ -1529,11 +1659,30 @@ export default function GameDetailPage() {
                     ref={streamingAssetsRef}
                     type="file"
                     accept=".zip"
+                    disabled={uploading}
+                    onChange={handleStreamingZipChange}
                     style={{ display: 'none' }}
                   />
                 </label>
                 <span style={{ fontSize: 12, color: '#86868b', alignSelf: 'center' }}>{td.streamingAssetsHint}</span>
               </div>
+              {(selectedBuildFiles.length > 0 || selectedStreamingZip) && (
+                <div className="gd-upload-manifest" aria-live="polite">
+                  <div className="gd-upload-manifest-title">{td.selectedFiles}</div>
+                  {selectedBuildFiles.map((file) => (
+                    <div className="gd-upload-file" key={`${file.name}-${file.lastModified}`}>
+                      <span>{file.name}</span>
+                      <span>{formatBytes(file.size)}</span>
+                    </div>
+                  ))}
+                  {selectedStreamingZip && (
+                    <div className="gd-upload-file is-streaming">
+                      <span>{selectedStreamingZip.name}</span>
+                      <span>{formatBytes(selectedStreamingZip.size)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="gd-upload-row" style={{ marginTop: 8 }}>
                 <span style={{ fontSize: 13, color: '#6e6e73', alignSelf: 'center' }}>Canvas</span>
                 <input
@@ -1557,7 +1706,40 @@ export default function GameDetailPage() {
                 />
               </div>
               <p className="gd-upload-hint">{td.uploadHint}</p>
-              {uploadError && <div className="gd-error">{uploadError}</div>}
+              {uploadPhase !== 'idle' && (
+                <div className={`gd-upload-status is-${uploadPhase}`} aria-live="polite">
+                  <div className="gd-upload-status-head">
+                    <span>
+                      {uploadPhase === 'transferring' && td.uploadTransferring}
+                      {uploadPhase === 'processing' && td.uploadProcessing}
+                      {uploadPhase === 'success' && td.uploadSuccess}
+                      {uploadPhase === 'failure' && td.uploadFailure}
+                      {uploadPhase === 'canceled' && td.uploadCanceled}
+                    </span>
+                    {(uploadPhase === 'transferring' || uploadPhase === 'processing') && (
+                      <strong>
+                        {uploadProgress.total > 0
+                          ? `${Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100))}%`
+                          : '—'}
+                      </strong>
+                    )}
+                  </div>
+                  {(uploadPhase === 'transferring' || uploadPhase === 'processing') && (
+                    <>
+                      <div className="gd-upload-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={uploadProgress.total ? Math.min(100, Math.round((uploadProgress.loaded / uploadProgress.total) * 100)) : 0}>
+                        <span style={{ width: `${uploadProgress.total ? Math.min(100, (uploadProgress.loaded / uploadProgress.total) * 100) : 0}%` }} />
+                      </div>
+                      <div className="gd-upload-stats">
+                        <span>{td.uploadTransferred}: {formatBytes(uploadProgress.loaded)} / {uploadProgress.total ? formatBytes(uploadProgress.total) : '—'}</span>
+                        <span>{td.uploadRate}: {uploadProgress.rate ? `${formatBytes(uploadProgress.rate)}/s` : '—'}</span>
+                        <span>{td.uploadEta}: {uploadPhase === 'processing' ? '—' : formatDuration(uploadProgress.eta)}</span>
+                      </div>
+                    </>
+                  )}
+                  {uploadError && <div className="gd-error">{uploadError}</div>}
+                </div>
+              )}
+              {uploadPhase === 'idle' && uploadError && <div className="gd-error">{uploadError}</div>}
             </form>
 
             {builds.length === 0 ? (
@@ -1572,7 +1754,20 @@ export default function GameDetailPage() {
                   ) : null;
                 })()}
                 <div className="gd-build-list">
-                  {builds.map((b) => (
+                  {builds.map((b) => {
+                    const streamingFiles = [...new Set((b.files?.other || [])
+                      .filter((file) => file.startsWith('StreamingAssets/'))
+                      .map((file) => file.slice('StreamingAssets/'.length)))];
+                    const hasStreamingAssets = Boolean(
+                      b.streamingAssetsUpdatedAt || streamingFiles.length || b.streamingAssetsFileCount,
+                    );
+                    const isStreamingExpanded = expandedStreamingBuildId === b._id;
+                    const rowStreamingUpload = streamingUpload?.buildId === b._id ? streamingUpload : null;
+                    const streamingFileCount = b.streamingAssetsFileCount > 0 ? b.streamingAssetsFileCount : streamingFiles.length;
+                    const streamingBytesLabel = b.streamingAssetsUpdatedAt || b.streamingAssetsBytes > 0
+                      ? formatBytes(b.streamingAssetsBytes)
+                      : '—';
+                    return (
                     <div key={b._id} className={`gd-build-row${b.isActive ? ' active' : ''}`}>
                       <div className="gd-build-meta">
                         {b.isActive && <span className="gd-badge">{td.active}</span>}
@@ -1597,8 +1792,8 @@ export default function GameDetailPage() {
                             <span key={role} className="gd-file-chip missing">{role}</span>
                           )
                         )}
-                        {b.files?.other?.some((f) => f.startsWith('StreamingAssets/')) && (
-                          <span className="gd-file-chip">StreamingAssets</span>
+                        {hasStreamingAssets && (
+                          <span className="gd-file-chip">{td.streamingAssetsFiles}: {streamingFileCount}</span>
                         )}
                       </div>
                       <div className="gd-build-actions">
@@ -1615,8 +1810,70 @@ export default function GameDetailPage() {
                           {deletingBuildId === b._id ? td.deleting : td.deleteBuild}
                         </button>
                       </div>
+                      <div className="gd-build-streaming">
+                        <label className="btn btn-ghost gd-streaming-replace">
+                          {rowStreamingUpload?.phase === 'processing' ? td.uploadProcessing : td.streamingAssetsReplace}
+                          <input
+                            type="file"
+                            accept=".zip"
+                            disabled={Boolean(streamingUploadControllerRef.current)}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = '';
+                              handleReplaceStreamingAssets(b._id, file);
+                            }}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        {hasStreamingAssets && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost gd-streaming-inspect"
+                            aria-expanded={isStreamingExpanded}
+                            onClick={() => setExpandedStreamingBuildId(isStreamingExpanded ? null : b._id)}
+                          >
+                            {isStreamingExpanded ? td.streamingAssetsHide : td.streamingAssetsInspect}
+                          </button>
+                        )}
+                        {rowStreamingUpload && (
+                          <div className={`gd-streaming-upload is-${rowStreamingUpload.phase}`} aria-live="polite">
+                            <span>{rowStreamingUpload.fileName}</span>
+                            {(rowStreamingUpload.phase === 'transferring' || rowStreamingUpload.phase === 'processing') && (
+                              <>
+                                <strong>{rowStreamingUpload.progress.total ? `${Math.round((rowStreamingUpload.progress.loaded / rowStreamingUpload.progress.total) * 100)}%` : '—'}</strong>
+                                <span>{formatBytes(rowStreamingUpload.progress.loaded)} / {rowStreamingUpload.progress.total ? formatBytes(rowStreamingUpload.progress.total) : '—'}</span>
+                                <span>{rowStreamingUpload.progress.rate ? `${formatBytes(rowStreamingUpload.progress.rate)}/s` : '—'}</span>
+                                <span>{rowStreamingUpload.phase === 'processing' ? td.uploadProcessing : formatDuration(rowStreamingUpload.progress.eta)}</span>
+                                {rowStreamingUpload.phase === 'transferring' && (
+                                  <button type="button" className="btn btn-ghost gd-upload-cancel" onClick={handleCancelStreamingUpload}>
+                                    {td.uploadCancel}
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            {rowStreamingUpload.phase === 'success' && <span>{td.streamingAssetsReplaceSuccess}</span>}
+                            {rowStreamingUpload.phase === 'canceled' && <span>{td.uploadCanceled}</span>}
+                            {rowStreamingUpload.phase === 'failure' && <span className="gd-error">{rowStreamingUpload.error || td.streamingAssetsReplaceFailure}</span>}
+                          </div>
+                        )}
+                        {hasStreamingAssets && (
+                          <div className="gd-streaming-meta">
+                            <span>{td.streamingAssetsFiles}: {streamingFileCount}</span>
+                            <span>{td.streamingAssetsSize}: {streamingBytesLabel}</span>
+                            {b.streamingAssetsUpdatedAt && <span>{td.streamingAssetsUpdated}: {fmtDate(b.streamingAssetsUpdatedAt, lang)}</span>}
+                          </div>
+                        )}
+                        {isStreamingExpanded && (
+                          <div className="gd-streaming-tree">
+                            {streamingFiles.length > 0 ? streamingFiles.map((file) => (
+                              <div className="gd-streaming-tree-file" key={file}>{file}</div>
+                            )) : <span className="gd-build-date">{td.streamingAssetsEmpty}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             )}

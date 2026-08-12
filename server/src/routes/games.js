@@ -2,6 +2,7 @@ import { Router } from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import { createHash, randomUUID } from 'node:crypto';
 import multer from 'multer';
 import mongoose from 'mongoose';
 import AdmZip from 'adm-zip';
@@ -65,6 +66,21 @@ async function moveFile(src, dest) {
 
 const STORAGE_ROOT = path.resolve('storage', 'builds');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
+const THUMBNAIL_MIME_TO_EXT = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+const THUMBNAIL_EXTENSIONS = new Set(Object.values(THUMBNAIL_MIME_TO_EXT));
+const STREAMING_ASSETS_MAX_ENTRIES = 100_000;
+const STREAMING_ASSETS_MAX_ENTRY_BYTES = 256 * 1024 * 1024;
+const STREAMING_ASSETS_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+const STREAMING_ASSETS_SWAP_ARTIFACT_PREFIXES = [
+  '.streaming-assets-tmp-',
+  '.streaming-assets-old-',
+];
+const streamingAssetsReplaceLocks = new Map();
 
 async function ensureBuildDir(buildId) {
   const dir = path.join(STORAGE_ROOT, String(buildId));
@@ -72,42 +88,195 @@ async function ensureBuildDir(buildId) {
   return dir;
 }
 
-// Extracts a StreamingAssets zip into `<buildDir>/StreamingAssets/`, preserving
+async function removeGameThumbnailFiles(gameId, currentThumbnailUrl = '') {
+  await fs.mkdir(THUMBNAIL_ROOT, { recursive: true });
+  const prefix = String(gameId);
+  const currentName = currentThumbnailUrl ? path.basename(currentThumbnailUrl) : '';
+  if (currentName) await fs.rm(path.join(THUMBNAIL_ROOT, currentName), { force: true });
+
+  let entries;
+  try {
+    entries = await fs.readdir(THUMBNAIL_ROOT, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.startsWith(prefix)) continue;
+    const ext = path.extname(entry.name).slice(1).toLowerCase();
+    if (THUMBNAIL_EXTENSIONS.has(ext)) {
+      await fs.rm(path.join(THUMBNAIL_ROOT, entry.name), { force: true });
+    }
+  }
+}
+
+function streamingAssetsError(message, status = 413) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+// Extracts a StreamingAssets zip into an explicit destination root, preserving
 // nested folder structure. Returns { relPaths, totalBytes } where relPaths are
-// paths relative to buildDir (e.g. "StreamingAssets/sub/data.json").
-async function extractStreamingAssetsZip(zipPath, buildDir) {
+// paths relative to the build directory (e.g. "StreamingAssets/sub/data.json").
+async function extractStreamingAssetsZip(zipPath, destinationRoot, limits = {}) {
+  const maxEntries = limits.maxEntries ?? STREAMING_ASSETS_MAX_ENTRIES;
+  const maxEntryBytes = limits.maxEntryBytes ?? STREAMING_ASSETS_MAX_ENTRY_BYTES;
+  const maxBytes = limits.maxBytes ?? STREAMING_ASSETS_MAX_BYTES;
   const zip = new AdmZip(zipPath);
   const entries = zip.getEntries().filter((e) => !e.isDirectory);
+  if (entries.length > maxEntries) {
+    throw streamingAssetsError('StreamingAssets zip contains too many files');
+  }
 
   // If every entry shares one common top-level folder named "streamingassets",
   // the developer zipped the folder itself — strip that one wrapper so we don't
   // end up with StreamingAssets/StreamingAssets/....
-  const firstSegments = entries.map((e) => e.entryName.split('/')[0]);
+  const firstSegments = entries.map((e) => String(e.entryName).replaceAll('\\', '/').split('/')[0]);
   const stripWrapper =
     entries.length > 0 &&
     firstSegments.every((seg) => seg.toLowerCase() === 'streamingassets');
 
-  const destRoot = path.join(buildDir, 'StreamingAssets');
+  const destRoot = path.resolve(destinationRoot);
   const relPaths = [];
+  const seenPaths = new Set();
   let totalBytes = 0;
 
+  await fs.mkdir(destRoot, { recursive: true });
+
   for (const entry of entries) {
-    const rawParts = entry.entryName.split('/').filter(Boolean);
+    const rawParts = entry.entryName.replaceAll('\\', '/').split('/').filter(Boolean);
     const parts = stripWrapper ? rawParts.slice(1) : rawParts;
     if (!parts.length || parts.some((p) => p === '..' || p === '.')) continue;
 
     const relPath = path.posix.join(...parts);
-    const dest = path.join(destRoot, ...parts);
+    const relativeFile = path.posix.join('StreamingAssets', relPath);
+    if (seenPaths.has(relativeFile)) continue;
+    seenPaths.add(relativeFile);
+    const dest = path.resolve(destRoot, ...parts);
     if (!dest.startsWith(destRoot + path.sep) && dest !== destRoot) continue; // zip-slip guard
 
+    const declaredSize = Number(entry.header?.size ?? 0);
+    if (declaredSize > maxEntryBytes) {
+      throw streamingAssetsError('A StreamingAssets file is too large');
+    }
+
+    const data = entry.getData();
+    if (data.length > maxEntryBytes) {
+      throw streamingAssetsError('A StreamingAssets file is too large');
+    }
+    if (totalBytes + data.length > maxBytes) {
+      throw streamingAssetsError('StreamingAssets zip is too large after extraction');
+    }
+
     await fs.mkdir(path.dirname(dest), { recursive: true });
-    await fs.writeFile(dest, entry.getData());
+    await fs.writeFile(dest, data);
     const stat = await fs.stat(dest);
     totalBytes += stat.size;
-    relPaths.push(path.posix.join('StreamingAssets', relPath));
+    relPaths.push(relativeFile);
   }
 
   return { relPaths, totalBytes };
+}
+
+async function sweepStreamingAssetsSwapArtifacts(buildDir) {
+  let entries;
+  try {
+    entries = await fs.readdir(buildDir, { withFileTypes: true });
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (!STREAMING_ASSETS_SWAP_ARTIFACT_PREFIXES.some((prefix) => entry.name.startsWith(prefix))) continue;
+    await fs.rm(path.join(buildDir, entry.name), { recursive: true, force: true });
+  }
+}
+
+function acquireStreamingAssetsReplaceLock(buildId) {
+  const key = String(buildId);
+  if (streamingAssetsReplaceLocks.has(key)) return null;
+
+  let release;
+  const lock = new Promise((resolve) => { release = resolve; });
+  streamingAssetsReplaceLocks.set(key, lock);
+  return () => {
+    if (streamingAssetsReplaceLocks.get(key) === lock) streamingAssetsReplaceLocks.delete(key);
+    release();
+  };
+}
+
+async function extractAndSwapStreamingAssets(zipPath, buildDir) {
+  // A replacement temporarily needs room for both the old and new trees.
+  // With the 2 GB extracted cap, peak disk usage can therefore approach 4 GB.
+  const token = randomUUID();
+  const tempDir = path.join(buildDir, `.streaming-assets-tmp-${token}`);
+  const oldDir = path.join(buildDir, `.streaming-assets-old-${token}`);
+  const liveDir = path.join(buildDir, 'StreamingAssets');
+  let oldMoved = false;
+  let swapped = false;
+
+  try {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    await fs.rm(oldDir, { recursive: true, force: true });
+    const extracted = await extractStreamingAssetsZip(zipPath, tempDir);
+
+    try {
+      await fs.rename(liveDir, oldDir);
+      oldMoved = true;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+
+    try {
+      await fs.rename(tempDir, liveDir);
+    } catch (error) {
+      if (oldMoved) {
+        try {
+          await fs.rename(oldDir, liveDir);
+        } catch (rollbackError) {
+          error.rollbackError = rollbackError;
+        }
+      }
+      throw error;
+    }
+    swapped = true;
+    await fs.rm(oldDir, { recursive: true, force: true });
+    return extracted;
+  } finally {
+    if (!swapped) await fs.rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function uniqueOtherFiles(files) {
+  return [...new Set((Array.isArray(files) ? files : []).filter(Boolean))];
+}
+
+async function calculateBuildStorageBytes(buildDir, files) {
+  await sweepStreamingAssetsSwapArtifacts(buildDir);
+  const names = uniqueOtherFiles([
+    files?.loader,
+    files?.data,
+    files?.framework,
+    files?.wasm,
+    ...(files?.other || []),
+  ]);
+  let total = 0;
+  for (const name of names) {
+    const relative = String(name).split('/').filter(Boolean);
+    const filePath = path.join(buildDir, ...relative);
+    if (!filePath.startsWith(buildDir + path.sep)) continue;
+    try {
+      const stat = await fs.stat(filePath);
+      if (stat.isFile()) total += stat.size;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return total;
 }
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -296,24 +465,14 @@ router.post(
       if (!game) return res.status(404).json({ error: 'Game not found' });
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-      const mimeToExt = {
-        'image/png': 'png',
-        'image/jpeg': 'jpg',
-        'image/webp': 'webp',
-        'image/gif': 'gif',
-      };
-      const ext = mimeToExt[req.file.mimetype];
+      const ext = THUMBNAIL_MIME_TO_EXT[req.file.mimetype];
       if (!ext) return res.status(400).json({ error: 'Unsupported image type' });
 
       await fs.mkdir(THUMBNAIL_ROOT, { recursive: true });
+      await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
 
-      // Delete any pre-existing thumbnails (different extensions).
-      for (const oldExt of Object.values(mimeToExt)) {
-        const oldPath = path.join(THUMBNAIL_ROOT, `${game._id}.${oldExt}`);
-        await fs.rm(oldPath, { force: true });
-      }
-
-      const fname = `${game._id}.${ext}`;
+      const digest = createHash('sha1').update(req.file.buffer).digest('hex').slice(0, 10);
+      const fname = `${game._id}-${digest}.${ext}`;
       await fs.writeFile(path.join(THUMBNAIL_ROOT, fname), req.file.buffer);
       game.thumbnailUrl = `/thumbnails/${fname}`;
       await game.save();
@@ -328,9 +487,8 @@ router.delete('/:gameId/thumbnail', requireAuth, requireApproved, async (req, re
   try {
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
+    await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
     if (game.thumbnailUrl) {
-      const fname = path.basename(game.thumbnailUrl);
-      await fs.rm(path.join(THUMBNAIL_ROOT, fname), { force: true });
       game.thumbnailUrl = '';
       await game.save();
     }
@@ -410,10 +568,12 @@ router.post(
   requireApproved,
   upload.fields([{ name: 'files' }, { name: 'streamingAssetsZip', maxCount: 1 }]),
   async (req, res, next) => {
+    let uploadedPaths = [];
     try {
       const files = req.files?.files || [];
       const streamingAssetsZip = req.files?.streamingAssetsZip?.[0] || null;
       const allUploaded = [...files, ...(streamingAssetsZip ? [streamingAssetsZip] : [])];
+      uploadedPaths = allUploaded.map((file) => file.path);
 
       const game = await Game.findById(req.params.gameId);
       if (!game || !isAuthorized(game, req.user.sub)) {
@@ -437,13 +597,10 @@ router.post(
       const dir = await ensureBuildDir(build._id);
 
       const filesMeta = { other: [] };
-      let totalBytes = 0;
       for (const file of files) {
         const safe = path.basename(file.originalname);
         const dest = path.join(dir, safe);
         await moveFile(file.path, dest);
-        const stat = await fs.stat(dest);
-        totalBytes += stat.size;
         const role = detectRole(safe);
         if (role === 'other') {
           filesMeta.other.push(safe);
@@ -453,19 +610,70 @@ router.post(
       }
 
       if (streamingAssetsZip) {
-        const { relPaths, totalBytes: zipBytes } = await extractStreamingAssetsZip(streamingAssetsZip.path, dir);
+        const { relPaths, totalBytes: streamingAssetsBytes } = await extractStreamingAssetsZip(
+          streamingAssetsZip.path,
+          path.join(dir, 'StreamingAssets'),
+        );
         filesMeta.other.push(...relPaths);
-        totalBytes += zipBytes;
+        build.streamingAssetsFileCount = relPaths.length;
+        build.streamingAssetsBytes = streamingAssetsBytes;
+        build.streamingAssetsUpdatedAt = new Date();
         await fs.rm(streamingAssetsZip.path, { force: true });
       }
 
+      filesMeta.other = uniqueOtherFiles(filesMeta.other);
       build.files = filesMeta;
-      build.storageBytes = totalBytes;
+      build.storageBytes = await calculateBuildStorageBytes(dir, filesMeta);
       await build.save();
 
       res.status(201).json({ build });
     } catch (err) {
+      await Promise.all(uploadedPaths.map((filePath) => fs.rm(filePath, { force: true })));
       next(err);
+    }
+  },
+);
+
+router.put(
+  '/:gameId/builds/:buildId/streaming-assets',
+  requireAuth,
+  requireApproved,
+  upload.single('streamingAssetsZip'),
+  async (req, res, next) => {
+    const uploadedPath = req.file?.path;
+    const releaseLock = acquireStreamingAssetsReplaceLock(req.params.buildId);
+    if (!releaseLock) {
+      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
+      return res.status(409).json({ error: 'A StreamingAssets replacement is already in progress' });
+    }
+    try {
+      const game = await Game.findById(req.params.gameId);
+      if (!game || !isAuthorized(game, req.user.sub)) {
+        return res.status(404).json({ error: 'Game not found' });
+      }
+      if (!req.file) return res.status(400).json({ error: 'No StreamingAssets zip uploaded' });
+
+      const build = await Build.findOne({ _id: req.params.buildId, gameId: game._id });
+      if (!build) return res.status(404).json({ error: 'Build not found' });
+
+      const dir = await ensureBuildDir(build._id);
+      const { relPaths, totalBytes } = await extractAndSwapStreamingAssets(req.file.path, dir);
+      const files = build.files?.toObject ? build.files.toObject() : { ...(build.files || {}) };
+      const survivingOther = uniqueOtherFiles(files.other).filter((file) => !file.startsWith('StreamingAssets/'));
+      files.other = uniqueOtherFiles([...survivingOther, ...relPaths]);
+      build.files = files;
+      build.streamingAssetsFileCount = relPaths.length;
+      build.streamingAssetsBytes = totalBytes;
+      build.streamingAssetsUpdatedAt = new Date();
+      build.storageBytes = await calculateBuildStorageBytes(dir, files);
+      await build.save();
+
+      res.json({ build });
+    } catch (err) {
+      next(err);
+    } finally {
+      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
+      releaseLock();
     }
   },
 );
@@ -669,4 +877,5 @@ router.get('/play/:gameSlug/:buildId', async (req, res, next) => {
   }
 });
 
+export { extractStreamingAssetsZip };
 export default router;
