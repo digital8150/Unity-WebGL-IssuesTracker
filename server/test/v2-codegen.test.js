@@ -77,6 +77,7 @@ test('generateArcadeSdk serves both static files with origin substitution and ex
       {
         leaderboards: [{ key: 'weekly' }],
         config: [{ key: 'balance.json' }],
+        locale: 'en',
       },
     );
 
@@ -91,6 +92,20 @@ test('generateArcadeSdk serves both static files with origin substitution and ex
     assert.ok(generated.docs.some((doc) => doc.snippet.includes('weekly')));
     assert.ok(generated.docs.some((doc) => doc.snippet.includes('balance.json')));
     assert.ok(generated.docs.some((doc) => doc.snippet.includes('SaveData("main"')));
+
+    const korean = generateArcadeSdk(
+      { serverBackend: { cloudSaveEnabled: true } },
+      {
+        leaderboards: [{ key: 'weekly' }],
+        config: [{ key: 'balance.json' }],
+        locale: 'ko',
+      },
+    );
+    assert.equal(korean.docs[0].title, 'SDK 초기화');
+    assert.match(korean.docs[0].body, /GameObject/);
+    assert.match(korean.docs[0].snippet, /로그인 사용자/);
+    assert.ok(korean.docs.some((doc) => doc.title === '점수 제출'));
+    assert.ok(korean.docs.some((doc) => doc.title === '게임 설정 읽기'));
   } finally {
     if (previousOrigin === undefined) delete process.env.SITE_ORIGIN;
     else process.env.SITE_ORIGIN = previousOrigin;
@@ -132,6 +147,14 @@ test('generated-sdk delivery is limited to authorized game managers', { skip: !s
   const owner = await request(server, '/api/games/game-a/backend/generated-sdk', siteToken('owner'));
   assert.equal(owner.status, 200);
   assert.deepEqual(owner.body.files.map((file) => file.filename), ['ArcadeSdk.cs', 'ArcadeSdk.jslib']);
+
+  const korean = await request(server, '/api/games/game-a/backend/generated-sdk?locale=ko', siteToken('owner'));
+  assert.equal(korean.status, 200);
+  assert.equal(korean.body.docs[0].title, 'SDK 초기화');
+
+  const english = await request(server, '/api/games/game-a/backend/generated-sdk?locale=en', siteToken('owner'));
+  assert.equal(english.status, 200);
+  assert.equal(english.body.docs[0].title, 'Initialize the SDK');
 
   const collaborator = await request(server, '/api/games/game-a/backend/generated-sdk', siteToken('collaborator'));
   assert.equal(collaborator.status, 200);

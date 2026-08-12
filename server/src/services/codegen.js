@@ -361,49 +361,70 @@ function firstKey(items, fallback) {
   return items.find((item) => typeof item?.key === 'string' && item.key.length > 0)?.key ?? fallback;
 }
 
-function arcadeSdkDocs(game, leaderboards, config) {
+function arcadeSdkDocs(game, leaderboards, config, locale = 'ko') {
   const leaderboardKey = firstKey(leaderboards, 'main');
   const configKey = firstKey(config, 'settings');
+  const isKorean = locale !== 'en';
   const docs = [
     {
-      title: 'Initialize the SDK',
-      body: 'Add ArcadeSdk to a GameObject named ArcadeSdk. The play page supplies the short-lived credential before gameplay starts.',
-      snippet: 'ArcadeSdk.Instance.OnReady += () => Debug.Log($"Signed in as {ArcadeSdk.Instance.DisplayName}");',
+      title: isKorean ? 'SDK 초기화' : 'Initialize the SDK',
+      body: isKorean
+        ? '이름이 ArcadeSdk인 GameObject에 ArcadeSdk 컴포넌트를 추가하세요. 게임이 시작되기 전에 플레이 페이지가 짧은 수명의 인증 정보를 전달합니다.'
+        : 'Add ArcadeSdk to a GameObject named ArcadeSdk. The play page supplies the short-lived credential before gameplay starts.',
+      snippet: isKorean
+        ? 'ArcadeSdk.Instance.OnReady += () => Debug.Log($"로그인 사용자: {ArcadeSdk.Instance.DisplayName}");'
+        : 'ArcadeSdk.Instance.OnReady += () => Debug.Log($"Signed in as {ArcadeSdk.Instance.DisplayName}");',
     },
   ];
 
   if (leaderboards.length > 0) {
     docs.push(
       {
-        title: 'Submit a score',
-        body: 'Scores are associated with the signed-in account; the display name is never accepted from the game payload.',
-        snippet: `ArcadeSdk.Instance.SubmitScore("${leaderboardKey}", 4200, (ok, rank) => {\n    if (ok) Debug.Log($"Submitted, rank={rank}");\n});`,
+        title: isKorean ? '점수 제출' : 'Submit a score',
+        body: isKorean
+          ? '점수는 로그인한 계정에 연결됩니다. 게임이 보낸 표시 이름은 점수 데이터로 받지 않습니다.'
+          : 'Scores are associated with the signed-in account; the display name is never accepted from the game payload.',
+        snippet: isKorean
+          ? `ArcadeSdk.Instance.SubmitScore("${leaderboardKey}", 4200, (ok, rank) => {\n    if (ok) Debug.Log($"제출 완료, 순위={rank}");\n});`
+          : `ArcadeSdk.Instance.SubmitScore("${leaderboardKey}", 4200, (ok, rank) => {\n    if (ok) Debug.Log($"Submitted, rank={rank}");\n});`,
       },
       {
-        title: 'Read the leaderboard',
-        body: 'Fetch the signed-in player leaderboard and inspect rank, userId, displayName, score, and isMe.',
-        snippet: `ArcadeSdk.Instance.GetLeaderboard("${leaderboardKey}", (ok, entries) => {\n    if (!ok) return;\n    foreach (var entry in entries) Debug.Log($"{entry.rank}. {entry.displayName} - {entry.score}");\n});`,
+        title: isKorean ? '리더보드 읽기' : 'Read the leaderboard',
+        body: isKorean
+          ? '로그인한 플레이어의 리더보드를 가져와 rank, userId, displayName, score, isMe 값을 확인합니다.'
+          : 'Fetch the signed-in player leaderboard and inspect rank, userId, displayName, score, and isMe.',
+        snippet: isKorean
+          ? `ArcadeSdk.Instance.GetLeaderboard("${leaderboardKey}", (ok, entries) => {\n    if (!ok) return;\n    foreach (var entry in entries) Debug.Log($"{entry.rank}. {entry.displayName} - {entry.score}");\n});`
+          : `ArcadeSdk.Instance.GetLeaderboard("${leaderboardKey}", (ok, entries) => {\n    if (!ok) return;\n    foreach (var entry in entries) Debug.Log($"{entry.rank}. {entry.displayName} - {entry.score}");\n});`,
       },
       {
-        title: 'Read your rank',
-        body: 'Get the current best score and tie-aware rank for the signed-in account.',
-        snippet: `ArcadeSdk.Instance.GetMyRank("${leaderboardKey}", (ok, result) => {\n    if (ok) Debug.Log($"My rank={result.rank}, score={result.score}");\n});`,
+        title: isKorean ? '내 순위 읽기' : 'Read your rank',
+        body: isKorean
+          ? '로그인한 계정의 현재 최고 점수와 동점자를 고려한 순위를 가져옵니다.'
+          : 'Get the current best score and tie-aware rank for the signed-in account.',
+        snippet: isKorean
+          ? `ArcadeSdk.Instance.GetMyRank("${leaderboardKey}", (ok, result) => {\n    if (ok) Debug.Log($"내 순위={result.rank}, 점수={result.score}");\n});`
+          : `ArcadeSdk.Instance.GetMyRank("${leaderboardKey}", (ok, result) => {\n    if (ok) Debug.Log($"My rank={result.rank}, score={result.score}");\n});`,
       },
     );
   }
 
   if (config.length > 0) {
     docs.push({
-      title: 'Read game config',
-      body: 'Config values are returned as their original JSON string so the game can deserialize its own schema.',
+      title: isKorean ? '게임 설정 읽기' : 'Read game config',
+      body: isKorean
+        ? '설정 값은 원본 JSON 문자열로 반환되므로 게임에서 자체 스키마에 맞게 역직렬화할 수 있습니다.'
+        : 'Config values are returned as their original JSON string so the game can deserialize its own schema.',
       snippet: `ArcadeSdk.Instance.GetConfig("${configKey}", (ok, json) => {\n    if (!ok) return;\n    var settings = JsonUtility.FromJson<MySettings>(json);\n});`,
     });
   }
 
   if (game?.serverBackend?.cloudSaveEnabled) {
     docs.push({
-      title: 'Load and save data',
-      body: 'Cloud saves preserve the original JSON string and return a revision for compare-and-swap writes.',
+      title: isKorean ? '데이터 불러오기 및 저장' : 'Load and save data',
+      body: isKorean
+        ? '클라우드 세이브는 원본 JSON 문자열을 보존하고, 비교 후 저장할 수 있도록 리비전을 반환합니다.'
+        : 'Cloud saves preserve the original JSON string and return a revision for compare-and-swap writes.',
       snippet: 'ArcadeSdk.Instance.LoadSave("main", (ok, save) => { /* save.data, save.rev */ });\nArcadeSdk.Instance.SaveData("main", "{\\"coins\\":100}", 0, (ok, save) => { /* save.rev */ });\nArcadeSdk.Instance.DeleteSave("main", ok => { /* deleted */ });',
     });
   }
@@ -417,7 +438,7 @@ function arcadeSdkDocs(game, leaderboards, config) {
  * injects the deployment origin into the C# constant and never embeds a
  * game secret or XOR obfuscation path.
  */
-export function generateArcadeSdk(game, { leaderboards = [], config = [] } = {}) {
+export function generateArcadeSdk(game, { leaderboards = [], config = [], locale = 'ko' } = {}) {
   const siteOrigin = process.env.SITE_ORIGIN || DEFAULT_SITE_ORIGIN;
   const csharp = injectApiBaseUrl(
     readArcadeSdkFile('ArcadeSdk.cs', ARCADE_SDK_CS),
@@ -430,6 +451,6 @@ export function generateArcadeSdk(game, { leaderboards = [], config = [] } = {})
       { filename: 'ArcadeSdk.cs', code: csharp },
       { filename: 'ArcadeSdk.jslib', code: jslib },
     ],
-    docs: arcadeSdkDocs(game, leaderboards, config),
+    docs: arcadeSdkDocs(game, leaderboards, config, locale),
   };
 }

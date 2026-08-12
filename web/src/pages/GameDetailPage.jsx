@@ -1169,9 +1169,10 @@ function PriorityDot({ priority }) {
   return <span className={`gd-priority-dot ${priority}`} title={priority} />;
 }
 
-export function CodeBlock({ filename, code }) {
+export function CodeBlock({ filename, code, defaultOpen = true }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   const lang = filename.endsWith('.cs') ? 'csharp' : 'javascript';
   const highlighted = hljs.highlight(code, { language: lang }).value;
@@ -1193,21 +1194,31 @@ export function CodeBlock({ filename, code }) {
   }
 
   return (
-    <div className="gi-code-wrapper">
+    <div className={`gi-code-wrapper${isOpen ? '' : ' is-collapsed'}`}>
       <div className="gi-code-header">
         <span className="gi-code-filename">{filename}</span>
         <div className="gi-code-actions">
-          <button className={`gi-code-btn${copied ? ' copied' : ''}`} onClick={handleCopy}>
+          <button type="button" className={`gi-code-btn${copied ? ' copied' : ''}`} onClick={handleCopy}>
             {copied ? t.gameDetail.copied : t.gameDetail.copy}
           </button>
-          <button className="gi-code-btn" onClick={handleDownload}>
+          <button type="button" className="gi-code-btn" onClick={handleDownload}>
             {t.gameDetail.download}
+          </button>
+          <button
+            type="button"
+            className="gi-code-btn gi-code-toggle"
+            aria-expanded={isOpen}
+            onClick={() => setIsOpen((open) => !open)}
+          >
+            {isOpen ? t.gameDetail.collapse : t.gameDetail.expand}
           </button>
         </div>
       </div>
-      <pre className="gi-code-block">
-        <code dangerouslySetInnerHTML={{ __html: highlighted }} />
-      </pre>
+      {isOpen && (
+        <pre className="gi-code-block">
+          <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+        </pre>
+      )}
     </div>
   );
 }

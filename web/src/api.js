@@ -210,8 +210,8 @@ export async function getGeneratedCode(gameId) {
   return request(`/api/games/${gameId}/backend/generated-code`);
 }
 
-export async function getGeneratedSdk(gameId) {
-  return request(`/api/games/${gameId}/backend/generated-sdk`);
+export async function getGeneratedSdk(gameId, locale = 'ko') {
+  return request(withLocale(`/api/games/${gameId}/backend/generated-sdk`, locale));
 }
 
 export async function issueV2DevToken(gameId) {

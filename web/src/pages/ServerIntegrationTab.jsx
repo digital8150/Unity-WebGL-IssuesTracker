@@ -66,7 +66,7 @@ function hasLegacyBackendConfiguration(serverBackend) {
 }
 
 export default function ServerIntegrationTab({ gameId }) {
-  const { t } = useI18n();
+  const { lang, t } = useI18n();
   const td = t.gameDetail;
 
   const [backend, setBackend] = useState(null);
@@ -307,7 +307,7 @@ export default function ServerIntegrationTab({ gameId }) {
   async function handleGenerateSdk() {
     setSdkError('');
     try {
-      const data = await getGeneratedSdk(gameId);
+      const data = await getGeneratedSdk(gameId, lang);
       setGeneratedSdk(data);
     } catch (err) {
       setSdkError(err.message);
@@ -656,7 +656,7 @@ export default function ServerIntegrationTab({ gameId }) {
           {generatedSdk && (
             <>
               <div className="si-sdk-files">
-                {(generatedSdk.files ?? []).map((file) => <CodeBlock key={file.filename} filename={file.filename} code={file.code} />)}
+                {(generatedSdk.files ?? []).map((file) => <CodeBlock key={file.filename} filename={file.filename} code={file.code} defaultOpen={false} />)}
               </div>
               <div className="si-v2-docs">
                 {(generatedSdk.docs ?? []).map((doc, index) => (

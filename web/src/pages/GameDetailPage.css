@@ -613,6 +613,8 @@
 
 .gi-code-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -635,6 +637,14 @@
 
 .gi-code-btn.copied {
   color: #00c853;
+}
+
+.gi-code-toggle {
+  min-width: 42px;
+}
+
+.gi-code-wrapper.is-collapsed .gi-code-header {
+  border-bottom-color: transparent;
 }
 
 .gi-code-block {

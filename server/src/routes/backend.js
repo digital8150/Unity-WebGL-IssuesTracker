@@ -264,7 +264,11 @@ router.get('/:gameId/backend/generated-sdk', requireAuth, requireApproved, async
       GameConfig.find({ gameId: game._id, enabled: true }),
     ]);
 
-    const generated = generateArcadeSdk(game, { leaderboards, config });
+    const generated = generateArcadeSdk(game, {
+      leaderboards,
+      config,
+      locale: req.query.locale === 'en' ? 'en' : 'ko',
+    });
     res.json(generated);
   } catch (err) {
     next(err);

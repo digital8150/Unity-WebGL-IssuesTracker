@@ -96,3 +96,9 @@ Keep this file short; detailed implementation history remains in git commits.
 - Legacy mode now shows the shared secret and `ServerBridge.cs` generation only; SDK v2 mode shows `ArcadeSdk.cs`/`.jslib`, editor token, cloud saves, and shared resource definitions only.
 - Added backwards-compatible `liveOpsEnabled` / `liveOpsMode` resolution and runtime gates for public v1/v2 calls.
 - Verification: web build, server tests (124 passing), changed-server-module `node --check`, and `git diff --check`.
+
+## 2026-08-12 — SDK delivery UX and localization
+
+- Made every dashboard code block collapsible; generated SDK files start collapsed with copy/download controls still available.
+- Localized SDK v2 game-specific example titles, descriptions, and log snippets by dashboard locale (`ko`/`en`).
+- Verification: web build, server tests (124 passing), changed-server-module `node --check`, and `git diff --check`.
