@@ -7,13 +7,14 @@ import mongoose from 'mongoose';
 import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
+import gameContentRouter, { CONTENT_ROOT } from './routes/gameContent.js';
 import gameArticlesRouter from './routes/gameArticles.js';
 import backendRouter from './routes/backend.js';
 import blogRouter from './routes/blog.js';
 import translationsRouter from './routes/translations.js';
 import seoRouter from './routes/seo.js';
 import apiV2Router from './routes/apiV2.js';
-import { createBuildFileHandler, createThumbnailFileHandler } from './services/buildFiles.js';
+import { createBuildFileHandler, createContentFileHandler, createThumbnailFileHandler } from './services/buildFiles.js';
 import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
@@ -35,6 +36,7 @@ const DIST_ROOT = path.resolve('../web/dist');
 const THUMBNAIL_ROOT = path.resolve('storage', 'thumbnails');
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
 await fs.mkdir(STORAGE_ROOT, { recursive: true });
+await fs.mkdir(CONTENT_ROOT, { recursive: true });
 await fs.mkdir(THUMBNAIL_ROOT, { recursive: true });
 await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
@@ -51,12 +53,14 @@ app.use('/api/auth', authRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/games', gameArticlesRouter);
 app.use('/api/games', gamesRouter);
+app.use('/api/games', gameContentRouter);
 app.use('/api/games', backendRouter);
 app.use('/api/blog', blogRouter);
 app.use('/api/admin/translations', translationsRouter);
 app.use('/api/v2', apiV2Router());
 
 app.get('/builds/:buildId/*', createBuildFileHandler(STORAGE_ROOT));
+app.get('/content/:gameId/:channel/*', createContentFileHandler(CONTENT_ROOT));
 app.get('/thumbnails/:filename', createThumbnailFileHandler(THUMBNAIL_ROOT));
 
 const BLOG_IMAGE_MIME = {
@@ -97,6 +101,7 @@ if (process.env.SERVE_STATIC === 'true') {
     if (
       req.path.startsWith('/api/')
       || req.path.startsWith('/builds/')
+      || req.path.startsWith('/content/')
       || req.path.startsWith('/thumbnails/')
       || req.path.startsWith('/blog-images/')
     ) {

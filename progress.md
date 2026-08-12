@@ -124,3 +124,25 @@ Keep this file short; detailed implementation history remains in git commits.
 - Added authorized StreamingAssets replacement endpoint with idempotent extraction, bounded zip handling, metadata, storage recomputation, and non-caching of replaced assets.
 - Added expandable StreamingAssets file summaries and route coverage for authorization, stale-file removal, deduplication, and storage totals.
 - Verification: `server/npm test` (128 passing), `web/npm run build`, changed-server-module `node --check`, and `git diff --check`.
+
+## 2026-08-12 — Addressables remote content hosting
+
+- Plan: `docs/plan-addressables-content-hosting.md`. Serve developer-uploaded Addressables remote content from a stable URL; no runtime SDK involvement by design.
+- Public URL is `/content/<gameId>/<channel>/[BuildTarget]`, keyed by immutable `gameId` (never `slug`) so a catalog baked at Unity build time stays valid.
+- Extracted the StreamingAssets zip pipeline into `services/assetArchive.js` (zip-slip guard, per-entry and running byte caps, wrapper-folder strip) and added merge alongside the existing atomic swap.
+- Added `AddressableContent` model, `routes/gameContent.js` (list/upload/files/delete), per-channel upload locks, and directory-walk file inspector; the model deliberately stores counts only, not the path list.
+- Added `createContentFileHandler` with filename-hash-driven cache policy, catalog revalidation, `Content-Length`, and single-range 206/416 support; `Content-Length` also added to the build and thumbnail handlers.
+- Added a `content` dashboard tab that shows the RemoteLoadPath before the first upload, merge/replace upload with progress, stats, `hasMore` file inspector, and an unhashed-bundle warning.
+- Content bytes now count toward `/api/auth/usage`; game deletion removes build/content directories, thumbnails, and Build/Issue/GameConfig/Leaderboard/LeaderboardScore/CloudSave documents (previously leaked).
+- Verification: `server/npm test` (162 passing, 30 new), `web/npm run build`, changed-server-module `node --check`, `git diff --check`, and en/ko i18n key parity (45 `gc*` keys each).
+- Production Apache: added `ProxyPass`/`ProxyPassReverse` for `/content/` to `arcade.codingbot.kr.conf` (backup `*.content-backup-20260812111909`), configtest + graceful reload, verified `/content/` reaches Express while the SPA fallback still works.
+- `arcade.codingbot.kr` has no CDN in front (DNS resolves straight to the origin), so every content byte is served by this one host; browser `immutable` caching is the only layer protecting it.
+- Outstanding: manual Unity WebGL E2E (remote load, content-only re-upload without a player rebuild, merge during a live session), and deploying this branch — production still runs `main` @ f609009, which has no `/content` route.
+
+## Durable decisions — Addressables
+
+- Content URLs are keyed by `gameId`; `Game.slug` has no immutability guarantee and must never appear in a content path.
+- The `channel` segment is mandatory even while only `live` is used; it cannot be added later without invalidating shipped catalogs.
+- Upload defaults to merge — replace deletes bundles that sessions holding an older catalog still resolve.
+- Immutable caching is inferred from a 32-hex-character segment in the filename, never configured; unhashed bundles fall back to revalidation so stale content can always be corrected server-side.
+- Addressables stays decoupled from `ArcadeSdk`. Consequence: the URL is baked at Unity build time, so remote content cannot be exercised in PR previews.

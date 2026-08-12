@@ -5,7 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import express from 'express';
 
-import { createBuildFileHandler } from '../src/services/buildFiles.js';
+import { createBuildFileHandler, createContentFileHandler } from '../src/services/buildFiles.js';
 
 async function startServer(storageRoot) {
   const app = express();
@@ -15,6 +15,18 @@ async function startServer(storageRoot) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return server;
 }
+
+async function startContentServer(contentRoot) {
+  const app = express();
+  app.get('/content/:gameId/:channel/*', createContentFileHandler(contentRoot));
+  app.use((error, _req, res, _next) => res.status(error.status || 500).json({ error: error.message }));
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return server;
+}
+
+const CONTENT_GAME_ID = '64b7f1c2d4e5f6a7b8c9d0aa';
+const CONTENT_CHANNEL = 'live';
 
 test('StreamingAssets use ETag revalidation while Unity artifacts stay immutable', async () => {
   const storageRoot = path.resolve('storage', 'build-file-handler-test');
@@ -62,5 +74,105 @@ test('StreamingAssets use ETag revalidation while Unity artifacts stay immutable
   } finally {
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+test('content handler applies cache policy by filename shape, revalidates catalogs, and rejects traversal', async () => {
+  const contentRoot = path.resolve('storage', 'content-file-handler-test');
+  const channelDir = path.join(contentRoot, CONTENT_GAME_ID, CONTENT_CHANNEL);
+  await fs.rm(contentRoot, { recursive: true, force: true });
+  await fs.mkdir(path.join(channelDir, 'WebGL'), { recursive: true });
+  await fs.mkdir(path.join(channelDir, '.content-tmp-test'), { recursive: true });
+  await fs.writeFile(
+    path.join(channelDir, 'WebGL', 'assets_all_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d.bundle'),
+    'hashed bundle payload',
+  );
+  await fs.writeFile(path.join(channelDir, 'WebGL', 'assets_all.bundle'), 'unhashed bundle payload');
+  await fs.writeFile(path.join(channelDir, 'catalog_1.json'), '{"version":1}');
+  await fs.writeFile(path.join(channelDir, '.content-tmp-test', 'secret.txt'), 'secret');
+
+  const server = await startContentServer(contentRoot);
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const prefix = `${baseUrl}/content/${CONTENT_GAME_ID}/${CONTENT_CHANNEL}`;
+
+    const hashed = await fetch(`${prefix}/WebGL/assets_all_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d.bundle`);
+    assert.equal(hashed.status, 200);
+    assert.equal(hashed.headers.get('cache-control'), 'public, max-age=31536000, immutable');
+    assert.equal(hashed.headers.get('content-type'), 'application/octet-stream');
+    assert.equal(hashed.headers.get('accept-ranges'), 'bytes');
+    assert.equal(hashed.headers.get('content-length'), String(Buffer.byteLength('hashed bundle payload')));
+    assert.equal(hashed.headers.get('etag'), null);
+
+    const unhashed = await fetch(`${prefix}/WebGL/assets_all.bundle`);
+    assert.equal(unhashed.status, 200);
+    assert.equal(unhashed.headers.get('cache-control'), 'public, max-age=0, must-revalidate');
+    assert.equal(unhashed.headers.get('accept-ranges'), 'bytes');
+    assert.ok(unhashed.headers.get('etag'));
+
+    const catalog = await fetch(`${prefix}/catalog_1.json`);
+    assert.equal(catalog.status, 200);
+    assert.equal(catalog.headers.get('cache-control'), 'no-cache');
+    assert.equal(catalog.headers.get('content-type'), 'application/json');
+    const catalogEtag = catalog.headers.get('etag');
+    assert.ok(catalogEtag);
+    assert.ok(catalog.headers.get('last-modified'));
+
+    const revalidated = await fetch(`${prefix}/catalog_1.json`, {
+      headers: { 'If-None-Match': catalogEtag },
+    });
+    assert.equal(revalidated.status, 304);
+    assert.equal(revalidated.headers.get('content-length'), null);
+    assert.equal(await revalidated.text(), '');
+
+    const hiddenSwapArtifact = await fetch(`${prefix}/.content-tmp-test/secret.txt`);
+    assert.equal(hiddenSwapArtifact.status, 404);
+
+    const traversal = await fetch(`${prefix}/..%2Fescape.txt`);
+    assert.equal(traversal.status, 400);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await fs.rm(contentRoot, { recursive: true, force: true });
+  }
+});
+
+test('content handler supports single-range requests and falls back to 200 for multi-range headers', async () => {
+  const contentRoot = path.resolve('storage', 'content-file-handler-range-test');
+  const channelDir = path.join(contentRoot, CONTENT_GAME_ID, CONTENT_CHANNEL);
+  await fs.rm(contentRoot, { recursive: true, force: true });
+  await fs.mkdir(channelDir, { recursive: true });
+  const body = '0123456789'.repeat(100); // exactly 1000 bytes
+  await fs.writeFile(path.join(channelDir, 'data.bin'), body);
+
+  const server = await startContentServer(contentRoot);
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}`;
+    const url = `${baseUrl}/content/${CONTENT_GAME_ID}/${CONTENT_CHANNEL}/data.bin`;
+
+    const partial = await fetch(url, { headers: { Range: 'bytes=0-99' } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get('content-range'), 'bytes 0-99/1000');
+    assert.equal(partial.headers.get('content-length'), '100');
+    const partialText = await partial.text();
+    assert.equal(partialText.length, 100);
+    assert.equal(partialText, body.slice(0, 100));
+
+    const suffix = await fetch(url, { headers: { Range: 'bytes=-50' } });
+    assert.equal(suffix.status, 206);
+    assert.equal(suffix.headers.get('content-range'), 'bytes 950-999/1000');
+    assert.equal(suffix.headers.get('content-length'), '50');
+    assert.equal(await suffix.text(), body.slice(950));
+
+    const unsatisfiable = await fetch(url, { headers: { Range: 'bytes=2000-3000' } });
+    assert.equal(unsatisfiable.status, 416);
+    assert.equal(unsatisfiable.headers.get('content-range'), 'bytes */1000');
+
+    const multiRange = await fetch(url, { headers: { Range: 'bytes=0-9,20-29' } });
+    assert.equal(multiRange.status, 200);
+    assert.equal(multiRange.headers.get('content-length'), '1000');
+    assert.equal((await multiRange.text()).length, 1000);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    await fs.rm(contentRoot, { recursive: true, force: true });
   }
 });

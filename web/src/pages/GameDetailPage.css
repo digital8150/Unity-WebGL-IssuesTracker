@@ -2072,3 +2072,10 @@
   .si-switch span,
   .si-mode-card { transition: none; }
 }
+
+/* ── Addressables content tab ── */
+.gc-table-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-body);
+}
