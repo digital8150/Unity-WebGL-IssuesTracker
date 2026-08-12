@@ -15,7 +15,19 @@
       "Bash(Select-Object -Last 20)",
       "Bash(node --input-type=module --eval \"import './src/routes/auth.js'\")",
       "Bash(apache2ctl -M)",
-      "Bash(npm audit *)"
+      "Bash(npm audit *)",
+      "Bash(command -v jq)",
+      "Bash(jq --version)",
+      "Bash(command -v git)",
+      "Bash(git --version)",
+      "Bash(command -v node)",
+      "PowerShell($PROFILE.CurrentUserAllHosts; $PROFILE.CurrentUserCurrentHost; \"--- exists ---\"; @\\($PROFILE.CurrentUserAllHosts,$PROFILE.CurrentUserCurrentHost,\"$HOME\\\\Documents\\\\PowerShell\\\\Microsoft.PowerShell_profile.ps1\",\"$HOME\\\\OneDrive\\\\Documents\\\\WindowsPowerShell\\\\Microsoft.PowerShell_profile.ps1\"\\) | ForEach-Object { \"{0} => {1}\" -f $_, \\(Test-Path $_\\) })",
+      "Bash(bash ~/.claude/statusline-command.sh)",
+      "Bash(node -e \"const j=require\\('os'\\).homedir\\(\\)+'/.claude/statusline-last-input.json';const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(j,'utf8'\\)\\);console.log\\(JSON.stringify\\(d,null,1\\)\\)\")",
+      "Bash(rm -f ~/.claude/statusline-last-input.json)",
+      "Bash(printf '%s' '{\"model\":{\"display_name\":\"Opus 5\"},\"effort\":{\"level\":\"high\"},\"workspace\":{\"current_dir\":\"E:\\\\\\\\repos\\\\\\\\unity-webgl-issuetracker\"},\"rate_limits\":{\"five_hour\":{\"used_percentage\":32},\"seven_day\":{\"used_percentage\":28.999999999999996}}}')",
+      "Bash(node -e ' *)",
+      "Bash(bash -x ~/.claude/statusline-command.sh)"
     ]
   }
 }
