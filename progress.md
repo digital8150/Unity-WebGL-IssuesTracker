@@ -146,3 +146,24 @@ Keep this file short; detailed implementation history remains in git commits.
 - Upload defaults to merge — replace deletes bundles that sessions holding an older catalog still resolve.
 - Immutable caching is inferred from a 32-hex-character segment in the filename, never configured; unhashed bundles fall back to revalidation so stale content can always be corrected server-side.
 - Addressables stays decoupled from `ArcadeSdk`. Consequence: the URL is baked at Unity build time, so remote content cannot be exercised in PR previews.
+
+## 2026-08-14 — Addressables upload guardrails
+
+- Added non-blocking upload layout warnings for missing catalogs, catalog hashes, and the `[BuildTarget]` directory; surfaced them in the content dashboard in en/ko.
+- Enforced the existing owner-scoped storage quota for build, StreamingAssets, and Addressables uploads before staged files become live; quota rejection preserves existing content and cleans new build staging.
+- Kept the 500 MB default quota; admins can raise it per developer through the existing user quota control.
+- Added `docs/addressables-content-operations.md`: merge-only catalog rollback, versioned channel strategy, verification, and replace recovery limits.
+- Added the Vite `/content` development proxy.
+- Verification: `server/npm test` (170 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.
+
+## 2026-08-14 — Addressables review follow-up
+
+- Catalog layout validation now accepts binary `catalog_*.bin` files and matches their `.hash` pair, sharing the filename pattern with content serving and archive metadata ordering.
+- Public upload errors now expose allowlisted reason codes; quota errors include current, projected, and maximum bytes, with localized dashboard messages for builds and content.
+- Owner quota serialization now queues cross-game uploads instead of returning `409`; it remains process-local and requires distributed coordination if the server becomes multi-instance.
+- Corrected the zero-byte StreamingAssets fallback to use nullish coalescing.
+- Verification: targeted server tests (39 passing) and `web/npm run build`.
+
+## 2026-08-14 — Addressables review final verification
+
+- Final verification: full `server/npm test` (172 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.

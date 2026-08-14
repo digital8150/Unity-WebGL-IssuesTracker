@@ -293,6 +293,7 @@ test('sweepSwapArtifacts is a no-op for a missing parent directory', async () =>
 test('assetArchiveError attaches a status code that defaults to 413', () => {
   const defaulted = assetArchiveError('boom');
   assert.equal(defaulted.status, 413);
+  assert.equal(defaulted.code, 'ARCHIVE_LIMIT_EXCEEDED');
   assert.equal(defaulted.message, 'boom');
 
   const custom = assetArchiveError('nope', 400);

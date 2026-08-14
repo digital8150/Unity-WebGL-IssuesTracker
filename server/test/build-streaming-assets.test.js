@@ -10,6 +10,7 @@ import AdmZip from 'adm-zip';
 import Game from '../src/models/Game.js';
 import Build from '../src/models/Build.js';
 import User from '../src/models/User.js';
+import AddressableContent from '../src/models/AddressableContent.js';
 import gamesRouter, { extractStreamingAssetsZip } from '../src/routes/games.js';
 
 process.env.JWT_SECRET ||= 'build-streaming-assets-test-secret';
@@ -104,12 +105,18 @@ test('StreamingAssets replacement is authorized, idempotent, and recomputes stor
   };
   const originals = {
     userFindById: User.findById,
+    gameFind: Game.find,
     gameFindById: Game.findById,
+    buildAggregate: Build.aggregate,
     buildFindOne: Build.findOne,
+    contentAggregate: AddressableContent.aggregate,
   };
   User.findById = () => ({ select: async () => ({ status: 'approved', role: 'user' }) });
+  Game.find = () => ({ select: async () => [game] });
   Game.findById = async () => game;
+  Build.aggregate = async () => [{ _id: null, total: build.storageBytes }];
   Build.findOne = async () => build;
+  AddressableContent.aggregate = async () => [];
 
   const server = await startServer();
   try {
@@ -162,8 +169,11 @@ test('StreamingAssets replacement is authorized, idempotent, and recomputes stor
   } finally {
     await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     User.findById = originals.userFindById;
+    Game.find = originals.gameFind;
     Game.findById = originals.gameFindById;
+    Build.aggregate = originals.buildAggregate;
     Build.findOne = originals.buildFindOne;
+    AddressableContent.aggregate = originals.contentAggregate;
     await fs.rm(buildDir, { recursive: true, force: true });
   }
 });

@@ -89,6 +89,7 @@ test('content handler applies cache policy by filename shape, revalidates catalo
   );
   await fs.writeFile(path.join(channelDir, 'WebGL', 'assets_all.bundle'), 'unhashed bundle payload');
   await fs.writeFile(path.join(channelDir, 'catalog_1.json'), '{"version":1}');
+  await fs.writeFile(path.join(channelDir, 'catalog_1.bin'), Buffer.from([1, 2, 3]));
   await fs.writeFile(path.join(channelDir, '.content-tmp-test', 'secret.txt'), 'secret');
 
   const server = await startContentServer(contentRoot);
@@ -117,6 +118,11 @@ test('content handler applies cache policy by filename shape, revalidates catalo
     const catalogEtag = catalog.headers.get('etag');
     assert.ok(catalogEtag);
     assert.ok(catalog.headers.get('last-modified'));
+
+    const binaryCatalog = await fetch(`${prefix}/catalog_1.bin`);
+    assert.equal(binaryCatalog.status, 200);
+    assert.equal(binaryCatalog.headers.get('cache-control'), 'no-cache');
+    assert.equal(binaryCatalog.headers.get('content-type'), 'application/octet-stream');
 
     const revalidated = await fetch(`${prefix}/catalog_1.json`, {
       headers: { 'If-None-Match': catalogEtag },

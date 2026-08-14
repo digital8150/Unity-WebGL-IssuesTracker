@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import AdmZip from 'adm-zip';
+import { isAddressablesCatalogMetadataFilename } from './addressablesPatterns.js';
 
 export const DEFAULT_ARCHIVE_LIMITS = {
   maxEntries: 100_000,
@@ -12,6 +13,7 @@ export const DEFAULT_ARCHIVE_LIMITS = {
 export function assetArchiveError(message, status = 413) {
   const error = new Error(message);
   error.status = status;
+  error.code = 'ARCHIVE_LIMIT_EXCEEDED';
   return error;
 }
 
@@ -174,6 +176,7 @@ export async function extractAndSwapArchive(zipPath, parentDir, options = {}) {
     await fs.rm(tempDir, { recursive: true, force: true });
     await fs.rm(oldDir, { recursive: true, force: true });
     const extracted = await extractArchive(zipPath, tempDir, options.extractOptions);
+    const beforeCommitResult = await options.beforeCommit?.({ tempDir, liveDir, extracted });
 
     try {
       await fs.rename(liveDir, oldDir);
@@ -196,7 +199,7 @@ export async function extractAndSwapArchive(zipPath, parentDir, options = {}) {
     }
     swapped = true;
     await fs.rm(oldDir, { recursive: true, force: true });
-    return extracted;
+    return { ...extracted, beforeCommitResult };
   } finally {
     if (!swapped) await fs.rm(tempDir, { recursive: true, force: true });
   }
@@ -227,15 +230,28 @@ async function walkFiles(rootDir) {
   return result;
 }
 
+export async function describeDirectoryFiles(rootDir) {
+  const files = await walkFiles(rootDir);
+  return Promise.all(files.map(async (file) => {
+    const stat = await fs.stat(file.filePath);
+    return { path: file.relative, size: stat.size };
+  }));
+}
+
+export async function describeMergedDirectoryFiles(liveDir, stagedDir) {
+  const merged = new Map();
+  for (const file of await describeDirectoryFiles(liveDir)) merged.set(file.path, file);
+  for (const file of await describeDirectoryFiles(stagedDir)) merged.set(file.path, file);
+  return [...merged.values()].sort((left, right) => left.path.localeCompare(right.path));
+}
+
 // Addressables resolves bundles through the catalog, so the catalog must never
 // become live ahead of the payload it names. `walkFiles` returns entries
 // alphabetically, which puts `catalog_*.json` before most bundle filenames and
 // would leave a window where a client reads a catalog whose bundles are not on
 // disk yet. Installing metadata last closes that window for merge uploads.
-const CATALOG_METADATA_PATTERN = /^catalog.*\.(json|bin|hash)$|\.hash$/i;
-
 function metadataLast(files) {
-  const isMetadata = (file) => CATALOG_METADATA_PATTERN.test(path.posix.basename(file.relative));
+  const isMetadata = (file) => isAddressablesCatalogMetadataFilename(file.relative);
   return [...files.filter((file) => !isMetadata(file)), ...files.filter(isMetadata)];
 }
 
@@ -258,9 +274,10 @@ export async function extractAndMergeArchive(zipPath, parentDir, options = {}) {
   try {
     await fs.rm(tempDir, { recursive: true, force: true });
     const extracted = await extractArchive(zipPath, tempDir, options.extractOptions);
+    const beforeCommitResult = await options.beforeCommit?.({ tempDir, liveDir, extracted });
     await fs.mkdir(liveDir, { recursive: true });
     await mergeArchiveTree(tempDir, liveDir);
-    return extracted;
+    return { ...extracted, beforeCommitResult };
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }
