@@ -22,8 +22,9 @@ and there is no server-side revision history to restore.
 1. Build remote content into `ServerData/[BuildTarget]`.
 2. Zip `ServerData/` itself. Do not zip only the contents of `ServerData/WebGL/`; doing so
    removes the directory represented by `[BuildTarget]` and makes runtime URLs return 404.
-3. Save the currently deployed `catalog_*.json` and matching `.hash` together in the release
-   archive. Name the archive with the channel and release identifier.
+3. Save every currently deployed catalog — `catalog_*.json` or `catalog_*.bin`, depending on the
+   catalog format the project builds — together with the `.hash` file of the exact same base
+   name in the release archive. Name the archive with the channel and release identifier.
 4. Confirm the account has enough free storage. Builds and Addressables content share the
    account storage quota; an upload that would exceed it is rejected before live files change.
 5. Upload with **merge** and review every layout warning in the dashboard.
@@ -36,7 +37,8 @@ the catalog unless the catalog/hash pair is directly below a build-target direct
 
 For each uploaded build target:
 
-1. Request `/content/<gameId>/<channel>/<BuildTarget>/catalog_*.json` and its matching `.hash`.
+1. Request `/content/<gameId>/<channel>/<BuildTarget>/catalog_*.json` — or `catalog_*.bin` when
+   the project builds binary catalogs — and the `.hash` file of the exact same base name.
 2. Request at least one bundle named by that catalog and confirm it returns 200.
 3. Start the WebGL player with a cold browser cache and load content that is unique to the new
    release.
@@ -51,10 +53,13 @@ Merge is the only upload mode with a practical rollback path. It retains old bun
 previous catalog can point to them again.
 
 1. Stop further uploads to the affected channel.
-2. Take the previous `catalog_*.json` and its exact matching `.hash` from the release archive.
+2. Take the previous catalog — `catalog_*.json` or `catalog_*.bin` — and the `.hash` file of the
+   exact same base name from the release archive. A catalog paired with a `.hash` from a
+   different release does not roll back cleanly.
 3. Put both files under the same `[BuildTarget]/` path they originally used and create a zip.
    For example: `ServerData/WebGL/catalog_2026.08.json` and
-   `ServerData/WebGL/catalog_2026.08.hash`.
+   `ServerData/WebGL/catalog_2026.08.hash`, or `ServerData/WebGL/catalog_2026.08.bin` and
+   `ServerData/WebGL/catalog_2026.08.hash` for binary catalogs.
 4. Upload that zip to the same channel using **merge**. Never use replace for rollback.
 5. Fetch the catalog and hash with cache revalidation, then run the verification steps above.
 

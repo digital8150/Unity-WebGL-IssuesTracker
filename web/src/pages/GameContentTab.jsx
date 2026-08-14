@@ -206,14 +206,20 @@ export default function GameContentTab({ gameId }) {
     uploadStartedAtRef.current = Date.now();
     const controller = new AbortController();
     uploadControllerRef.current = controller;
+    const requestedChannel = activeChannel;
     try {
-      const { content, warnings = [] } = await uploadGameContent(gameId, activeChannel, zipFile, {
+      const { content, warnings = [] } = await uploadGameContent(gameId, requestedChannel, zipFile, {
         mode,
         onProgress: updateUploadProgress,
         signal: controller.signal,
       });
-      setLastUploadResult(content);
-      setLayoutWarnings(warnings);
+      // The channel field stays editable during an upload, so a response can
+      // arrive after the view moved on. Its stats and warnings describe the
+      // channel that was uploaded to, not the one now on screen.
+      if (activeChannelRef.current === requestedChannel) {
+        setLastUploadResult(content);
+        setLayoutWarnings(warnings);
+      }
       setZipFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setUploadPhase('success');
