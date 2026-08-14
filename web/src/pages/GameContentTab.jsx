@@ -35,6 +35,27 @@ function formatDate(iso, lang) {
   });
 }
 
+function uploadErrorText(td, error) {
+  if (error?.code === 'STORAGE_QUOTA_EXCEEDED') {
+    return td.gcQuotaExceeded(
+      formatBytes(error.usedBytes),
+      formatBytes(error.projectedBytes),
+      formatBytes(error.quotaBytes),
+    );
+  }
+  if (error?.code === 'ARCHIVE_LIMIT_EXCEEDED' || error?.code === 'LIMIT_FILE_SIZE') {
+    return td.gcArchiveLimitExceeded;
+  }
+  return error?.message || td.gcUploadFailure;
+}
+
+function layoutWarningText(td, warning) {
+  if (warning.code === 'missing_catalog') return td.gcMissingCatalogWarning;
+  if (warning.code === 'missing_catalog_hash') return td.gcMissingCatalogHashWarning;
+  if (warning.code === 'missing_build_target_directory') return td.gcMissingBuildTargetWarning;
+  return warning.code;
+}
+
 /**
  * Derives a channel's public content URL from data the API returned — never
  * synthesized from window.location or a hardcoded domain. Existing channels
@@ -73,6 +94,7 @@ export default function GameContentTab({ gameId }) {
   const [uploadProgress, setUploadProgress] = useState({ loaded: 0, total: 0, rate: 0, eta: null });
   const [uploadError, setUploadError] = useState('');
   const [lastUploadResult, setLastUploadResult] = useState(null);
+  const [layoutWarnings, setLayoutWarnings] = useState([]);
   const fileInputRef = useRef(null);
   const uploadControllerRef = useRef(null);
   const uploadStartedAtRef = useRef(0);
@@ -106,6 +128,7 @@ export default function GameContentTab({ gameId }) {
     setFilesError('');
     setFilesLoading(false);
     setLastUploadResult(null);
+    setLayoutWarnings([]);
   }, [activeChannel]);
 
   const currentStats = channelsData.channels.find((c) => c.channel === activeChannel) || null;
@@ -123,6 +146,7 @@ export default function GameContentTab({ gameId }) {
     setZipFile(event.target.files?.[0] || null);
     setUploadError('');
     setUploadPhase('idle');
+    setLayoutWarnings([]);
   }
 
   function updateUploadProgress({ loaded, total }) {
@@ -175,6 +199,7 @@ export default function GameContentTab({ gameId }) {
     if (mode === 'replace' && !window.confirm(td.gcModeReplaceConfirm)) return;
 
     setUploadError('');
+    setLayoutWarnings([]);
     setUploading(true);
     setUploadPhase('transferring');
     setUploadProgress({ loaded: 0, total: 0, rate: 0, eta: null });
@@ -182,12 +207,13 @@ export default function GameContentTab({ gameId }) {
     const controller = new AbortController();
     uploadControllerRef.current = controller;
     try {
-      const { content } = await uploadGameContent(gameId, activeChannel, zipFile, {
+      const { content, warnings = [] } = await uploadGameContent(gameId, activeChannel, zipFile, {
         mode,
         onProgress: updateUploadProgress,
         signal: controller.signal,
       });
       setLastUploadResult(content);
+      setLayoutWarnings(warnings);
       setZipFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setUploadPhase('success');
@@ -197,7 +223,7 @@ export default function GameContentTab({ gameId }) {
       if (err.name === 'AbortError') {
         setUploadPhase('canceled');
       } else {
-        setUploadError(err.message);
+        setUploadError(uploadErrorText(td, err));
         setUploadPhase('failure');
       }
     } finally {
@@ -218,6 +244,7 @@ export default function GameContentTab({ gameId }) {
     try {
       await deleteGameContent(gameId, activeChannel);
       setLastUploadResult(null);
+      setLayoutWarnings([]);
       setFiles([]);
       setFilesOffset(0);
       setFilesHasMore(false);
@@ -375,6 +402,17 @@ export default function GameContentTab({ gameId }) {
         {unhashedCount > 0 && (
           <div className="gi-step-warn">
             <strong>{td.gcUnhashedTitle}</strong> — {td.gcUnhashedWarning(unhashedCount)}
+          </div>
+        )}
+
+        {layoutWarnings.length > 0 && (
+          <div className="gi-step-warn" role="status">
+            <strong>{td.gcLayoutWarningTitle}</strong>
+            <ul>
+              {layoutWarnings.map((warning, index) => (
+                <li key={`${warning.code}-${index}`}>{layoutWarningText(td, warning)}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

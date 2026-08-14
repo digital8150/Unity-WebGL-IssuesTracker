@@ -10,11 +10,16 @@ import { requireAuth, requireApproved } from '../middleware/auth.js';
 import {
   acquireAssetReplaceLock,
   calculateDirectoryStats,
+  describeDirectoryFiles,
+  describeMergedDirectoryFiles,
   extractAndMergeArchive,
   extractAndSwapArchive,
+  isHashedBundle,
   listDirectoryFiles,
   sweepSwapArtifacts,
 } from '../services/assetArchive.js';
+import { validateAddressablesLayout } from '../services/addressablesLayout.js';
+import { acquireStorageQuotaLock, assertStorageQuota } from '../services/storageQuota.js';
 
 const router = Router();
 
@@ -136,6 +141,17 @@ async function saveContentStats(gameId, channel, stats) {
   return content;
 }
 
+function summarizeContentFiles(files) {
+  return {
+    fileCount: files.length,
+    storageBytes: files.reduce((total, file) => total + Number(file.size || 0), 0),
+    unhashedBundleCount: files.filter((file) => (
+      path.posix.extname(path.posix.basename(file.path)).toLowerCase() === '.bundle'
+      && !isHashedBundle(file.path)
+    )).length,
+  };
+}
+
 router.get('/:gameId/content', requireAuth, requireApproved, async (req, res, next) => {
   try {
     const game = await findAuthorizedGame(req, res);
@@ -163,6 +179,7 @@ router.put(
     const uploadedPath = req.file?.path;
     const channel = String(req.params.channel || '').toLowerCase();
     let releaseLock = null;
+    let releaseQuotaLock = null;
     try {
       if (!isValidGameId(req.params.gameId)) {
         return res.status(400).json({ error: 'Invalid game id' });
@@ -181,6 +198,8 @@ router.put(
       if (!releaseLock) {
         return res.status(409).json({ error: 'A content upload is already in progress for this channel' });
       }
+      const ownerId = game.ownerId?._id ?? game.ownerId;
+      releaseQuotaLock = await acquireStorageQuotaLock(ownerId);
 
       const gameRoot = path.join(CONTENT_ROOT, String(game._id));
       await fs.mkdir(gameRoot, { recursive: true });
@@ -192,11 +211,24 @@ router.put(
         wrapperNames: ['serverdata', 'streamingassets'],
         label: 'Addressables content',
       };
+      const existingContent = await AddressableContent.findOne({ gameId: game._id, channel });
       const extracted = await extractContent(req.file.path, gameRoot, {
         liveDirName: channel,
         tempPrefix,
         oldPrefix,
         extractOptions: archiveOptions,
+        beforeCommit: async ({ tempDir, liveDir }) => {
+          const files = mode === 'replace'
+            ? await describeDirectoryFiles(tempDir)
+            : await describeMergedDirectoryFiles(liveDir, tempDir);
+          const projectedStats = summarizeContentFiles(files);
+          await assertStorageQuota(ownerId, {
+            additionalGameIds: [game._id],
+            replacedBytes: existingContent?.storageBytes || 0,
+            incomingBytes: projectedStats.storageBytes,
+          });
+          return { warnings: validateAddressablesLayout(files) };
+        },
       }, mode);
 
       const targetRoot = channelPath(game._id, channel);
@@ -208,12 +240,14 @@ router.put(
           mode,
           uploadedUnhashedBundleCount: extracted.unhashedBundleCount,
         }),
+        warnings: extracted.beforeCommitResult?.warnings || [],
       });
     } catch (error) {
       next(error);
     } finally {
-      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
+      releaseQuotaLock?.();
       releaseLock?.();
+      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
     }
   },
 );

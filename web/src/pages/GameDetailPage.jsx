@@ -40,6 +40,20 @@ function formatDuration(seconds) {
   return `${minutes}m ${String(remainingSeconds).padStart(2, '0')}s`;
 }
 
+function uploadErrorText(td, error) {
+  if (error?.code === 'STORAGE_QUOTA_EXCEEDED') {
+    return td.quotaExceeded(
+      formatBytes(error.usedBytes) || '—',
+      formatBytes(error.projectedBytes) || '—',
+      formatBytes(error.quotaBytes) || '—',
+    );
+  }
+  if (error?.code === 'ARCHIVE_LIMIT_EXCEEDED' || error?.code === 'LIMIT_FILE_SIZE') {
+    return td.archiveLimitExceeded;
+  }
+  return error?.message || td.uploadFailure;
+}
+
 function fmtDate(iso, lang) {
   return new Date(iso).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -1399,7 +1413,7 @@ export default function GameDetailPage() {
       if (err.name === 'AbortError') {
         setUploadPhase('canceled');
       } else {
-        setUploadError(err.message);
+        setUploadError(uploadErrorText(td, err));
         setUploadPhase('failure');
       }
     } finally {
@@ -1446,7 +1460,7 @@ export default function GameDetailPage() {
       setStreamingUpload((current) => current?.buildId === buildId ? {
         ...current,
         phase: err.name === 'AbortError' ? 'canceled' : 'failure',
-        error: err.name === 'AbortError' ? '' : err.message,
+        error: err.name === 'AbortError' ? '' : uploadErrorText(td, err),
       } : current);
     } finally {
       if (streamingUploadControllerRef.current === controller) streamingUploadControllerRef.current = null;

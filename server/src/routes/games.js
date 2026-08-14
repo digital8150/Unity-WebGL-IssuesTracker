@@ -28,6 +28,7 @@ import {
   moveFile,
   sweepSwapArtifacts,
 } from '../services/assetArchive.js';
+import { acquireStorageQuotaLock, assertStorageQuota } from '../services/storageQuota.js';
 
 const router = Router();
 
@@ -127,7 +128,7 @@ function acquireStreamingAssetsReplaceLock(buildId) {
   return acquireAssetReplaceLock(buildId, streamingAssetsReplaceLocks);
 }
 
-async function extractAndSwapStreamingAssets(zipPath, buildDir) {
+async function extractAndSwapStreamingAssets(zipPath, buildDir, beforeCommit) {
   // A replacement temporarily needs room for both the old and new trees.
   // With the 2 GB extracted cap, peak disk usage can therefore approach 4 GB.
   return extractAndSwapArchive(zipPath, buildDir, {
@@ -139,6 +140,7 @@ async function extractAndSwapStreamingAssets(zipPath, buildDir) {
       wrapperNames: ['streamingassets'],
       label: 'StreamingAssets',
     },
+    beforeCommit,
   });
 }
 
@@ -146,8 +148,8 @@ function uniqueOtherFiles(files) {
   return [...new Set((Array.isArray(files) ? files : []).filter(Boolean))];
 }
 
-async function calculateBuildStorageBytes(buildDir, files) {
-  await sweepStreamingAssetsSwapArtifacts(buildDir);
+async function calculateBuildStorageBytes(buildDir, files, { sweepArtifacts = true } = {}) {
+  if (sweepArtifacts) await sweepStreamingAssetsSwapArtifacts(buildDir);
   const names = uniqueOtherFiles([
     files?.loader,
     files?.data,
@@ -479,6 +481,10 @@ router.post(
   upload.fields([{ name: 'files' }, { name: 'streamingAssetsZip', maxCount: 1 }]),
   async (req, res, next) => {
     let uploadedPaths = [];
+    let build = null;
+    let buildDir = null;
+    let buildSaved = false;
+    let releaseQuotaLock = null;
     try {
       const files = req.files?.files || [];
       const streamingAssetsZip = req.files?.streamingAssetsZip?.[0] || null;
@@ -496,15 +502,19 @@ router.post(
         return res.status(400).json({ error: 'No files uploaded' });
       }
 
+      const ownerId = game.ownerId?._id ?? game.ownerId;
+      releaseQuotaLock = await acquireStorageQuotaLock(ownerId);
+
       const canvasWidth  = parseInt(req.body.canvasWidth,  10) || 1920;
       const canvasHeight = parseInt(req.body.canvasHeight, 10) || 1080;
-      const build = await Build.create({
+      build = await Build.create({
         gameId: game._id,
         version: req.body.version || '',
         canvasWidth,
         canvasHeight,
       });
       const dir = await ensureBuildDir(build._id);
+      buildDir = dir;
 
       const filesMeta = { other: [] };
       for (const file of files) {
@@ -533,13 +543,29 @@ router.post(
 
       filesMeta.other = uniqueOtherFiles(filesMeta.other);
       build.files = filesMeta;
-      build.storageBytes = await calculateBuildStorageBytes(dir, filesMeta);
+      const storageBytes = await calculateBuildStorageBytes(dir, filesMeta);
+      await assertStorageQuota(ownerId, {
+        additionalGameIds: [game._id],
+        incomingBytes: storageBytes,
+      });
+      build.storageBytes = storageBytes;
       await build.save();
+      buildSaved = true;
 
       res.status(201).json({ build });
     } catch (err) {
-      await Promise.all(uploadedPaths.map((filePath) => fs.rm(filePath, { force: true })));
+      if (build && !buildSaved) {
+        if (buildDir) await fs.rm(buildDir, { recursive: true, force: true });
+        try {
+          await build.deleteOne();
+        } catch (cleanupError) {
+          err.cleanupError = cleanupError;
+        }
+      }
       next(err);
+    } finally {
+      releaseQuotaLock?.();
+      await Promise.all(uploadedPaths.map((filePath) => fs.rm(filePath, { force: true })));
     }
   },
 );
@@ -552,6 +578,7 @@ router.put(
   async (req, res, next) => {
     const uploadedPath = req.file?.path;
     const releaseLock = acquireStreamingAssetsReplaceLock(req.params.buildId);
+    let releaseQuotaLock = null;
     if (!releaseLock) {
       if (uploadedPath) await fs.rm(uploadedPath, { force: true });
       return res.status(409).json({ error: 'A StreamingAssets replacement is already in progress' });
@@ -566,24 +593,45 @@ router.put(
       const build = await Build.findOne({ _id: req.params.buildId, gameId: game._id });
       if (!build) return res.status(404).json({ error: 'Build not found' });
 
+      const ownerId = game.ownerId?._id ?? game.ownerId;
+      releaseQuotaLock = await acquireStorageQuotaLock(ownerId);
+
       const dir = await ensureBuildDir(build._id);
-      const { relPaths, totalBytes } = await extractAndSwapStreamingAssets(req.file.path, dir);
       const files = build.files?.toObject ? build.files.toObject() : { ...(build.files || {}) };
       const survivingOther = uniqueOtherFiles(files.other).filter((file) => !file.startsWith('StreamingAssets/'));
+      let projectedStorageBytes = 0;
+      const { relPaths, totalBytes } = await extractAndSwapStreamingAssets(
+        req.file.path,
+        dir,
+        async ({ extracted }) => {
+          const nonStreamingBytes = await calculateBuildStorageBytes(
+            dir,
+            { ...files, other: survivingOther },
+            { sweepArtifacts: false },
+          );
+          projectedStorageBytes = nonStreamingBytes + extracted.totalBytes;
+          await assertStorageQuota(ownerId, {
+            additionalGameIds: [game._id],
+            replacedBytes: build.storageBytes,
+            incomingBytes: projectedStorageBytes,
+          });
+        },
+      );
       files.other = uniqueOtherFiles([...survivingOther, ...relPaths]);
       build.files = files;
       build.streamingAssetsFileCount = relPaths.length;
       build.streamingAssetsBytes = totalBytes;
       build.streamingAssetsUpdatedAt = new Date();
-      build.storageBytes = await calculateBuildStorageBytes(dir, files);
+      build.storageBytes = projectedStorageBytes ?? await calculateBuildStorageBytes(dir, files);
       await build.save();
 
       res.json({ build });
     } catch (err) {
       next(err);
     } finally {
-      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
+      releaseQuotaLock?.();
       releaseLock();
+      if (uploadedPath) await fs.rm(uploadedPath, { force: true });
     }
   },
 );

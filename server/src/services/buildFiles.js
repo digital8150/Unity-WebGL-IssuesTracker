@@ -1,6 +1,7 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
+import { isAddressablesCatalogFilename } from './addressablesPatterns.js';
 
 const THUMB_MIME = {
   png: 'image/png',
@@ -174,7 +175,7 @@ export function createContentFileHandler(contentRoot) {
       res.setHeader('Accept-Ranges', 'bytes');
       if (encoding) res.setHeader('Content-Encoding', encoding);
 
-      const isCatalog = /^catalog.*\.(json|bin|hash)$/i.test(base) || base.toLowerCase().endsWith('.hash');
+      const isCatalog = isAddressablesCatalogFilename(base) || base.toLowerCase().endsWith('.hash');
       const isHashed = /[0-9a-f]{32}/i.test(base);
       const revalidates = isCatalog || !isHashed;
       if (isCatalog) {

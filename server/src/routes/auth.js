@@ -3,9 +3,8 @@ import { timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Game from '../models/Game.js';
-import Build from '../models/Build.js';
-import AddressableContent from '../models/AddressableContent.js';
 import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
+import { DEFAULT_STORAGE_QUOTA_BYTES, getOwnerStorageUsage } from '../services/storageQuota.js';
 
 const router = Router();
 
@@ -32,7 +31,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role,
     status: user.status,
-    storageQuota: user.storageQuota ?? 500 * 1024 * 1024,
+    storageQuota: user.storageQuota ?? DEFAULT_STORAGE_QUOTA_BYTES,
     ageConfirmedAt: user.ageConfirmedAt ?? null,
   };
 }
@@ -129,23 +128,7 @@ router.get('/preview', async (req, res, next) => {
 
 router.get('/usage', requireAuth, requireApproved, async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.sub).select('storageQuota');
-    const games = await Game.find({ ownerId: req.user.sub }).select('_id');
-    const gameIds = games.map((g) => g._id);
-    const [[buildAgg], [contentAgg]] = await Promise.all([
-      Build.aggregate([
-        { $match: { gameId: { $in: gameIds } } },
-        { $group: { _id: null, total: { $sum: '$storageBytes' } } },
-      ]),
-      AddressableContent.aggregate([
-        { $match: { gameId: { $in: gameIds } } },
-        { $group: { _id: null, total: { $sum: '$storageBytes' } } },
-      ]),
-    ]);
-    res.json({
-      usedBytes: (buildAgg?.total ?? 0) + (contentAgg?.total ?? 0),
-      quotaBytes: user?.storageQuota ?? 500 * 1024 * 1024,
-    });
+    res.json(await getOwnerStorageUsage(req.user.sub));
   } catch (err) {
     next(err);
   }
@@ -358,7 +341,7 @@ router.get('/admin/users', requireAuth, requireApproved, requireAdmin, async (re
         createdAt: u.createdAt,
         hasGithub: Boolean(u.githubId),
         hasDiscord: Boolean(u.discordId),
-        storageQuota: u.storageQuota ?? 500 * 1024 * 1024,
+        storageQuota: u.storageQuota ?? DEFAULT_STORAGE_QUOTA_BYTES,
       })),
     });
   } catch (err) {

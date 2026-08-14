@@ -2,6 +2,16 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 // Upload subdomain bypasses Cloudflare proxy — no size/speed limits.
 const UPLOAD_BASE = import.meta.env.VITE_UPLOAD_BASE ?? API_BASE;
 
+function apiError(body, status, fallback) {
+  const error = new Error(body?.error || fallback);
+  error.status = status;
+  if (typeof body?.code === 'string') error.code = body.code;
+  for (const key of ['usedBytes', 'quotaBytes', 'projectedBytes']) {
+    if (typeof body?.[key] === 'number' && Number.isFinite(body[key])) error[key] = body[key];
+  }
+  return error;
+}
+
 /** Adds the explicit API locale query used by public read endpoints. */
 export function withLocale(path, locale = 'ko') {
   if (locale !== 'en') return path;
@@ -15,7 +25,7 @@ async function request(path, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
+  if (!res.ok) throw apiError(body, res.status, `Request failed: ${res.status}`);
   return body;
 }
 
@@ -26,7 +36,7 @@ async function requestRaw(path, options = {}, useUploadBase = false) {
   const base = useUploadBase ? UPLOAD_BASE : API_BASE;
   const res = await fetch(`${base}${path}`, { ...options, headers });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `Request failed: ${res.status}`);
+  if (!res.ok) throw apiError(body, res.status, `Request failed: ${res.status}`);
   return body;
 }
 
@@ -76,7 +86,7 @@ function uploadMultipart(path, formData, {
       if (xhr.status >= 200 && xhr.status < 300) {
         finish(resolve, body);
       } else {
-        finish(reject, new Error(body.error || `Request failed: ${xhr.status}`));
+        finish(reject, apiError(body, xhr.status, `Request failed: ${xhr.status}`));
       }
     };
     xhr.onerror = () => finish(reject, new Error('Network request failed'));

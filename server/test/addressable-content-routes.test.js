@@ -112,14 +112,20 @@ function seedContentDoc(channel, overrides = {}) {
 
 const contentRouteOriginals = {
   userFindById: User.findById,
+  gameFind: Game.find,
   gameFindById: Game.findById,
+  buildAggregate: Build.aggregate,
+  contentAggregate: AddressableContent.aggregate,
   contentFind: AddressableContent.find,
   contentFindOne: AddressableContent.findOne,
   contentDeleteOne: AddressableContent.deleteOne,
 };
 
 User.findById = () => ({ select: async () => ({ status: 'approved', role: 'user' }) });
+Game.find = () => ({ select: async () => [game] });
 Game.findById = async (id) => (String(id) === GAME_ID ? game : null);
+Build.aggregate = async () => [];
+AddressableContent.aggregate = async () => [];
 AddressableContent.find = (filter) => {
   const rows = contentDocs.filter((doc) => String(doc.gameId) === String(filter.gameId));
   return {
@@ -146,7 +152,10 @@ const contentServer = await listen(contentApp);
 test.after(async () => {
   await close(contentServer);
   User.findById = contentRouteOriginals.userFindById;
+  Game.find = contentRouteOriginals.gameFind;
   Game.findById = contentRouteOriginals.gameFindById;
+  Build.aggregate = contentRouteOriginals.buildAggregate;
+  AddressableContent.aggregate = contentRouteOriginals.contentAggregate;
   AddressableContent.find = contentRouteOriginals.contentFind;
   AddressableContent.findOne = contentRouteOriginals.contentFindOne;
   AddressableContent.deleteOne = contentRouteOriginals.contentDeleteOne;
@@ -251,6 +260,58 @@ test('an unhashed .bundle in the upload is reported back on the response', async
   const body = await response.json();
   assert.equal(body.content.unhashedBundleCount, 1);
   assert.equal(body.content.uploadedUnhashedBundleCount, 1);
+});
+
+test('layout problems are returned as warnings without failing the upload', async () => {
+  const channel = 'layout-warning';
+  seedContentDoc(channel);
+  const misplaced = await uploadContent(contentServer, OWNER_ID, makeZip([
+    ['catalog_release.json', '{}'],
+    ['catalog_release.hash', 'hash'],
+    ['assets_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d.bundle', 'bundle'],
+  ]), { channel, mode: 'replace' });
+  assert.equal(misplaced.status, 200);
+  const misplacedBody = await misplaced.json();
+  assert.deepEqual(misplacedBody.warnings.map((warning) => warning.code), [
+    'missing_build_target_directory',
+  ]);
+
+  const valid = await uploadContent(contentServer, OWNER_ID, makeZip([
+    ['ServerData/WebGL/catalog_release.json', '{}'],
+    ['ServerData/WebGL/catalog_release.hash', 'hash'],
+    ['ServerData/WebGL/assets_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d.bundle', 'bundle'],
+  ]), { channel, mode: 'replace' });
+  assert.equal(valid.status, 200);
+  assert.deepEqual((await valid.json()).warnings, []);
+});
+
+test('quota rejection happens before a replace changes the live content tree', async () => {
+  const channel = 'quota-reject';
+  const content = seedContentDoc(channel, { fileCount: 1, storageBytes: 3 });
+  const liveDir = path.join(CONTENT_ROOT, GAME_ID, channel);
+  await fs.mkdir(liveDir, { recursive: true });
+  await fs.writeFile(path.join(liveDir, 'old.txt'), 'old');
+
+  const originalUserFindById = User.findById;
+  const originalContentAggregate = AddressableContent.aggregate;
+  User.findById = () => ({
+    select: async () => ({ status: 'approved', role: 'user', storageQuota: 5 }),
+  });
+  AddressableContent.aggregate = async () => [{ _id: null, total: 3 }];
+  try {
+    const response = await uploadContent(contentServer, OWNER_ID, makeZip([
+      ['WebGL/new.txt', 'this is larger than the quota'],
+    ]), { channel, mode: 'replace' });
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { error: 'Storage quota exceeded' });
+    assert.equal(await fs.readFile(path.join(liveDir, 'old.txt'), 'utf8'), 'old');
+    await assert.rejects(fs.access(path.join(liveDir, 'WebGL', 'new.txt')));
+    assert.equal(content.storageBytes, 3);
+    assert.equal(content.fileCount, 1);
+  } finally {
+    User.findById = originalUserFindById;
+    AddressableContent.aggregate = originalContentAggregate;
+  }
 });
 
 test('rejects an upload missing the contentZip field', async () => {

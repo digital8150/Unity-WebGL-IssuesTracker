@@ -18,6 +18,7 @@ import { createBlogImageFileHandler, createBuildFileHandler, createContentFileHa
 import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
+import { publicErrorBody } from './services/errorResponse.js';
 
 const {
   PORT = 4000,
@@ -95,7 +96,7 @@ if (process.env.SERVE_STATIC === 'true') {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(err.status || 500).json({ error: err.message || 'Internal error' });
+  res.status(err.status || 500).json(publicErrorBody(err));
 });
 
 await mongoose.connect(MONGO_URI);
