@@ -151,7 +151,7 @@ function parseBootstrap(html) {
 }
 
 function parseVisiblePreview(html) {
-  const match = html.match(/<div id="seo-preview">([\s\S]*?<\/article><\/main><\/div>)/);
+  const match = html.match(/<div id="seo-preview"[^>]*>([\s\S]*?<\/footer><\/div>)/);
   return match?.[1] ?? '';
 }
 
@@ -169,7 +169,7 @@ function collectKeys(value, keys = []) {
 }
 
 const cases = [
-  { url: '/', route: null, keys: [] },
+  { url: '/', route: '/', keys: ['games', 'posts'] },
   { url: '/privacy', route: null, keys: [] },
   { url: '/privacy/2026-07-08', route: null, keys: [] },
   { url: '/arcade', route: '/arcade', keys: ['games'] },
@@ -245,4 +245,78 @@ test('play no-JS preview uses the long description body while metadata stays sho
   const preview = parseVisiblePreview(html);
   assert.match(preview, /Long game details/);
   assert.match(html, /<meta\s+name="description"[^>]+content="A public game"/);
+});
+
+test('home no-JS preview exposes game, article, nav, and footer links', async () => {
+  const response = await getAppResponse('/');
+  const html = await response.text();
+  const preview = parseVisiblePreview(html);
+
+  assert.match(preview, /href="\/play\/public-game"/);
+  assert.match(preview, /href="\/blog\/public-post"/);
+  assert.match(preview, /href="\/"/);
+  assert.match(preview, /href="\/arcade"/);
+  assert.match(preview, /href="\/blog"/);
+  assert.match(preview, /href="\/privacy"/);
+  assert.match(preview, /<h2>[^<]+<\/h2>/);
+});
+
+test('English home preview keeps all public navigation links under /en', async () => {
+  const response = await getAppResponse('/en');
+  const html = await response.text();
+  const preview = parseVisiblePreview(html);
+
+  assert.match(preview, /href="\/en"/);
+  assert.match(preview, /href="\/en\/arcade"/);
+  assert.match(preview, /href="\/en\/blog"/);
+  assert.match(preview, /href="\/en\/privacy"/);
+  assert.match(preview, /href="\/en\/play\/public-game"/);
+  assert.match(preview, /href="\/en\/blog\/public-post"/);
+});
+
+test('play preview links recent articles and the game article index', async () => {
+  const response = await getAppResponse('/play/public-game');
+  const preview = parseVisiblePreview(await response.text());
+
+  assert.match(preview, /href="\/play\/public-game\/articles\/public-article"/);
+  assert.match(preview, /href="\/play\/public-game\/articles"/);
+});
+
+test('public previews use page-specific layout structures', async () => {
+  const landingHtml = await (await getAppResponse('/')).text();
+  const landing = parseVisiblePreview(landingHtml);
+  assert.match(landingHtml, /data-layout="landing"/);
+  assert.match(landing, /seo-preview-hero/);
+  assert.match(landing, /seo-preview-grid seo-preview-grid--game/);
+  assert.match(landing, /seo-preview-grid seo-preview-grid--article/);
+  assert.match(landing, /<footer class="seo-preview-footer seo-preview-footer--landing">/);
+
+  const arcadeHtml = await (await getAppResponse('/arcade')).text();
+  const arcade = parseVisiblePreview(arcadeHtml);
+  assert.match(arcadeHtml, /data-layout="arcade"/);
+  assert.match(arcade, /seo-preview-main--listing/);
+  assert.match(arcade, /seo-preview-grid seo-preview-grid--game/);
+  assert.match(arcade, /<footer class="seo-preview-footer">/);
+
+  const blogHtml = await (await getAppResponse('/blog')).text();
+  const blog = parseVisiblePreview(blogHtml);
+  assert.match(blogHtml, /data-layout="blog-list"/);
+  assert.match(blog, /seo-preview-blog-layout/);
+  assert.match(blog, /seo-preview-sidebar/);
+  assert.match(blog, /seo-preview-grid seo-preview-grid--article/);
+
+  const articleHtml = await (await getAppResponse('/blog/public-post')).text();
+  const article = parseVisiblePreview(articleHtml);
+  assert.match(articleHtml, /data-layout="article"/);
+  assert.match(article, /seo-preview-longform/);
+  assert.match(article, /seo-preview-article-cover/);
+  assert.match(article, /seo-preview-markdown/);
+
+  const playHtml = await (await getAppResponse('/play/public-game')).text();
+  const play = parseVisiblePreview(playHtml);
+  assert.match(playHtml, /data-layout="play"/);
+  assert.match(play, /seo-preview-player-stage/);
+  assert.match(play, /seo-preview-play-layout/);
+  assert.match(play, /seo-preview-play-rail/);
+  assert.match(play, /<footer class="seo-preview-footer seo-preview-footer--slim">/);
 });

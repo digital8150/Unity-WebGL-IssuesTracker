@@ -219,3 +219,26 @@ Keep this file short; detailed implementation history remains in git commits.
 - Confirmed the review finding: `.l-hero-primary::before` used `z-index: -1`, placing the specular layer below the button background.
 - Raised the highlight to stack level 0 and placed the wrapped button label above it; preserved `pointer-events: none`.
 - Verification: `web npm run build` and `git diff --check`.
+
+## 2026-08-16 -- Home SEO bootstrap and preview graph
+
+- Extracted shared public Arcade game/build/translation loading for `/` and `/arcade`; home now also loads three recent blog posts and bootstraps `{ games, posts }`.
+- Extended SEO previews with section headings, configurable item caps, localized home/Arcade/blog nav, and the landing footer's club/site copy and links.
+- Added recent game-article links plus the game article index link to Play previews; LandingPage consumes `/` bootstrap and skips its initial duplicate API requests.
+- Verification: full `server/npm test` (187 passing), `web/npm run build`, changed-module checks, live `/`, `/en`, and `/sitemap.xml` HTTP checks; in-app browser runtime unavailable.
+
+## 2026-08-16 -- SEO 작업 브랜치 이동 및 HTTP 확인
+
+- `origin/main` 최신 커밋 `5846ef0`으로 local `main`을 fast-forward하고 `feature/home-seo-bootstrap`을 생성했다.
+- 기존 `feature/game-specific-desc-and-comments`의 커밋은 이미 `origin/main`에 병합되어 있었고, SEO 미커밋 변경 8개 파일을 새 브랜치에 충돌 없이 복원했다.
+- `curl http://localhost:5173/`은 Vite 클라이언트 셸이므로 SSR 데이터/링크가 없고, 제공된 `LandingPage.jsx`에는 `readSsrData("/")`와 bootstrap 중복 요청 가드가 반영되어 있다.
+- `curl http://localhost:4000/` 및 `/en`에서 SSR 데이터, 게임/블로그, nav/footer 링크를 확인했고 `/play/project-adventure`의 아티클 목록 링크와 sitemap XML도 확인했다.
+- Verification: `server/node --test` 189 passing, `git diff --check`; 이후 웹 빌드는 사용자 중단으로 완료되지 않았다.
+
+## 2026-08-16 -- SEO preview layout fidelity
+
+- Reworked `renderSeoPreview` into page-specific landing, listing, article, and play layouts with shared localized nav/footer, safe links/images, hero artwork, cards, article rows, Markdown blocks, game info, and GRAC review panels.
+- Matched the no-JS preview styling in `web/index.html` to the public page rhythm: landing hero/footer, Arcade/blog grids and sidebar, editorial article frame, Play stage/rail, responsive breakpoints, and landing club copy.
+- Play previews preserve the game-article index link even when the recent article list is empty; section action links are rendered independently of item presence.
+- Added route-level layout regression assertions and kept legacy `items`/section item caps compatible.
+- Verification: full `server/node --test` (191 passing), `web/npm run build`, changed-module `node --check`, `git diff --check`, live SSR checks on `/`, `/en/`, `/arcade`, `/blog`, and `/play/project-adventure`; in-app browser runtime unavailable.

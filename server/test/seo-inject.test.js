@@ -108,17 +108,70 @@ test('visible SEO preview is injected inside #root without hiding its text', asy
         title: 'Preview title',
         summary: 'Preview summary',
         body: '# Body heading\n\nBody **text**',
+        items: [{ title: 'Legacy item', href: '/legacy' }],
       },
     }),
   );
-  const match = result.match(/<div id="seo-preview">([\s\S]*?<\/article><\/main><\/div>)/);
+  const match = result.match(/<div id="seo-preview"[^>]*>([\s\S]*?<\/footer><\/div>)/);
 
   assert.ok(match, 'injectSeoHtml must emit a visible preview when preview data is provided');
   assert.match(match[1], /<h1>Preview title<\/h1>/);
   assert.match(match[1], /Preview summary/);
   assert.match(match[1], /Body text/);
+  assert.match(match[1], /href="\/legacy"/);
   assert.doesNotMatch(match[1], /aria-hidden|color:\s*transparent|opacity:\s*0/);
   assert.match(result, /<div id="root" data-seo-preview="true">/);
+});
+
+test('SEO preview supports sections, localized navigation, and a per-call item cap', async () => {
+  const result = injectSeoHtml(
+    await readShell(),
+    baseOptions({
+      preview: {
+        locale: 'en',
+        title: 'Sectioned preview',
+        sections: [{
+          heading: 'Games',
+          items: [
+            { title: 'First', href: '/en/play/first' },
+            { title: 'Second', href: '/en/play/second' },
+            { title: 'Third', href: '/en/play/third' },
+          ],
+        }],
+        maxItems: 2,
+      },
+    }),
+  );
+
+  assert.match(result, /<h2>Games<\/h2>/);
+  assert.match(result, /href="\/en\/play\/first"/);
+  assert.match(result, /href="\/en\/play\/second"/);
+  assert.doesNotMatch(result, /href="\/en\/play\/third"/);
+  assert.match(result, /href="\/en"/);
+  assert.match(result, /href="\/en\/arcade"/);
+  assert.match(result, /href="\/en\/blog"/);
+  assert.match(result, /href="\/en\/privacy"/);
+});
+
+test('SEO preview keeps a section action link when the section has no items', async () => {
+  const result = injectSeoHtml(
+    await readShell(),
+    baseOptions({
+      preview: {
+        title: 'Play preview',
+        layout: 'play',
+        sections: [{
+          heading: 'Game articles',
+          kind: 'article-row',
+          action: { href: '/play/example/articles', label: 'View all' },
+          items: [],
+        }],
+      },
+    }),
+  );
+
+  assert.match(result, /href="\/play\/example\/articles"/);
+  assert.match(result, /<h2>Game articles<\/h2>/);
 });
 
 test('omitting bootstrap leaves no bootstrap script in the shell', async () => {
