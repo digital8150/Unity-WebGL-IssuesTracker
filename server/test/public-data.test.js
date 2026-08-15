@@ -9,6 +9,7 @@ test('toPublicPlayGame mirrors SDK v2 flags without exposing backend settings', 
     name: 'Public game',
     slug: 'public-game',
     description: 'Description',
+    longDescription: '# Long description',
     thumbnailUrl: '/thumbnails/game.webp',
     visibility: 'public',
     ownerId: { _id: 'owner-id', name: 'Developer', email: 'private@example.com' },
@@ -21,6 +22,7 @@ test('toPublicPlayGame mirrors SDK v2 flags without exposing backend settings', 
   });
 
   assert.deepEqual(result.sdkV2, { enabled: true, cloudSaveEnabled: false });
+  assert.equal(result.longDescription, '# Long description');
   assert.equal('serverBackend' in result, false);
   assert.equal('secret' in result, false);
   assert.equal('discordWebhookUrl' in result, false);

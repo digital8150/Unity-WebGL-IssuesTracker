@@ -152,11 +152,18 @@ export default function TranslationEditorPanel({
             <span className="translation-editor-kicker">{t.blog.editorLocale.source}</span>
             <div className="translation-editor-source-grid">
               {isGame ? (
-                <SourceField
-                  label={t.gameDetail.arcadeDescription}
-                  value={sourceFields.description}
-                  multiline
-                />
+                <>
+                  <SourceField
+                    label={t.gameDetail.arcadeDescription}
+                    value={sourceFields.description}
+                    multiline
+                  />
+                  <SourceField
+                    label={t.gameDetail.arcadeLongDescription}
+                    value={sourceFields.longDescription}
+                    multiline
+                  />
+                </>
               ) : (
                 <>
                   <SourceField label={t.blog.fieldTitle} value={sourceFields.title} />

@@ -151,7 +151,7 @@ function replaceCanonical(html, url) {
   return pattern.test(html) ? html.replace(pattern, tag) : html.replace('</head>', `  ${tag}\n  </head>`);
 }
 
-function markdownToPlainText(value) {
+export function markdownToPlainText(value) {
   return String(value ?? '')
     .replace(/\r\n?/g, '\n')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')

@@ -421,6 +421,21 @@
   white-space: pre-wrap;
 }
 
+.play-description-heading {
+  max-width: 680px;
+  margin-top: 34px;
+  color: var(--color-ink);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.play-description-body {
+  max-width: 680px;
+  margin-top: 16px;
+  white-space: normal;
+}
+
 .play-rail {
   position: sticky;
   top: 24px;

@@ -7,6 +7,7 @@ import multer from 'multer';
 import mongoose from 'mongoose';
 import Game, { GAME_CONTENT_DESCRIPTOR_KEYS, GAME_RATING_KEYS } from '../models/Game.js';
 import GameArticle from '../models/GameArticle.js';
+import GameComment, { MAX_GAME_COMMENTS } from '../models/GameComment.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import AddressableContent from '../models/AddressableContent.js';
@@ -18,6 +19,8 @@ import User from '../models/User.js';
 import Translation from '../models/Translation.js';
 import SiteSettings from '../models/SiteSettings.js';
 import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.js';
+import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
+import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
 import { toPublicSdkV2 } from '../services/publicData.js';
@@ -281,8 +284,9 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
   try {
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    const { name, discordWebhookUrl, visibility, description, reviewInfo } = req.body;
+    const { name, discordWebhookUrl, visibility, description, longDescription, reviewInfo } = req.body;
     const previousDescription = game.description;
+    const previousLongDescription = game.longDescription;
     if (name !== undefined) {
       if (typeof name !== 'string') {
         return res.status(400).json({ error: 'Game name must be a string.' });
@@ -301,6 +305,15 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       game.visibility = visibility;
     }
     if (description !== undefined) game.description = String(description).slice(0, 500);
+    if (longDescription !== undefined) {
+      if (typeof longDescription !== 'string') {
+        return res.status(400).json({ error: 'Game long description must be a string.' });
+      }
+      if (longDescription.length > 20000) {
+        return res.status(400).json({ error: 'Game long description must be 20000 characters or fewer.' });
+      }
+      game.longDescription = longDescription;
+    }
     if (reviewInfo !== undefined) {
       const nextReview = reviewInfo && typeof reviewInfo === 'object' ? reviewInfo : {};
       const parsedDate = nextReview.classificationDate ? new Date(nextReview.classificationDate) : null;
@@ -320,7 +333,10 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       };
     }
     await game.save();
-    if (description !== undefined && String(previousDescription ?? '') !== String(game.description ?? '')) {
+    if (
+      (description !== undefined && String(previousDescription ?? '') !== String(game.description ?? ''))
+      || (longDescription !== undefined && String(previousLongDescription ?? '') !== String(game.longDescription ?? ''))
+    ) {
       enqueue({ refType: 'Game', refId: game._id, source: game.toObject(), priority: 10 }).catch((error) => console.error('[translation enqueue]', error));
     }
     res.json({ game: { ...game.toObject(), isOwner: true } });
@@ -349,6 +365,7 @@ router.delete('/:gameId', requireAuth, requireApproved, async (req, res, next) =
     await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
 
     await GameArticle.deleteMany({ gameId: game._id });
+    await GameComment.deleteMany({ gameId: game._id });
     await Build.deleteMany({ gameId: game._id });
     await Issue.deleteMany({ gameId: game._id });
     await AddressableContent.deleteMany({ gameId: game._id });
@@ -758,6 +775,109 @@ router.get('/play/:gameSlug/issues', optionalAuth, async (req, res, next) => {
   }
 });
 
+// ── Public play-page comments ────────────────────────────────────────────────
+// Registered above `/play/:gameSlug/:buildId` on purpose: that route would
+// otherwise match `/play/<slug>/comments` and treat "comments" as a build id.
+
+const GAME_COMMENT_PAGE_SIZE = 50;
+
+router.get('/play/:gameSlug/comments', async (req, res, next) => {
+  try {
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id');
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    const limit = Math.min(
+      Math.max(Number.parseInt(req.query.limit, 10) || GAME_COMMENT_PAGE_SIZE, 1),
+      GAME_COMMENT_PAGE_SIZE,
+    );
+    const filter = { gameId: game._id };
+    const before = req.query.before ? new Date(req.query.before) : null;
+    if (before && !Number.isNaN(before.getTime())) filter.createdAt = { $lt: before };
+
+    const [rows, total] = await Promise.all([
+      GameComment.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(limit + 1)
+        .populate('authorId', 'name')
+        .lean(),
+      GameComment.countDocuments({ gameId: game._id }),
+    ]);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    res.json({ comments: page.map((row) => serializeComment(row)), total, hasMore });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post(
+  '/play/:gameSlug/comments',
+  optionalAuth,
+  requireTurnstileIfGuest,
+  async (req, res, next) => {
+    try {
+      const { body: commentBody, authorName: guestName } = req.body ?? {};
+      if (!commentBody || typeof commentBody !== 'string' || !commentBody.trim()) {
+        return res.status(400).json({ error: 'Comment body is required' });
+      }
+      if (commentBody.trim().length > 2000) {
+        return res.status(400).json({ error: 'Comment must be 2000 characters or fewer.' });
+      }
+
+      const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id visibility');
+      if (!game) return res.status(404).json({ error: 'Game not found' });
+
+      const count = await GameComment.countDocuments({ gameId: game._id });
+      if (count >= MAX_GAME_COMMENTS) {
+        return res.status(409).json({ error: 'Game comment limit reached' });
+      }
+
+      const comment = await GameComment.create({
+        gameId: game._id,
+        body: commentBody.trim(),
+        authorId: req.user?.sub ?? null,
+        // A signed-in author is resolved from authorId at read time, so the
+        // stored name is only ever the guest-supplied one.
+        ...(req.user ? {} : {
+          authorName: typeof guestName === 'string' && guestName.trim()
+            ? guestName.trim()
+            : 'Anonymous',
+        }),
+      });
+
+      res.status(201).json({
+        comment: serializeComment(comment, req.user?.name || 'User'),
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.delete('/play/:gameSlug/comments/:commentId', requireAuth, async (req, res, next) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.commentId)) {
+      return res.status(400).json({ error: 'Invalid comment ID' });
+    }
+    const game = await Game.findOne({ slug: req.params.gameSlug }).select('ownerId collaborators');
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+
+    const comment = await GameComment.findOne({ _id: req.params.commentId, gameId: game._id });
+    if (!comment) return res.status(404).json({ error: 'Comment not found' });
+
+    const admin = await isAdminUser(req);
+    const isAuthor = comment.authorId && sameId(comment.authorId, req.user.sub);
+    const isOwner = sameId(game.ownerId, req.user.sub)
+      || (game.collaborators ?? []).some((id) => sameId(id, req.user.sub));
+    if (!admin && !isAuthor && !isOwner) return res.status(403).json({ error: 'Forbidden' });
+
+    await comment.deleteOne();
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ── Public play API ───────────────────────────────────────────────────────────
 
 function buildUrls(buildId, files) {
@@ -792,6 +912,7 @@ function playResponse(game, build, translation = null) {
     gameSlug:      game.slug,
     gameName:      game.name,
     description:   translatedGame.description || '',
+    longDescription: translatedGame.longDescription || '',
     thumbnailUrl:  translatedGame.thumbnailUrl || '',
     visibility:    translatedGame.visibility || 'private',
     reviewInfo,

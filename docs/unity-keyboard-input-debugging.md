@@ -31,8 +31,13 @@ event reached the page.
 The play host promotes only Unity's `keydown`, `keypress`, and `keyup`
 `jsEventHandler` registrations on window and the Unity canvas to
 `capture: true`. Other application and browser event listeners keep their
-original options. Removal uses the same capture option, and all promoted
-listeners are cleaned up when the Unity view unmounts.
+original options. The promoted Unity handlers run only while the Unity canvas
+is the active element; when a form control or another page element owns focus,
+the wrapper skips the Unity callback so the page keeps the keyboard event.
+While the canvas owns focus, it also prevents browser scrolling defaults for
+Space, arrow, PageUp/PageDown, Home, and End before Unity receives the event.
+Removal uses the same capture option, and all promoted listeners are cleaned up
+when the Unity view unmounts.
 
 ## Collecting a diagnostic trace
 

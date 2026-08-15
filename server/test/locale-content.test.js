@@ -12,6 +12,26 @@ test('mergeTranslation is a pure whitelist merge with empty-value fallback', () 
   assert.strictEqual(mergeTranslation(source, null, 'BlogPost'), source);
 });
 
+test('Game translations merge both the short and long descriptions', () => {
+  const source = {
+    description: '한국어 요약',
+    longDescription: '# 한국어 상세 설명',
+  };
+  const row = {
+    status: 'ready',
+    noindex: false,
+    fields: {
+      description: 'English summary',
+      longDescription: '# English details',
+    },
+  };
+
+  assert.deepEqual(mergeTranslation(source, row, 'Game'), {
+    description: 'English summary',
+    longDescription: '# English details',
+  });
+});
+
 test('publication kill switch blocks fields and metadata for every translation type', () => {
   const row = {
     status: 'ready',

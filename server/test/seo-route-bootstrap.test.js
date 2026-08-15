@@ -71,6 +71,7 @@ const game = {
   name: 'Public game',
   slug: 'public-game',
   description: 'A public game',
+  longDescription: '# Long game details\n\nThis is the full play-page guide.',
   thumbnailUrl: '/thumbnails/game.webp',
   visibility: 'public',
   ownerId: { _id: 'owner-id', name: 'Developer', email: 'owner@example.com' },
@@ -235,4 +236,13 @@ test('play bootstrap exposes only the public SDK v2 feature flags', async () => 
   assert.deepEqual(Object.keys(payload.data.game.sdkV2).sort(), ['cloudSaveEnabled', 'enabled']);
   assert.equal('serverBackend' in payload.data.game, false);
   assert.equal('secret' in payload.data.game, false);
+  assert.equal(payload.data.game.longDescription, '# Long game details\n\nThis is the full play-page guide.');
+});
+
+test('play no-JS preview uses the long description body while metadata stays short', async () => {
+  const response = await getAppResponse('/play/public-game');
+  const html = await response.text();
+  const preview = parseVisiblePreview(html);
+  assert.match(preview, /Long game details/);
+  assert.match(html, /<meta\s+name="description"[^>]+content="A public game"/);
 });

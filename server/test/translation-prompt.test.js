@@ -15,6 +15,8 @@ test('translation prompt carries glossary and field budgets', () => {
   assert.deepEqual(payload.generationConfig.responseSchema, BODY_SCHEMA);
   assert.equal(payload.generationConfig.responseSchema.properties.content.type, 'string');
   assert.equal(payload.generationConfig.responseSchema.properties.description.type, 'string');
+  assert.equal(payload.generationConfig.responseSchema.properties.longDescription.type, 'string');
+  assert.match(text, /longDescription/);
   assert.equal('title' in payload.generationConfig.responseSchema.properties, false);
   assert.equal('tags' in payload.generationConfig.responseSchema.properties, false);
 });

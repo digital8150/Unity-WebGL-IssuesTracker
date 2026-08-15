@@ -22,6 +22,9 @@ export function query(value) {
       if (Array.isArray(current)) current = current.slice(0, valueLimit);
       return chain;
     },
+    populate() {
+      return chain;
+    },
     lean() {
       return Promise.resolve(current);
     },

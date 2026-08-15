@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import hljs from 'highlight.js/lib/common';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -18,13 +18,14 @@ import { readSsrData } from '../utils/ssrData.js';
 import Footer from '../components/Footer.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import PageLink from '../components/PageLink.jsx';
-import TurnstileWidget from '../components/TurnstileWidget.jsx';
+import CommentForm from '../components/CommentForm.jsx';
 import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { withLocale } from '../i18n/localePath.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
+import '../styles/markdown-body.css';
 
 function formatDate(dateStr, lang) {
   if (!dateStr) return '';
@@ -55,39 +56,12 @@ export default function BlogPostPage() {
   const contentRef = useRef(null);
   const bootstrapPendingRef = useRef(hasBootstrap);
 
-  // Comment form state
-  const [commentBody, setCommentBody]     = useState('');
-  const [guestName, setGuestName]         = useState('');
-  const [cfToken, setCfToken]             = useState('');
-  const [postingComment, setPostingComment] = useState(false);
-  const [commentError, setCommentError]   = useState('');
-  const turnstileResetRef                 = useRef(null);
-
-  const handleCfToken  = useCallback((t) => setCfToken(t),  []);
-  const handleCfExpire = useCallback(() => setCfToken(''), []);
-
-  async function handleAddComment(e) {
-    e.preventDefault();
-    if (!commentBody.trim()) return;
-    setPostingComment(true);
-    setCommentError('');
-    try {
-      const authorName = user ? undefined : (guestName.trim() || undefined);
-      const response = isGameArticle
-        ? await addGameArticleComment(gameSlug, contentSlug, commentBody.trim(), authorName, !user ? cfToken : undefined)
-        : await addBlogComment(contentSlug, commentBody.trim(), authorName, !user ? cfToken : undefined);
-      const { comment } = response;
-      setPost((prev) => prev ? { ...prev, comments: [...(prev.comments ?? []), comment] } : prev);
-      setCommentBody('');
-      setCfToken('');
-      turnstileResetRef.current?.();
-    } catch (err) {
-      setCommentError(err.message || t.blog.commentError);
-      setCfToken('');
-      turnstileResetRef.current?.();
-    } finally {
-      setPostingComment(false);
-    }
+  async function handleAddComment({ body, authorName, turnstileToken }) {
+    const response = isGameArticle
+      ? await addGameArticleComment(gameSlug, contentSlug, body, authorName, turnstileToken)
+      : await addBlogComment(contentSlug, body, authorName, turnstileToken);
+    const { comment } = response;
+    setPost((prev) => prev ? { ...prev, comments: [...(prev.comments ?? []), comment] } : prev);
   }
 
   async function handleDeleteComment(commentId) {
@@ -280,49 +254,7 @@ export default function BlogPostPage() {
                 ))}
               </div>
 
-              <form className="bpost-comment-form" onSubmit={handleAddComment}>
-                <h3 className="bpost-comment-form-title">{t.blog.leaveComment}</h3>
-
-                {!user && (
-                  <input
-                    className="bpost-comment-name"
-                    placeholder={t.blog.guestNamePlaceholder}
-                    value={guestName}
-                    onChange={(e) => setGuestName(e.target.value)}
-                    maxLength={100}
-                  />
-                )}
-
-                <textarea
-                  className="bpost-comment-textarea"
-                  rows={4}
-                  placeholder={t.blog.commentPlaceholder}
-                  value={commentBody}
-                  onChange={(e) => setCommentBody(e.target.value)}
-                  required
-                />
-
-                {/* Turnstile only for guests */}
-                {!user && (
-                  <TurnstileWidget
-                    onToken={handleCfToken}
-                    onExpire={handleCfExpire}
-                    resetRef={turnstileResetRef}
-                  />
-                )}
-
-                {commentError && (
-                  <p className="bpost-comment-error">{commentError}</p>
-                )}
-
-                <button
-                  type="submit"
-                  className="bpost-comment-submit btn btn-primary"
-                  disabled={postingComment || !commentBody.trim()}
-                >
-                  {postingComment ? t.blog.posting : t.blog.submitComment}
-                </button>
-              </form>
+              <CommentForm onSubmit={handleAddComment} />
             </section>
           </article>
         )}

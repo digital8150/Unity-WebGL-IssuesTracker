@@ -8,10 +8,29 @@ const GRADIENTS = [
   'linear-gradient(135deg, #f9cb28, #ff4d4d)',
 ];
 
-export function gradientFor(seed = '') {
+// Sparks carry the brighter stop of the matching gradient and smoke the deeper
+// one. Reading these in gradient order instead puts a dark spark over its own
+// backdrop, which is why the hero flame was invisible against the artwork.
+const FLAME_PALETTES = [
+  { sparkColor: [0, 223 / 255, 216 / 255], smokeColor: [0, 124 / 255, 240 / 255] },
+  { sparkColor: [1, 0, 128 / 255], smokeColor: [121 / 255, 40 / 255, 202 / 255] },
+  { sparkColor: [249 / 255, 203 / 255, 40 / 255], smokeColor: [1, 77 / 255, 77 / 255] },
+  { sparkColor: [0, 223 / 255, 216 / 255], smokeColor: [121 / 255, 40 / 255, 202 / 255] },
+  { sparkColor: [249 / 255, 203 / 255, 40 / 255], smokeColor: [1, 77 / 255, 77 / 255] },
+];
+
+function gradientIndexFor(seed = '') {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
-  return GRADIENTS[Math.abs(hash) % GRADIENTS.length];
+  return Math.abs(hash) % GRADIENTS.length;
+}
+
+export function gradientFor(seed = '') {
+  return GRADIENTS[gradientIndexFor(seed)];
+}
+
+export function flamePaletteFor(seed = '') {
+  return FLAME_PALETTES[gradientIndexFor(seed)];
 }
 
 export function assetUrl(path = '') {

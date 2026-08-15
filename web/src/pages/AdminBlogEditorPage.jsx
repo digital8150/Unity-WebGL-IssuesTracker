@@ -21,8 +21,9 @@ import TranslationEditorPanel, { useTranslationEditor } from '../components/Tran
 import PageLink from '../components/PageLink.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import './DashboardPage.css';
-import './BlogPostPage.css';
+import '../styles/markdown-body.css';
 import './AdminBlogEditorPage.css';
+import { TOOLBAR_ACTIONS, applyToolbarAction } from '../utils/markdownToolbar.js';
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 // ── Unsplash Presets ──────────────────────────────────────────────────────────
@@ -171,40 +172,6 @@ function slugify(str) {
     .replace(/^-+|-+$/g, '');
 }
 
-// ── Toolbar button definitions ────────────────────────────────────────────────
-const TOOLBAR_ACTIONS = [
-  { id: 'h2',     label: 'H2',   wrap: ['## ', ''],           block: true  },
-  { id: 'h3',     label: 'H3',   wrap: ['### ', ''],          block: true  },
-  { id: 'bold',   label: 'B',    wrap: ['**', '**'],          block: false },
-  { id: 'italic', label: 'I',    wrap: ['_', '_'],            block: false },
-  { id: 'code',   label: '`',    wrap: ['`', '`'],            block: false },
-  { id: 'codebl', label: '{}',   wrap: ['```\n', '\n```'],    block: true  },
-  { id: 'link',   label: '🔗',   wrap: ['[', '](url)'],       block: false },
-  { id: 'ul',     label: '• ',   wrap: ['- ', ''],            block: true  },
-  { id: 'ol',     label: '1.',   wrap: ['1. ', ''],           block: true  },
-  { id: 'quote',  label: '❝',    wrap: ['> ', ''],            block: true  },
-  { id: 'hr',     label: '—',    insert: '\n\n---\n\n',       block: true  },
-  { id: 'img',    label: '🖼',    wrap: ['![alt](', ')'],      block: false },
-];
-
-function applyToolbarAction(textarea, action) {
-  const { selectionStart: s, selectionEnd: e, value } = textarea;
-  const selected = value.slice(s, e);
-
-  let newText, newCursorStart, newCursorEnd;
-
-  if (action.insert) {
-    newText = value.slice(0, s) + action.insert + value.slice(e);
-    newCursorStart = newCursorEnd = s + action.insert.length;
-  } else {
-    const [before, after] = action.wrap;
-    newText = value.slice(0, s) + before + selected + after + value.slice(e);
-    newCursorStart = s + before.length;
-    newCursorEnd = newCursorStart + selected.length;
-  }
-
-  return { newText, newCursorStart, newCursorEnd };
-}
 
 // ── Editor view modes ─────────────────────────────────────────────────────────
 const VIEW_MODES = ['write', 'split', 'preview'];

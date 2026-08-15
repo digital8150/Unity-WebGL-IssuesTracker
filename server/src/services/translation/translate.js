@@ -7,7 +7,12 @@ import { generateContent } from './gemini.js';
 import { log, ms, warn } from './log.js';
 
 function sourceFields(refType, source) {
-  if (refType === 'Game') return { description: String(source?.description || '') };
+  if (refType === 'Game') {
+    return {
+      description: String(source?.description || ''),
+      longDescription: String(source?.longDescription || ''),
+    };
+  }
   return {
     title: String(source?.title || ''),
     summary: String(source?.summary || ''),
@@ -45,11 +50,8 @@ export async function translateDocument({ refType, source, model, apiKey, maxChu
   const original = sourceFields(refType, source);
   const gameNames = await gameModel.find().select('name').lean();
   const glossary = buildGlossary(gameNames.map((game) => game.name));
-  const sourceText = original.content || original.description || '';
+  const sourceText = original.content || original.description || original.longDescription || '';
   const contentChunks = splitMarkdown(sourceText, maxChunkChars);
-  const translatedChunks = [];
-  let context = '';
-  let firstResult = null;
 
   log(`  ${refType} · ${sourceText.length}ch · ${contentChunks.length} chunk(s) · glossary=${glossary.length}`);
 
@@ -81,47 +83,54 @@ export async function translateDocument({ refType, source, model, apiKey, maxChu
     }
   }
 
-  let chunkIndex = 0;
-  for (const chunk of contentChunks) {
-    const field = refType === 'Game' ? 'description' : 'content';
-    chunkIndex += 1;
-    log(`  chunk ${chunkIndex}/${contentChunks.length} · ${chunk.length}ch of markdown`);
+  async function translateBodyField(field, sourceTextForField) {
+    if (!sourceTextForField) return '';
+    const chunks = splitMarkdown(sourceTextForField, maxChunkChars);
+    const translatedChunks = [];
+    let context = '';
 
-    const requestStartedAt = Date.now();
-    const result = await callModel(buildGeneratePayload({
-      source: refType === 'Game' ? { description: chunk } : { content: chunk },
-      glossary,
-      precedingContext: context,
-      maxChunkChars,
-      sourceChars: chunk.length,
-      field,
-      mode: 'body',
-    }));
-    const translatedText = String(result?.[field] ?? '').trim();
-    log(`    replied in ${ms(requestStartedAt)} · ${translatedText.length}ch`);
-
-    // The one fatal check: an untranslated echo must never be stored, because
-    // it would publish a Korean page at an English URL. Everything else is
-    // reported and kept — this is a labelled draft an admin can edit, and a
-    // slightly imperfect page is worth more than a blocked queue.
-    if (!translatedText) {
-      const error = new Error(`Model returned no ${field} for chunk ${chunkIndex}`);
-      error.code = 'TRANSLATION_EMPTY';
-      throw error;
+    for (const [index, chunk] of chunks.entries()) {
+      const chunkIndex = index + 1;
+      log(`  ${field} chunk ${chunkIndex}/${chunks.length} · ${chunk.length}ch of markdown`);
+      const requestStartedAt = Date.now();
+      const result = await callModel(buildGeneratePayload({
+        source: { [field]: chunk },
+        glossary,
+        precedingContext: context,
+        maxChunkChars,
+        sourceChars: chunk.length,
+        field,
+        mode: 'body',
+      }));
+      const translatedText = String(result?.[field] ?? '').trim();
+      log(`    replied in ${ms(requestStartedAt)} · ${translatedText.length}ch`);
+      if (!translatedText) {
+        const error = new Error(`Model returned no ${field} for chunk ${chunkIndex}`);
+        error.code = 'TRANSLATION_EMPTY';
+        throw error;
+      }
+      if (koreanRatio(translatedText) > 0.5) {
+        const error = new Error(`Model echoed Korean back for chunk ${chunkIndex}`);
+        error.code = 'TRANSLATION_PASSTHROUGH';
+        throw error;
+      }
+      const drift = describeMarkdownDrift(chunk, translatedText);
+      if (drift.length) log(`    markdown drift (kept anyway): ${drift.join(' | ')}`);
+      translatedChunks.push(translatedText);
+      context = precedingContext(translatedText);
     }
-    if (koreanRatio(translatedText) > 0.5) {
-      const error = new Error(`Model echoed Korean back for chunk ${chunkIndex}`);
-      error.code = 'TRANSLATION_PASSTHROUGH';
-      throw error;
-    }
-
-    const drift = describeMarkdownDrift(chunk, translatedText);
-    if (drift.length) warn(`    markdown drift (kept anyway): ${drift.join(' | ')}`);
-
-    if (!firstResult) firstResult = result;
-    translatedChunks.push(translatedText);
-    context = precedingContext(translatedText);
+    return translatedChunks.join('\n\n');
   }
+
+  // Games deliberately use two body passes: the card description keeps its
+  // 500-character contract, while the play-page Markdown is never clipped.
+  const translatedDescription = refType === 'Game'
+    ? await translateBodyField('description', original.description)
+    : '';
+  const translatedLongDescription = refType === 'Game'
+    ? await translateBodyField('longDescription', original.longDescription)
+    : await translateBodyField('content', original.content);
+
 
   const translated = {
     title: String(metadata.title ?? ''),
@@ -129,10 +138,11 @@ export async function translateDocument({ refType, source, model, apiKey, maxChu
     // single corrective model attempt. Titles are intentionally not clipped;
     // an invalid title remains a hard validation failure.
     summary: truncateAtWordBoundary(metadata.summary ?? '', 400),
-    content: refType === 'Game' ? '' : translatedChunks.join('\n\n'),
+    content: refType === 'Game' ? '' : translatedLongDescription,
     description: refType === 'Game'
-      ? truncateAtWordBoundary(translatedChunks.join('\n\n'), 500)
+      ? truncateAtWordBoundary(translatedDescription, 500)
       : truncateAtWordBoundary(metadata.description ?? '', 500),
+    longDescription: refType === 'Game' ? translatedLongDescription : '',
     tags: applyTagPolicy(original.tags || [], metadata.tags, glossary),
   };
   return { fields: translated, model, promptVersion };

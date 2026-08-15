@@ -167,3 +167,55 @@ Keep this file short; detailed implementation history remains in git commits.
 ## 2026-08-14 — Addressables review final verification
 
 - Final verification: full `server/npm test` (172 passing), `web/npm run build`, changed-module `node --check`, and `git diff --check`.
+
+## 2026-08-15 — Ignition + game long descriptions
+
+- Added gated Canvas UI Blaze/FireLayer effects to the landing hero and full landing footer; CSS mesh-glow fallback remains visible when HTMLInCanvas is unavailable.
+- Added the HTMLInCanvas Origin Trial meta placeholder for `arcade.codingbot.kr`; replace it with the issued token before production deployment. Planned expiry checkpoint: 2026-10-20.
+- Added `Game.longDescription` (20,000 characters), MarkdownField editing with shared blog image upload/rendering, play-page Markdown rendering, SSR bootstrap/preview support, and en/ko dashboard copy.
+- Added long-description translation fields and a separate Markdown body pass; expect higher Gemini request volume for games with detailed descriptions.
+- Verification: full `server/npm test` (177 passing), `web/npm run build`, changed-server-module `node --check`, and `git diff --check`.
+- Manual follow-up: issue and replace the Origin Trial token, then test landing CTA/footer interaction, reduced-motion/browser fallbacks, carousel flame palette changes, and dashboard/play-page image + Markdown flows.
+
+## 2026-08-15 — Ignition review fixes + play-page comments
+
+- Fixed the reason the blaze never appeared: `FireLayer` rendered its IntersectionObserver sentinel only while inactive, so activating it detached the observer target, which reported `isIntersecting: false` and switched the layer straight back off. The sentinel now stays mounted, intersection latches on instead of toggling, and the above-the-fold hero (`mode="fill"`) skips the observer entirely.
+- Fixed the hero swallowing page scroll: Blaze inlines `overflow: auto` on the wrapper it moves the subtree into, turning the fixed-height hero into its own scroll container.
+- Fixed a 286 px horizontal document overflow from the footer's `::before` glow bleeding ±15% with no clip on `.site-footer`.
+- Retuned both blazes — the previous values were near-invisible, and the hero palette read the *darker* gradient stop so the flame sat on the backdrop it was sampled from. Sparks now take the brighter stop, the hero scrim gained a bottom band to give the fire a ground, and distortion is low enough to keep the headline legible.
+- The footer's padding now moves onto the layer's content wrapper (guarded by `:has([data-fire-active])`) so the flame covers the whole footer instead of leaving a lit rectangle inset in unlit padding; fallback browsers keep the original padding.
+- Replaced the invalid `__HTML_IN_CANVAS_ORIGIN_TRIAL_TOKEN__` meta with a commented block. Chrome rejects a placeholder and logs an error on every load. **Confirmed by measurement: the trial token, not `chrome://flags`, is what exposes the API to visitors** — in one Chrome 151, `canvasui.dev` had `drawElementImage` as a function while `localhost` had it undefined.
+- Added play-page comments: `GameComment` (own collection, not embedded on `Game` — that document is read by the arcade list, play metadata, SSR, dashboard, and translation, several via `toObject()`, and `game.save()` from the settings form would race comment writes), public list/create/delete routes registered above `/play/:gameSlug/:buildId` so `/comments` is not parsed as a build id, a reusable `CommentSection`, and game deletion cleanup.
+- Comment moderation: author, game owner/collaborator, or admin. The client only shows delete for author/admin because the play page carries no ownership signal.
+- Verification: full `server/npm test` (183 passing, 6 new), `web/npm run build`, changed-module `node --check`, `git diff --check`, and a live browser pass on `/` and `/play/:slug` (blaze active on both layers, scroll restored, zero horizontal overflow, comment post/list/delete round trip in UTF-8).
+- Still outstanding: a non-Chromium fallback check on real Safari/Firefox.
+
+## 2026-08-15 — Origin Trial token + landing club footer
+
+- Applied the issued HTMLInCanvas Origin Trial token for `arcade.codingbot.kr` in `web/index.html` (`isSubdomain: true`, **expires 2026-10-20** — renew at https://developer.chrome.com/origintrials). SSR inherits it through the existing `</head>` replacement, so no server change. The trial spans M148–M151, so re-registration may not be possible after expiry; the effects fall back silently.
+- Landing-only two-tier footer (`<Footer variant="landing" />`): BCSD the club on top, Arcade below. Copy is taken from bcsdlab.com — "Build Communities, Share Dreams", the orbit metaphor, 한국기술교육대학교 IT 동아리, and a "동아리에 대해 더 알아보기" CTA to bcsdlab.com. en/ko both added.
+- The club tier's mark is the official symbol, inlined as `BcsdSymbol.jsx` from `BCSD Logo-symbol.svg` (bcsdlab.com has no BI/CI section; the file came from the user). Paths are verbatim; the upstream `<style>` block using `.cls-1/2/3` was converted to `fill` attributes so those generic names cannot leak into the global stylesheet. A `mono` prop flattens the two brand purples to `currentColor` — the footer uses it to set symbol and "BCSD" wordmark as one lockup in a single off-white ink. The body path is `#1d1d1b` upstream and would vanish on the dark surface; as `currentColor` it reverses, and the eyes are counter-wound holes so they pick up the footer behind.
+- `variant="landing"` now implies the blaze; the separate `fire` prop is gone. Other pages keep the short footer untouched (verified `/arcade`: 247 px, no club tier, no layer, original padding).
+- The extra height is the point — 247 px gave the blaze nowhere to burn; the landing footer is now ~615 px, matching the canvasui.dev proportion.
+- Fixed two activation artifacts the taller footer exposed: the layer collapsed to zero height for a frame because measuring only began after activation (now pre-measured off the sentinel while the children are still ordinary DOM), and it lit up one pixel past the fold showing an unpainted canvas frame (IntersectionObserver now uses `rootMargin: '0px 0px -20% 0px'`). Document height across activation is now 2320→2321 px.
+- Confirmed hit testing works inside the canvas subtree: the CTA, track chips, footer nav links, and brand link all resolve through `elementFromPoint`. This closes the risk flagged in the previous entry.
+- Verification: `server npm test` (183 passing), `web npm run build` with the token present in `dist/index.html`, and browser passes on `/`, `/en`, and `/arcade` with zero horizontal overflow.
+
+## 2026-08-16 — Public comment form reuse
+
+- Extracted the existing public blog comment form into shared `CommentForm`; blog articles and game pages now use the same fields, Turnstile flow, errors, and styling.
+- Matched game comment list styling to the existing public comment UI and added bottom spacing before the slim footer (64px desktop, 48px mobile).
+- Verification: `web npm run build` and `git diff --check`.
+
+## 2026-08-16 — Focus-gated Unity keyboard capture
+
+- Kept the `2f72cac` capture-phase promotion for Unity keyboard handlers, but wrapped Unity's `window`/canvas callbacks so they run only while the Unity canvas is the active element.
+- Page inputs now retain keyboard events after canvas blur; focused Unity retains the extension-resistant capture behavior.
+- Prevented browser scroll defaults for Space, arrow, PageUp/PageDown, Home, and End only while the Unity canvas owns focus.
+- Verification: `node --check src/unityKeyboardDiagnostics.js`, `web npm run build`, and `git diff --check`; browser automation was unavailable in this environment.
+
+## 2026-08-16 — Landing hero button highlight
+
+- Confirmed the review finding: `.l-hero-primary::before` used `z-index: -1`, placing the specular layer below the button background.
+- Raised the highlight to stack level 0 and placed the wrapped button label above it; preserved `pointer-events: none`.
+- Verification: `web npm run build` and `git diff --check`.

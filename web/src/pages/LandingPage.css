@@ -87,6 +87,41 @@
   color: var(--surface-night-ink);
 }
 
+.l-featured-hero::after {
+  position: absolute;
+  z-index: 0;
+  right: -12%;
+  bottom: -8%;
+  left: -12%;
+  height: 30%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 18% 100%, var(--grad-develop-end), transparent 62%),
+    radial-gradient(ellipse at 52% 100%, var(--grad-preview-end), transparent 64%),
+    radial-gradient(ellipse at 84% 100%, var(--grad-ship-end), transparent 62%);
+  content: '';
+  opacity: 0.18;
+  pointer-events: none;
+  filter: blur(20px);
+  transition: opacity 240ms ease;
+}
+
+.l-featured-hero:has(.l-hero-fx[data-fx-active])::after {
+  opacity: 0.055;
+}
+
+.l-hero-fx {
+  position: absolute;
+  inset: 0;
+}
+
+/* Opaque backing for the captured content — the artwork already covers it, but
+   this guarantees content.a stays 1 so the output canvas fully hides the live
+   subtree underneath it. See the note in Footer.css. */
+.l-hero-fx[data-fx-active] .fx-layer-content {
+  background: var(--surface-night);
+}
+
 .l-featured-art,
 .l-featured-scrim {
   position: absolute;
@@ -101,14 +136,24 @@
   animation: l-featured-art-in 700ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
+/* The bottom band darkens the artwork so the blaze has a ground to burn
+   against. Without it the flame colour sits on top of the same gradient it was
+   sampled from and reads as nothing. */
 .l-featured-scrim {
-  background: linear-gradient(
-    90deg,
-    var(--surface-night-scrim-strong) 0%,
-    var(--surface-night-scrim-mid) 34%,
-    rgba(6, 6, 8, 0.2) 66%,
-    transparent 88%
-  );
+  background:
+    linear-gradient(
+      0deg,
+      rgba(6, 6, 8, 0.88) 0%,
+      rgba(6, 6, 8, 0.42) 20%,
+      transparent 50%
+    ),
+    linear-gradient(
+      90deg,
+      var(--surface-night-scrim-strong) 0%,
+      var(--surface-night-scrim-mid) 34%,
+      rgba(6, 6, 8, 0.2) 66%,
+      transparent 88%
+    );
   animation: l-featured-scrim-in 700ms ease both;
 }
 
@@ -137,14 +182,33 @@
   margin-bottom: var(--space-lg);
 }
 
+/* ── Liquid glass ────────────────────────────────────────────────────────────
+   The badge and the play button are lit like physical glass rather than filled
+   with flat colour: the backdrop is blurred and over-saturated so the artwork
+   behind them bends through, a bright top edge and dark bottom edge fake the
+   bevel, and an inner top highlight is the specular. Built in CSS rather than
+   with Canvas UI's Glass component, which is a cursor-tracking lens with no
+   way to pin it to an element.
+
+   Deliberately no backdrop-filter: inside the hero's html-in-canvas subtree the
+   capture cannot resolve a backdrop and paints an opaque black box around the
+   element instead. Translucency plus the bevel and specular carry the material
+   on their own, and the artwork behind is a smooth gradient that a blur would
+   barely change. */
+
 .l-featured-pill {
   display: inline-flex;
+  position: relative;
   align-items: center;
   min-height: 25px;
   padding: 4px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 2px 10px rgba(0, 0, 0, 0.22);
   color: var(--surface-night-ink);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -202,9 +266,48 @@
 }
 
 .l-hero-primary {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  /* Frosted rather than solid white, so the artwork reads through the button
+     the way it would through glass. */
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 6px 22px rgba(0, 0, 0, 0.3);
+  color: var(--surface-night-ink);
+  transition:
+    transform 0.15s ease,
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+/* The specular: a soft highlight pooled along the top, clipped by the pill. */
+.l-hero-primary::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.34) 0%,
+    rgba(255, 255, 255, 0.06) 42%,
+    transparent 70%
+  );
+  content: '';
+  pointer-events: none;
+}
+
+.l-hero-primary > * {
+  position: relative;
+  z-index: 1;
+}
+
+.l-hero-primary-label {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-xs);
-  background: var(--surface-night-ink);
-  color: var(--surface-night);
 }
 
 .l-hero-secondary {
@@ -217,7 +320,14 @@
   transform: translateY(-2px);
 }
 
-.l-hero-primary:hover { opacity: 0.88; }
+.l-hero-primary:hover {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.26);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+    0 10px 30px rgba(0, 0, 0, 0.34);
+}
 .l-hero-secondary:hover { background: rgba(255, 255, 255, 0.08); }
 
 .l-hero-primary:focus-visible,
