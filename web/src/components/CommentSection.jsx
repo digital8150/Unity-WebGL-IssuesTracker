@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { addGameComment, deleteGameComment, listGameComments } from '../api.js';
-import TurnstileWidget from './TurnstileWidget.jsx';
+import CommentForm from './CommentForm.jsx';
 import './CommentSection.css';
 
 function formatDate(dateStr, lang) {
@@ -30,12 +30,7 @@ export default function CommentSection({ gameSlug }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const [body, setBody] = useState('');
-  const [guestName, setGuestName] = useState('');
-  const [cfToken, setCfToken] = useState('');
-  const [posting, setPosting] = useState(false);
-  const [error, setError] = useState('');
-  const turnstileResetRef = useRef(null);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!gameSlug) return undefined;
@@ -72,30 +67,11 @@ export default function CommentSection({ gameSlug }) {
     }
   }, [comments, gameSlug, loadingMore]);
 
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!body.trim() || posting) return;
-    setPosting(true);
-    setError('');
-    try {
-      const { comment } = await addGameComment(
-        gameSlug,
-        body.trim(),
-        guestName,
-        !user ? cfToken : undefined,
-      );
-      setComments((prev) => [comment, ...prev]);
-      setTotal((prev) => prev + 1);
-      setBody('');
-      setCfToken('');
-      turnstileResetRef.current?.();
-    } catch (err) {
-      setError(err.message || t.blog.commentError);
-      setCfToken('');
-      turnstileResetRef.current?.();
-    } finally {
-      setPosting(false);
-    }
+  async function handleSubmit({ body, authorName, turnstileToken }) {
+    setDeleteError('');
+    const { comment } = await addGameComment(gameSlug, body, authorName, turnstileToken);
+    setComments((prev) => [comment, ...prev]);
+    setTotal((prev) => prev + 1);
   }
 
   async function handleDelete(commentId) {
@@ -104,7 +80,7 @@ export default function CommentSection({ gameSlug }) {
       setComments((prev) => prev.filter((c) => c._id !== commentId));
       setTotal((prev) => Math.max(prev - 1, 0));
     } catch (err) {
-      setError(err.message || t.blog.commentError);
+      setDeleteError(err.message || t.blog.commentError);
     }
   }
 
@@ -156,47 +132,7 @@ export default function CommentSection({ gameSlug }) {
         </button>
       )}
 
-      <form className="play-comment-form" onSubmit={handleSubmit}>
-        <h3 className="play-comment-form-title">{t.blog.leaveComment}</h3>
-
-        {!user && (
-          <input
-            className="play-comment-name form-input"
-            placeholder={t.blog.guestNamePlaceholder}
-            value={guestName}
-            onChange={(e) => setGuestName(e.target.value)}
-            maxLength={100}
-          />
-        )}
-
-        <textarea
-          className="play-comment-textarea form-input"
-          rows={4}
-          maxLength={2000}
-          placeholder={t.blog.commentPlaceholder}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          required
-        />
-
-        {!user && (
-          <TurnstileWidget
-            onToken={setCfToken}
-            onExpire={() => setCfToken('')}
-            resetRef={turnstileResetRef}
-          />
-        )}
-
-        {error && <p className="play-comment-error">{error}</p>}
-
-        <button
-          type="submit"
-          className="play-comment-submit btn btn-primary"
-          disabled={posting || !body.trim()}
-        >
-          {posting ? t.blog.posting : t.blog.submitComment}
-        </button>
-      </form>
+      <CommentForm onSubmit={handleSubmit} error={deleteError} />
     </section>
   );
 }

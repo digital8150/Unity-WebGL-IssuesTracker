@@ -13,6 +13,10 @@ const EVENT_TYPES = [
 const MAX_EVENTS = 200;
 const MAX_REGISTRATIONS = 200;
 const UNITY_KEYBOARD_EVENT_TYPES = new Set(['keydown', 'keypress', 'keyup']);
+const BROWSER_SCROLL_KEYS = new Set([
+  ' ', 'Spacebar', 'PageUp', 'PageDown', 'End', 'Home',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+]);
 
 function describeTarget(target) {
   if (target === window) return 'window';
@@ -43,6 +47,17 @@ function installUnityKeyboardCapture(canvas) {
   const originalRemoveEventListener = eventTargetPrototype.removeEventListener;
   const capturedRegistrations = [];
 
+  function canvasHasFocus() {
+    return document.activeElement === canvas;
+  }
+
+  function preventBrowserScroll(event, type) {
+    if ((type === 'keydown' || type === 'keypress')
+      && (BROWSER_SCROLL_KEYS.has(event.key) || event.code === 'Space')) {
+      event.preventDefault();
+    }
+  }
+
   function isUnityKeyboardHandler(target, type, listener) {
     return UNITY_KEYBOARD_EVENT_TYPES.has(type)
       && (target === window || target === canvas)
@@ -61,8 +76,25 @@ function installUnityKeyboardCapture(canvas) {
       return originalAddEventListener.call(this, type, listener, options);
     }
 
-    capturedRegistrations.push({ target: this, type, listener });
-    return originalAddEventListener.call(this, type, listener, forceCapture(options));
+    const existing = capturedRegistrations.find((registration) => (
+      registration.target === this
+      && registration.type === type
+      && registration.listener === listener
+    ));
+    if (existing) {
+      return originalAddEventListener.call(this, type, existing.wrappedListener, forceCapture(options));
+    }
+
+    // Unity registers some keyboard handlers on window. Keep the capture-phase
+    // promotion from 2f72cac for extension-resistant input, but do not let a
+    // window-level handler consume keys while a page control owns focus.
+    const wrappedListener = function unityKeyboardHandlerWhenFocused(event) {
+      if (!canvasHasFocus()) return undefined;
+      preventBrowserScroll(event, type);
+      return listener.call(this, event);
+    };
+    capturedRegistrations.push({ target: this, type, listener, wrappedListener });
+    return originalAddEventListener.call(this, type, wrappedListener, forceCapture(options));
   };
 
   const patchedRemoveEventListener = function patchedUnityRemoveEventListener(type, listener, options) {
@@ -75,8 +107,12 @@ function installUnityKeyboardCapture(canvas) {
       && registration.type === type
       && registration.listener === listener
     ));
-    if (index !== -1) capturedRegistrations.splice(index, 1);
-    return originalRemoveEventListener.call(this, type, listener, forceCapture(options));
+    if (index === -1) {
+      return originalRemoveEventListener.call(this, type, listener, forceCapture(options));
+    }
+
+    const [{ wrappedListener }] = capturedRegistrations.splice(index, 1);
+    return originalRemoveEventListener.call(this, type, wrappedListener, forceCapture(options));
   };
 
   eventTargetPrototype.addEventListener = patchedAddEventListener;
@@ -84,8 +120,8 @@ function installUnityKeyboardCapture(canvas) {
 
   return {
     dispose() {
-      for (const { target, type, listener } of capturedRegistrations) {
-        originalRemoveEventListener.call(target, type, listener, true);
+      for (const { target, type, wrappedListener } of capturedRegistrations) {
+        originalRemoveEventListener.call(target, type, wrappedListener, true);
       }
       capturedRegistrations.length = 0;
 

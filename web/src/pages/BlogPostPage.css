@@ -200,56 +200,6 @@
   margin: 0;
 }
 
-/* Comment form */
-.bpost-comment-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-lg);
-}
-
-.bpost-comment-form-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin: 0 0 var(--space-xs);
-}
-
-.bpost-comment-name,
-.bpost-comment-textarea {
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-sm);
-  padding: 8px 12px;
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--color-ink);
-  background: var(--color-canvas-soft);
-  outline: none;
-  transition: border-color 0.15s;
-  resize: vertical;
-}
-
-.bpost-comment-name:focus,
-.bpost-comment-textarea:focus {
-  border-color: var(--color-primary);
-}
-
-.bpost-comment-name { height: 36px; resize: none; }
-.bpost-comment-textarea { min-height: 96px; }
-
-.bpost-comment-error {
-  font-size: 13px;
-  color: #c0392b;
-  margin: 0;
-}
-
-.bpost-comment-submit {
-  align-self: flex-start;
-}
-
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .bpost-main { padding: var(--space-xl) var(--space-md); }

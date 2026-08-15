@@ -112,7 +112,8 @@ export default function UnityGame({
     >
       {/*
         tabIndex={1}: Unity only captures keyboard events when this canvas is
-        focused. Clicking a form field blurs the canvas → game input stops.
+        focused. Clicking a form field blurs the canvas → the keyboard bridge
+        skips Unity's window-level handler, so game input stops.
       */}
       <Unity
         ref={canvasRef}
