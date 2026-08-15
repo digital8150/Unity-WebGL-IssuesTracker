@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getArcadeGames, listBlogPosts } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import Footer from '../components/Footer.jsx';
@@ -9,6 +9,7 @@ import { BlogMedia } from '../components/BlogMedia.jsx';
 import { assetUrl, flamePaletteFor, gradientFor } from '../utils/gameVisuals.js';
 import { activateGameTransitionSource, gameTransitionName } from '../utils/gameTransitions.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { readSsrData } from '../utils/ssrData.js';
 import { withLocale } from '../i18n/localePath.js';
 import CanvasFxLayer from '../components/canvasui/CanvasFxLayer.jsx';
 import Blaze from '../components/canvasui/Blaze.tsx';
@@ -55,14 +56,19 @@ function RecentArticle({ post, lang, t }) {
 
 export default function LandingPage() {
   const { lang, t } = useI18n();
-  const [games, setGames] = useState([]);
-  const [recentPosts, setRecentPosts] = useState([]);
-  const [selectedGameId, setSelectedGameId] = useState(null);
+  const bootstrap = readSsrData('/');
+  const initialGames = Array.isArray(bootstrap?.games) ? bootstrap.games : [];
+  const initialPosts = Array.isArray(bootstrap?.posts) ? bootstrap.posts : [];
+  const hasBootstrap = Array.isArray(bootstrap?.games) && Array.isArray(bootstrap?.posts);
+  const [games, setGames] = useState(initialGames);
+  const [recentPosts, setRecentPosts] = useState(initialPosts);
+  const [selectedGameId, setSelectedGameId] = useState(initialGames[0]?.id ?? null);
   const [activeTransition, setActiveTransition] = useState(null);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
-  const featuredArtRef = React.useRef(null);
-  const [gamesLoading, setGamesLoading] = useState(true);
-  const [articlesLoading, setArticlesLoading] = useState(true);
+  const featuredArtRef = useRef(null);
+  const [gamesLoading, setGamesLoading] = useState(!hasBootstrap);
+  const [articlesLoading, setArticlesLoading] = useState(!hasBootstrap);
+  const bootstrapPendingRef = useRef(hasBootstrap);
 
   useDocumentMeta({
     title: t.home.seoTitle,
@@ -72,6 +78,11 @@ export default function LandingPage() {
   });
 
   useEffect(() => {
+    if (bootstrapPendingRef.current) {
+      bootstrapPendingRef.current = false;
+      return undefined;
+    }
+
     let cancelled = false;
     setGamesLoading(true);
     setArticlesLoading(true);

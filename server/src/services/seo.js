@@ -1,4 +1,5 @@
 import { copy } from '../i18n/copy.js';
+import { localizedPath } from '../routes/seoRoutes.config.js';
 
 export const SITE_NAME = copy.ko.siteName;
 export const DEFAULT_DESCRIPTION = copy.ko.homeDescription;
@@ -175,8 +176,8 @@ function renderPreviewParagraphs(value, className) {
     .map((paragraph) => `<p class="${className}">${escapeHtml(paragraph).replace(/\n/g, '<br />')}</p>`).join('');
 }
 
-export function renderSeoPreview({ title, summary = '', body = '', items = [], notice = null } = {}) {
-  const itemMarkup = (Array.isArray(items) ? items : []).slice(0, 12).map((item) => {
+function renderPreviewItems(items, maxItems) {
+  const itemMarkup = (Array.isArray(items) ? items : []).slice(0, maxItems).map((item) => {
     const itemTitle = markdownToPlainText(item?.title ?? item?.name);
     if (!itemTitle) return '';
     const itemSummary = markdownToPlainText(item?.summary ?? item?.description);
@@ -184,11 +185,69 @@ export function renderSeoPreview({ title, summary = '', body = '', items = [], n
     const titleMarkup = href ? `<a href="${escapeHtml(href)}">${escapeHtml(itemTitle)}</a>` : `<strong>${escapeHtml(itemTitle)}</strong>`;
     return `<li class="seo-preview-item">${titleMarkup}${itemSummary ? `<p>${escapeHtml(itemSummary)}</p>` : ''}</li>`;
   }).join('');
-  const listMarkup = itemMarkup ? `<ul class="seo-preview-list">${itemMarkup}</ul>` : '';
+  return itemMarkup ? `<ul class="seo-preview-list">${itemMarkup}</ul>` : '';
+}
+
+function normalizePreviewItemLimit(value) {
+  if (value === Number.POSITIVE_INFINITY) return Number.POSITIVE_INFINITY;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : 12;
+}
+
+function renderPreviewSections(sections, maxItems) {
+  return (Array.isArray(sections) ? sections : []).map((section) => {
+    const listMarkup = renderPreviewItems(section?.items, maxItems);
+    if (!listMarkup) return '';
+    const heading = markdownToPlainText(section?.heading);
+    return `<section class="seo-preview-section">${heading ? `<h2>${escapeHtml(heading)}</h2>` : ''}${listMarkup}</section>`;
+  }).join('');
+}
+
+function renderPreviewNav(locale, localizedCopy) {
+  const links = [
+    { href: localizedPath('/', locale), label: localizedCopy.siteName },
+    { href: localizedPath('/arcade', locale), label: localizedCopy.arcadeTitle },
+    { href: localizedPath('/blog', locale), label: localizedCopy.blogTitle },
+  ];
+  return `<nav class="seo-preview-nav" aria-label="${escapeHtml(localizedCopy.siteName)}">${links.map(({ href, label }, index) => `<a${index === 0 ? ' class="seo-preview-nav-brand"' : ''} href="${escapeHtml(href)}">${escapeHtml(label)}</a>`).join('')}</nav>`;
+}
+
+function renderPreviewFooter(locale, localizedCopy) {
+  const footer = localizedCopy.footer || {};
+  const footerLink = (href, label) => `<a href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+  return `<footer class="seo-preview-footer">
+    <section class="seo-preview-club">
+      <p class="seo-preview-eyebrow">${escapeHtml(footer.bcsdEyebrow)}</p>
+      <p class="seo-preview-footer-headline">${escapeHtml(footer.bcsdHeadline)}</p>
+      <p class="seo-preview-footer-copy">${escapeHtml(footer.bcsdBody)}</p>
+      <a href="https://bcsdlab.com/" target="_blank" rel="noreferrer noopener">${escapeHtml(footer.bcsdCta)}</a>
+    </section>
+    <section class="seo-preview-site">
+      <p class="seo-preview-footer-copy">${escapeHtml(footer.tagline)}</p>
+      <nav aria-label="${escapeHtml(footer.playHeading)}">
+        ${footerLink(localizedPath('/arcade', locale), footer.playAllGames)}
+        ${footerLink(localizedPath('/blog', locale), footer.playArticles)}
+      </nav>
+      <nav aria-label="${escapeHtml(footer.trackHeading)}">
+        ${footerLink('/dashboard', footer.trackDashboard)}
+      </nav>
+    </section>
+    <div class="seo-preview-footer-bottom">
+      <span>${escapeHtml(footer.copyright)}</span>
+      ${footerLink(localizedPath('/privacy', locale), footer.privacyPolicy)}
+    </div>
+  </footer>`;
+}
+
+export function renderSeoPreview({ title, summary = '', body = '', items = [], sections = [], notice = null, locale = 'ko', maxItems = 12 } = {}) {
+  const itemLimit = normalizePreviewItemLimit(maxItems);
+  const sectionMarkup = renderPreviewSections(sections, itemLimit);
+  const legacyListMarkup = sectionMarkup ? '' : renderPreviewItems(items, itemLimit);
   const noticeMarkup = notice?.text
     ? `<p class="seo-preview-notice">${notice.href ? `<a href="${escapeHtml(notice.href)}">${escapeHtml(notice.text)}</a>` : escapeHtml(notice.text)}</p>`
     : '';
-  return `<div id="seo-preview"><div class="seo-preview-nav"><span>BCSDLab. Arcade</span></div><main class="seo-preview-main"><article class="seo-preview-article">${noticeMarkup}<h1>${escapeHtml(markdownToPlainText(title))}</h1>${renderPreviewParagraphs(summary, 'seo-preview-summary')}${renderPreviewParagraphs(body, 'seo-preview-body')}${listMarkup}</article></main></div>`;
+  const localizedCopy = copy[locale] || copy.ko;
+  return `<div id="seo-preview">${renderPreviewNav(locale, localizedCopy)}<main class="seo-preview-main"><article class="seo-preview-article">${noticeMarkup}<h1>${escapeHtml(markdownToPlainText(title))}</h1>${renderPreviewParagraphs(summary, 'seo-preview-summary')}${renderPreviewParagraphs(body, 'seo-preview-body')}${legacyListMarkup}${sectionMarkup}</article>${renderPreviewFooter(locale, localizedCopy)}</main></div>`;
 }
 
 function replaceHtmlLang(html, lang) {

@@ -151,7 +151,7 @@ function parseBootstrap(html) {
 }
 
 function parseVisiblePreview(html) {
-  const match = html.match(/<div id="seo-preview">([\s\S]*?<\/article><\/main><\/div>)/);
+  const match = html.match(/<div id="seo-preview">([\s\S]*?<\/footer><\/main><\/div>)/);
   return match?.[1] ?? '';
 }
 
@@ -169,7 +169,7 @@ function collectKeys(value, keys = []) {
 }
 
 const cases = [
-  { url: '/', route: null, keys: [] },
+  { url: '/', route: '/', keys: ['games', 'posts'] },
   { url: '/privacy', route: null, keys: [] },
   { url: '/privacy/2026-07-08', route: null, keys: [] },
   { url: '/arcade', route: '/arcade', keys: ['games'] },
@@ -245,4 +245,39 @@ test('play no-JS preview uses the long description body while metadata stays sho
   const preview = parseVisiblePreview(html);
   assert.match(preview, /Long game details/);
   assert.match(html, /<meta\s+name="description"[^>]+content="A public game"/);
+});
+
+test('home no-JS preview exposes game, article, nav, and footer links', async () => {
+  const response = await getAppResponse('/');
+  const html = await response.text();
+  const preview = parseVisiblePreview(html);
+
+  assert.match(preview, /href="\/play\/public-game"/);
+  assert.match(preview, /href="\/blog\/public-post"/);
+  assert.match(preview, /href="\/"/);
+  assert.match(preview, /href="\/arcade"/);
+  assert.match(preview, /href="\/blog"/);
+  assert.match(preview, /href="\/privacy"/);
+  assert.match(preview, /<h2>[^<]+<\/h2>/);
+});
+
+test('English home preview keeps all public navigation links under /en', async () => {
+  const response = await getAppResponse('/en');
+  const html = await response.text();
+  const preview = parseVisiblePreview(html);
+
+  assert.match(preview, /href="\/en"/);
+  assert.match(preview, /href="\/en\/arcade"/);
+  assert.match(preview, /href="\/en\/blog"/);
+  assert.match(preview, /href="\/en\/privacy"/);
+  assert.match(preview, /href="\/en\/play\/public-game"/);
+  assert.match(preview, /href="\/en\/blog\/public-post"/);
+});
+
+test('play preview links recent articles and the game article index', async () => {
+  const response = await getAppResponse('/play/public-game');
+  const preview = parseVisiblePreview(await response.text());
+
+  assert.match(preview, /href="\/play\/public-game\/articles\/public-article"/);
+  assert.match(preview, /href="\/play\/public-game\/articles"/);
 });

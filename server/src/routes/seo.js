@@ -118,6 +118,38 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     return new Map(rows.map((row) => [String(row.refId), row]));
   }
 
+  async function loadPublicArcadeGames(locale, policy) {
+    const games = await gameModel.find({ visibility: 'public' })
+      .sort({ updatedAt: -1 })
+      .populate('ownerId', 'name')
+      .select('name slug description thumbnailUrl ownerId updatedAt')
+      .lean();
+    const gameTranslations = await loadTranslations('Game', games.map((game) => game._id), locale, translationModel || emptyTranslationModel);
+    const withBuilds = await Promise.all(games.map(async (game) => {
+      const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('version').lean();
+      if (!build) return null;
+      const translatedGame = mergeTranslation(game, publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled), 'Game');
+      return { ...translatedGame, developerName: game.ownerId?.name ?? null, latestBuildVersion: build.version || null };
+    }));
+    const visibleGames = withBuilds.filter(Boolean);
+    const arcadeTranslation = locale === 'en' && games.some((game) => {
+      const row = publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled);
+      return row?.origin === 'machine';
+    }) ? { status: 'ready', origin: 'machine', noindex: false } : null;
+    return { games: visibleGames, translation: arcadeTranslation };
+  }
+
+  async function loadRecentBlogPosts(locale, policy) {
+    const posts = await blogPostModel.find({ published: true })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(3)
+      .populate('author', 'name')
+      .select('-content')
+      .lean();
+    const rows = await loadTranslations('BlogPost', posts.map((post) => post._id), locale, translationModel || emptyTranslationModel);
+    return posts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), locale, policy.publishEnabled), 'BlogPost'));
+  }
+
   function render({ req, res, next, locale, path, policy, title, description, image, type = 'website', robots = 'index,follow', jsonLd, preview, bootstrap = null, dynamic = false, translation = null, listReady = false }) {
     return readShell(next).then((shell) => {
       if (!shell) return;
@@ -143,7 +175,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
         ? { ...jsonLd, url: canonical, inLanguage: locale === 'en' ? 'en-US' : 'ko-KR' }
         : null;
       const resolvedPreview = preview
-        ? { ...preview, notice: locale === 'en' && publishedTranslation?.origin === 'machine'
+        ? { ...preview, locale, notice: locale === 'en' && publishedTranslation?.origin === 'machine'
           ? { text: copy.en.machineNotice, href: pageUrl(siteOrigin, path, 'ko') }
           : preview.notice }
         : null;
@@ -213,12 +245,36 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
   async function renderHome(req, res, next, locale) {
     const c = copy[locale];
     const policy = await getPolicy(locale);
+    const [{ games, translation }, recentPosts] = await Promise.all([
+      loadPublicArcadeGames(locale, policy),
+      loadRecentBlogPosts(locale, policy),
+    ]);
+    const previewGames = games.map((game) => ({
+      title: game.name,
+      description: game.description,
+      href: localizedPath(`/play/${game.slug}`, locale),
+    }));
+    const previewPosts = recentPosts.map((post) => ({
+      title: post.title,
+      summary: post.summary,
+      href: localizedPath(`/blog/${post.slug}`, locale),
+    }));
     return render({
-      req, res, next, locale, policy, path: '/', title: locale === 'en' ? c.homeTitle : HOME_TITLE,
+      req, res, next, locale, policy, path: '/', translation,
+      title: locale === 'en' ? c.homeTitle : HOME_TITLE,
       description: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION,
       image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
       jsonLd: { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, publisher: { '@type': 'Organization', name: 'BCSDLab.' } },
-      preview: { title: locale === 'en' ? c.homeTitle : HOME_TITLE, summary: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION },
+      bootstrap: { route: '/', data: { games: games.map(toPublicArcadeGame), posts: recentPosts.map(toPublicBlogSummary) } },
+      preview: {
+        title: locale === 'en' ? c.homeTitle : HOME_TITLE,
+        summary: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION,
+        maxItems: Math.max(games.length, 3),
+        sections: [
+          { heading: c.homeGamesTitle || c.arcadeTitle, items: previewGames },
+          { heading: c.homeRecentArticlesTitle || c.blogTitle, items: previewPosts },
+        ],
+      },
     });
   }
 
@@ -241,19 +297,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
 
   async function renderArcade(req, res, next, locale) {
     const policy = await getPolicy(locale);
-    const games = await gameModel.find({ visibility: 'public' }).sort({ updatedAt: -1 }).populate('ownerId', 'name').select('name slug description thumbnailUrl ownerId updatedAt').lean();
-    const gameTranslations = await loadTranslations('Game', games.map((game) => game._id), locale, translationModel || emptyTranslationModel);
-    const withBuilds = await Promise.all(games.map(async (game) => {
-      const build = await buildModel.findOne({ gameId: game._id, isActive: true }).select('version').lean();
-      if (!build) return null;
-      const translatedGame = mergeTranslation(game, publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled), 'Game');
-      return { ...translatedGame, developerName: game.ownerId?.name ?? null, latestBuildVersion: build.version || null };
-    }));
-    const visibleGames = withBuilds.filter(Boolean);
-    const arcadeTranslation = locale === 'en' && games.some((game) => {
-      const row = publicTranslation(gameTranslations.get(String(game._id)), locale, policy.publishEnabled);
-      return row?.origin === 'machine';
-    }) ? { status: 'ready', origin: 'machine', noindex: false } : null;
+    const { games: visibleGames, translation: arcadeTranslation } = await loadPublicArcadeGames(locale, policy);
     const c = copy[locale];
     return render({
       req, res, next, locale, policy, path: '/arcade', title: `${c.arcadeTitle} — ${SITE_NAME}`,
@@ -403,6 +447,20 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
           build.version ? `${c.version}: ${build.version}` : '',
           markdownToPlainText(effectiveGame.longDescription || effectiveGame.description),
         ].filter(Boolean).join('\n\n'),
+        sections: [{
+          heading: c.gameArticlesTitle,
+          items: [
+            ...effectiveArticles.map((article) => ({
+              title: article.title,
+              summary: article.summary,
+              href: localizedPath(`/play/${game.slug}/articles/${article.slug}`, locale),
+            })),
+            {
+              title: c.gameArticlesAll,
+              href: localizedPath(`/play/${game.slug}/articles`, locale),
+            },
+          ],
+        }],
       },
     });
   }
