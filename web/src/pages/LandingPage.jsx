@@ -224,7 +224,9 @@ export default function LandingPage() {
                     onFocus={activateFeaturedSource}
                     onClick={activateFeaturedSource}
                   >
-                    <span aria-hidden="true">▶</span> {t.home.playNow}
+                    <span className="l-hero-primary-label">
+                      <span aria-hidden="true">▶</span> {t.home.playNow}
+                    </span>
                   </PageLink>
                   <span className="l-hero-note">{t.home.featuredInstallNote}</span>
                 </div>

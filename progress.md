@@ -200,3 +200,22 @@ Keep this file short; detailed implementation history remains in git commits.
 - Fixed two activation artifacts the taller footer exposed: the layer collapsed to zero height for a frame because measuring only began after activation (now pre-measured off the sentinel while the children are still ordinary DOM), and it lit up one pixel past the fold showing an unpainted canvas frame (IntersectionObserver now uses `rootMargin: '0px 0px -20% 0px'`). Document height across activation is now 2320→2321 px.
 - Confirmed hit testing works inside the canvas subtree: the CTA, track chips, footer nav links, and brand link all resolve through `elementFromPoint`. This closes the risk flagged in the previous entry.
 - Verification: `server npm test` (183 passing), `web npm run build` with the token present in `dist/index.html`, and browser passes on `/`, `/en`, and `/arcade` with zero horizontal overflow.
+
+## 2026-08-16 — Public comment form reuse
+
+- Extracted the existing public blog comment form into shared `CommentForm`; blog articles and game pages now use the same fields, Turnstile flow, errors, and styling.
+- Matched game comment list styling to the existing public comment UI and added bottom spacing before the slim footer (64px desktop, 48px mobile).
+- Verification: `web npm run build` and `git diff --check`.
+
+## 2026-08-16 — Focus-gated Unity keyboard capture
+
+- Kept the `2f72cac` capture-phase promotion for Unity keyboard handlers, but wrapped Unity's `window`/canvas callbacks so they run only while the Unity canvas is the active element.
+- Page inputs now retain keyboard events after canvas blur; focused Unity retains the extension-resistant capture behavior.
+- Prevented browser scroll defaults for Space, arrow, PageUp/PageDown, Home, and End only while the Unity canvas owns focus.
+- Verification: `node --check src/unityKeyboardDiagnostics.js`, `web npm run build`, and `git diff --check`; browser automation was unavailable in this environment.
+
+## 2026-08-16 — Landing hero button highlight
+
+- Confirmed the review finding: `.l-hero-primary::before` used `z-index: -1`, placing the specular layer below the button background.
+- Raised the highlight to stack level 0 and placed the wrapped button label above it; preserved `pointer-events: none`.
+- Verification: `web npm run build` and `git diff --check`.
