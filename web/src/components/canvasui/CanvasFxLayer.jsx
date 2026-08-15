@@ -14,7 +14,8 @@ function canTryEffect() {
 
 /**
  * Hosts any Canvas UI html-in-canvas effect and keeps it opt-in and
- * layout-safe. `effect` is the vendored component (Blaze, Displacement, …);
+ * layout-safe. `effect` is the vendored component (Blaze, Glass, Displacement,
+ * …);
  * every one of them takes the same className/style/children contract, and
  * `supportsHtmlInCanvas` is identical across the files, so Blaze's copy stands
  * in for all of them.
@@ -23,11 +24,9 @@ function canTryEffect() {
  * browsers get the original markup with no wrapper at all.
  *
  * IMPORTANT for callers: give `.fx-layer-content` an opaque background. These
- * effects paint the live subtree AND draw a displaced copy of it on the output
- * canvas above, compositing as `alpha = content.a + effect.a`. Where the
- * captured content is transparent the output is transparent too and the crisp
- * original shows through, so text renders as two images at any displacement
- * above zero.
+ * effects paint the live subtree and draw their canvas treatment above it. The
+ * captured DOM stays available underneath, so unsupported or transparent
+ * portions remain crisp and interactive.
  */
 export default function CanvasFxLayer({
   children,

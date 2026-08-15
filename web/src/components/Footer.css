@@ -15,21 +15,16 @@
 }
 
 /* Only once the layer actually lights up does the padding move onto its content
-   wrapper, so the blaze covers the whole footer box instead of leaving a
-   visible rectangular seam with unlit padding around it. Browsers that fall
+   wrapper, so the glass canvas covers the whole footer box instead of leaving
+   a visible rectangular seam with unlit padding around it. Browsers that fall
    back to plain DOM keep the original padding on the footer itself. */
 .site-footer--fx:has(.fx-layer[data-fx-active]) {
   padding: 0;
 }
 
-/* The opaque background is load-bearing, not decoration.
-   Blaze paints the live subtree AND draws a displaced copy of it on the output
-   canvas above. The composite is `alpha = content.a + fire.a`, so wherever the
-   captured content is transparent the output is transparent too and the crisp
-   original shows through underneath — the text renders as two images at any
-   distortion above zero. Giving the captured content the footer's own
-   background makes content.a 1 everywhere, the output fully opaque, and the
-   original is covered. */
+/* Keep the captured subtree on the same opaque surface as the footer. The
+   Glass lens is transparent outside its rim, so the live HTML remains crisp
+   underneath while the lens refracts the content it passes over. */
 .site-footer--fx .fx-layer[data-fx-active] .fx-layer-content {
   padding: var(--space-layout-gap) var(--space-xl) var(--space-2xl);
   background: var(--surface-footer);
@@ -64,8 +59,8 @@
 
 /* ── Landing-only club tier ──────────────────────────────────────────────────
    The upper tier closes the page with BCSD itself; Arcade's own tier sits
-   below it. Only `/` uses this, and its extra height is what gives the blaze
-   somewhere to burn. */
+   below it. Only `/` uses this, and its extra height gives the glass lens room
+   to follow the cursor without crowding the lockup. */
 
 .site-footer--landing {
   padding-top: var(--space-3xl);
@@ -166,6 +161,7 @@
   gap: 16px;
   align-self: center;
   color: rgba(255, 255, 255, 0.82);
+  transition: transform 180ms ease, color 180ms ease;
 }
 
 .site-footer-bcsd-symbol {
@@ -178,6 +174,22 @@
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
+}
+
+/* Glass handles the zoom on supported desktop browsers. This small fallback
+   keeps the requested hover affordance on mobile and browsers without
+   HTML-in-canvas, where CanvasFxLayer intentionally leaves ordinary DOM. */
+.site-footer:not(:has(.fx-layer[data-fx-active])) [data-glass-target] {
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.site-footer:not(:has(.fx-layer[data-fx-active])) [data-glass-target]:hover {
+  transform: scale(1.035);
+}
+
+.site-footer:not(:has(.fx-layer[data-fx-active])) .site-footer-club-mark:hover {
+  color: rgba(255, 255, 255, 0.98);
+  transform: scale(1.05);
 }
 
 .site-footer--landing .site-footer-inner {
