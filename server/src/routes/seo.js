@@ -46,6 +46,39 @@ function queryValue(value, fallback = '') {
   return typeof value === 'string' ? value : fallback;
 }
 
+function previewImage(value, siteOrigin) {
+  return value ? publicImageUrl(value, siteOrigin) : '';
+}
+
+function gamePreviewItem(game, siteOrigin, localizedCopy, locale) {
+  return {
+    kind: 'game',
+    title: game.name,
+    description: game.description,
+    href: localizedPath(`/play/${game.slug}`, locale),
+    image: previewImage(game.thumbnailUrl, siteOrigin),
+    meta: [
+      game.developerName || '',
+      game.latestBuildVersion ? `${localizedCopy.version} ${game.latestBuildVersion}` : '',
+    ].filter(Boolean),
+    actionLabel: localizedCopy.preview?.playNow,
+  };
+}
+
+function blogPreviewItem(post, siteOrigin, localizedCopy, locale, path = `/blog/${post.slug}`) {
+  return {
+    kind: 'article',
+    title: post.title,
+    summary: post.summary,
+    href: localizedPath(path, locale),
+    image: previewImage(post.coverImageUrl, siteOrigin),
+    tags: post.tags,
+    date: post.publishedAt || post.createdAt,
+    author: post.author?.name,
+    actionLabel: localizedCopy.preview?.readArticle,
+  };
+}
+
 export function pageUrl(siteOrigin, path, locale) {
   const localized = localizedPath(path, locale);
   // The Korean home page is the one route where `absoluteUrl` would append a
@@ -249,16 +282,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       loadPublicArcadeGames(locale, policy),
       loadRecentBlogPosts(locale, policy),
     ]);
-    const previewGames = games.map((game) => ({
-      title: game.name,
-      description: game.description,
-      href: localizedPath(`/play/${game.slug}`, locale),
-    }));
-    const previewPosts = recentPosts.map((post) => ({
-      title: post.title,
-      summary: post.summary,
-      href: localizedPath(`/blog/${post.slug}`, locale),
-    }));
+    const previewGames = games.map((game) => gamePreviewItem(game, siteOrigin, c, locale));
+    const previewPosts = recentPosts.map((post) => blogPreviewItem(post, siteOrigin, c, locale));
+    const featuredGame = games[0] || null;
+    const previewCopy = c.preview || {};
     return render({
       req, res, next, locale, policy, path: '/', translation,
       title: locale === 'en' ? c.homeTitle : HOME_TITLE,
@@ -267,13 +294,33 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       jsonLd: { '@context': 'https://schema.org', '@type': 'WebSite', name: SITE_NAME, publisher: { '@type': 'Organization', name: 'BCSDLab.' } },
       bootstrap: { route: '/', data: { games: games.map(toPublicArcadeGame), posts: recentPosts.map(toPublicBlogSummary) } },
       preview: {
+        layout: 'landing',
         title: locale === 'en' ? c.homeTitle : HOME_TITLE,
         summary: locale === 'en' ? c.homeDescription : HOME_DESCRIPTION,
         maxItems: Math.max(games.length, 3),
+        hero: featuredGame ? {
+          eyebrow: previewCopy.updatedEyebrow,
+          title: featuredGame.name,
+          summary: featuredGame.description || c.homeDescription,
+          href: localizedPath(`/play/${featuredGame.slug}`, locale),
+          image: previewImage(featuredGame.thumbnailUrl, siteOrigin),
+          meta: [featuredGame.developerName || '', featuredGame.latestBuildVersion ? `${c.version} ${featuredGame.latestBuildVersion}` : ''].filter(Boolean),
+          actionLabel: previewCopy.playNow,
+          note: previewCopy.featuredInstallNote,
+          pagination: games.slice(0, 5),
+          paginationLabel: previewCopy.updatedEyebrow,
+        } : {
+          eyebrow: previewCopy.featuredEyebrow,
+          title: c.arcadeTitle,
+          summary: c.arcadeDescription,
+          href: localizedPath('/arcade', locale),
+          actionLabel: c.arcadeTitle,
+        },
         sections: [
-          { heading: c.homeGamesTitle || c.arcadeTitle, items: previewGames },
-          { heading: c.homeRecentArticlesTitle || c.blogTitle, items: previewPosts },
+          { eyebrow: previewCopy.gamesEyebrow, heading: c.homeGamesTitle || c.arcadeTitle, kind: 'game', items: previewGames },
+          { eyebrow: previewCopy.recentEyebrow, heading: c.homeRecentArticlesTitle || c.blogTitle, kind: 'article', action: { href: localizedPath('/blog', locale), label: previewCopy.viewAll }, items: previewPosts },
         ],
+        footerVariant: 'landing',
       },
     });
   }
@@ -291,7 +338,13 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin),
       robots: version.isLatest ? 'index,follow' : 'noindex,follow',
       jsonLd: version.isLatest ? { '@context': 'https://schema.org', '@type': 'WebPage', name: c.privacyTitle, description: c.privacyDescription, datePublished: version.effectiveDate, isPartOf: { '@type': 'WebSite', name: SITE_NAME } } : null,
-      preview: { title: c.privacyTitle, summary: c.privacyDescription, body: `${c.effectiveDate}: ${version.effectiveDate}` },
+      preview: {
+        layout: 'privacy',
+        title: c.privacyTitle,
+        summary: c.privacyDescription,
+        body: `${c.effectiveDate}: ${version.effectiveDate}`,
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -304,7 +357,14 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       description: c.arcadeDescription, image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin), translation: arcadeTranslation,
       jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: c.arcadeTitle, description: c.arcadeDescription, mainEntity: { '@type': 'ItemList', itemListElement: visibleGames.map((game, index) => ({ '@type': 'ListItem', position: index + 1, name: game.name, url: pageUrl(siteOrigin, `/play/${game.slug}`, locale) })) } },
       bootstrap: { route: '/arcade', data: { games: visibleGames.map(toPublicArcadeGame) } },
-      preview: { title: c.arcadeTitle, summary: c.arcadeDescription, items: visibleGames.map((game) => ({ title: game.name, description: game.description, href: localizedPath(`/play/${game.slug}`, locale) })) },
+      preview: {
+        layout: 'arcade',
+        title: c.arcadeTitle,
+        summary: c.arcadeDescription,
+        page: { eyebrow: c.preview?.arcadeEyebrow },
+        sections: [{ kind: 'game', items: visibleGames.map((game) => gamePreviewItem(game, siteOrigin, c, locale)) }],
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -331,7 +391,23 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       description: c.blogDescription, image: absoluteUrl(DEFAULT_IMAGE_PATH, siteOrigin), translation: listTranslation,
       jsonLd: { '@context': 'https://schema.org', '@type': 'Blog', name: c.blogTitle },
       bootstrap: { route: '/blog', data: { posts: translatedPosts.map(toPublicBlogSummary), total, page, pages: Math.ceil(total / limit) } },
-      preview: { title: page > 1 ? c.blogPageTitle(page) : c.blogTitle, summary: c.blogDescription, items: translatedPosts.map((post) => ({ title: post.title, summary: post.summary, href: localizedPath(`/blog/${post.slug}`, locale) })) },
+      preview: {
+        layout: 'blog-list',
+        title: page > 1 ? c.blogPageTitle(page) : c.blogTitle,
+        summary: c.blogDescription,
+        page: { eyebrow: c.preview?.blogEyebrow },
+        sidebar: {
+          searchLabel: c.preview?.searchLabel,
+          searchPlaceholder: c.preview?.searchPlaceholder,
+          tagsLabel: c.preview?.tagsLabel,
+          resetLabel: c.preview?.resetFilters,
+          tags: [...new Set(translatedPosts.flatMap((post) => post.tags || []))],
+          tagHref: localizedPath('/blog', locale),
+          resetHref: localizedPath('/blog', locale),
+        },
+        sections: [{ kind: 'article', items: translatedPosts.map((post) => blogPreviewItem(post, siteOrigin, c, locale)) }],
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -352,7 +428,23 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       image: publicImageUrl(effective.coverImageUrl, siteOrigin), type: 'article',
       jsonLd: { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: effective.title, description: effective.summary || undefined, image: publicImageUrl(effective.coverImageUrl, siteOrigin), datePublished: post.publishedAt || post.createdAt, dateModified: post.updatedAt || post.publishedAt || post.createdAt, author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' } },
       bootstrap: { route: '/blog/:slug', data: { post: toPublicBlogPost(effective) } },
-      preview: { title: effective.title, summary: effective.summary, body: effective.content },
+      preview: {
+        layout: 'article',
+        title: effective.title,
+        summary: effective.summary,
+        article: {
+          title: effective.title,
+          summary: effective.summary,
+          body: effective.content,
+          coverImage: effective.coverImageUrl,
+          tags: effective.tags,
+          date: post.publishedAt || post.createdAt,
+          author: post.author?.name,
+          backHref: localizedPath('/blog', locale),
+          backLabel: c.blogTitle,
+        },
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -382,7 +474,26 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
       jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: `${effectiveGame.name} · ${c.gameArticlesTitle}`, description: effectiveGame.description || c.gameArticlesDescription, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
       bootstrap: { route: '/play/:gameSlug/articles', data: { game: toPublicGame(effectiveGame), articles: effectiveArticles.map(toPublicGameArticleSummary) } },
-      preview: { title: `${effectiveGame.name} · ${c.gameArticlesTitle}`, summary: effectiveGame.description || c.gameArticlesDescription, items: effectiveArticles.map((article) => ({ title: article.title, summary: article.summary, href: localizedPath(`/play/${game.slug}/articles/${article.slug}`, locale) })) },
+      preview: {
+        layout: 'game-articles',
+        title: `${effectiveGame.name} · ${c.gameArticlesTitle}`,
+        summary: effectiveGame.description || c.gameArticlesDescription,
+        page: {
+          backHref: localizedPath(`/play/${game.slug}`, locale),
+          backLabel: c.preview?.backToGame,
+          eyebrow: c.preview?.gameArticlesEyebrow,
+          title: effectiveGame.name,
+          summary: effectiveGame.description || c.gameArticlesDescription,
+        },
+        sections: [{
+          eyebrow: c.preview?.devlogEyebrow,
+          heading: c.gameArticlesTitle,
+          count: effectiveArticles.length,
+          kind: 'article',
+          items: effectiveArticles.map((article) => blogPreviewItem(article, siteOrigin, c, locale, `/play/${game.slug}/articles/${article.slug}`)),
+        }],
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -409,7 +520,24 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       image: publicImageUrl(effectiveArticle.coverImageUrl || effectiveGame.thumbnailUrl, siteOrigin), type: 'article',
       jsonLd: { '@context': 'https://schema.org', '@type': 'Article', headline: effectiveArticle.title, description: effectiveArticle.summary || undefined, datePublished: article.publishedAt || article.createdAt, dateModified: article.updatedAt || article.publishedAt || article.createdAt, author: { '@type': 'Person', name: article.author?.name || 'BCSDLab.' }, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
       bootstrap: { route: '/play/:gameSlug/articles/:articleSlug', data: { article: toPublicGameArticle(effectiveArticle), game: toPublicGame(effectiveGame) } },
-      preview: { title: effectiveArticle.title, summary: effectiveArticle.summary, body: effectiveArticle.content },
+      preview: {
+        layout: 'article',
+        title: effectiveArticle.title,
+        summary: effectiveArticle.summary,
+        article: {
+          title: effectiveArticle.title,
+          summary: effectiveArticle.summary,
+          body: effectiveArticle.content,
+          coverImage: effectiveArticle.coverImageUrl || effectiveGame.thumbnailUrl,
+          tags: effectiveArticle.tags,
+          date: article.publishedAt || article.createdAt,
+          author: article.author?.name,
+          context: effectiveGame.name,
+          backHref: localizedPath(`/play/${game.slug}`, locale),
+          backLabel: c.preview?.backToGame,
+        },
+        footerVariant: 'full',
+      },
     });
   }
 
@@ -440,27 +568,34 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       jsonLd: { '@context': 'https://schema.org', '@type': 'VideoGame', name: effectiveGame.name, description: effectiveGame.description || undefined, image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin), gamePlatform: 'Web browser', applicationCategory: 'Game', author: effectiveGame.developerName ? { '@type': 'Person', name: effectiveGame.developerName } : undefined, version: build.version || undefined, contentRating: review.ratingLabel || undefined, keywords: review.descriptorLabels.length ? review.descriptorLabels.join(', ') : undefined, additionalProperty: review.additionalProperty.length ? review.additionalProperty : undefined },
       bootstrap: { route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug', data: playData },
       preview: {
+        layout: 'play',
         title: effectiveGame.name,
         summary: effectiveGame.description || c.gamePlayDescription(effectiveGame.name),
-        body: [
-          effectiveGame.developerName ? `${c.developer}: ${effectiveGame.developerName}` : '',
-          build.version ? `${c.version}: ${build.version}` : '',
-          markdownToPlainText(effectiveGame.longDescription || effectiveGame.description),
-        ].filter(Boolean).join('\n\n'),
+        content: effectiveGame.longDescription || effectiveGame.description,
+        player: {
+          title: effectiveGame.name,
+          developer: effectiveGame.developerName || '',
+          version: build.version || '',
+          infoHeading: c.preview?.gameInfo,
+          developerLabel: c.preview?.developerLabel || c.developer,
+          latestBuildLabel: c.preview?.latestBuildLabel || c.version,
+          descriptionLabel: c.preview?.descriptionLabel,
+          image: previewImage(effectiveGame.thumbnailUrl, siteOrigin),
+          backHref: localizedPath('/arcade', locale),
+          placeholder: c.preview?.playerPlaceholder,
+        },
+        review: { ...review, heading: c.preview?.gameRating },
         sections: [{
+          eyebrow: c.preview?.devlogEyebrow,
           heading: c.gameArticlesTitle,
-          items: [
-            ...effectiveArticles.map((article) => ({
-              title: article.title,
-              summary: article.summary,
-              href: localizedPath(`/play/${game.slug}/articles/${article.slug}`, locale),
-            })),
-            {
-              title: c.gameArticlesAll,
-              href: localizedPath(`/play/${game.slug}/articles`, locale),
-            },
-          ],
+          action: {
+            href: localizedPath(`/play/${game.slug}/articles`, locale),
+            label: c.preview?.viewAll,
+          },
+          kind: 'article-row',
+          items: effectiveArticles.map((article) => blogPreviewItem(article, siteOrigin, c, locale, `/play/${game.slug}/articles/${article.slug}`)),
         }],
+        footerVariant: 'slim',
       },
     });
   }

@@ -112,7 +112,7 @@ test('visible SEO preview is injected inside #root without hiding its text', asy
       },
     }),
   );
-  const match = result.match(/<div id="seo-preview">([\s\S]*?<\/footer><\/main><\/div>)/);
+  const match = result.match(/<div id="seo-preview"[^>]*>([\s\S]*?<\/footer><\/div>)/);
 
   assert.ok(match, 'injectSeoHtml must emit a visible preview when preview data is provided');
   assert.match(match[1], /<h1>Preview title<\/h1>/);
@@ -151,6 +151,27 @@ test('SEO preview supports sections, localized navigation, and a per-call item c
   assert.match(result, /href="\/en\/arcade"/);
   assert.match(result, /href="\/en\/blog"/);
   assert.match(result, /href="\/en\/privacy"/);
+});
+
+test('SEO preview keeps a section action link when the section has no items', async () => {
+  const result = injectSeoHtml(
+    await readShell(),
+    baseOptions({
+      preview: {
+        title: 'Play preview',
+        layout: 'play',
+        sections: [{
+          heading: 'Game articles',
+          kind: 'article-row',
+          action: { href: '/play/example/articles', label: 'View all' },
+          items: [],
+        }],
+      },
+    }),
+  );
+
+  assert.match(result, /href="\/play\/example\/articles"/);
+  assert.match(result, /<h2>Game articles<\/h2>/);
 });
 
 test('omitting bootstrap leaves no bootstrap script in the shell', async () => {

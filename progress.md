@@ -234,3 +234,11 @@ Keep this file short; detailed implementation history remains in git commits.
 - `curl http://localhost:5173/`은 Vite 클라이언트 셸이므로 SSR 데이터/링크가 없고, 제공된 `LandingPage.jsx`에는 `readSsrData("/")`와 bootstrap 중복 요청 가드가 반영되어 있다.
 - `curl http://localhost:4000/` 및 `/en`에서 SSR 데이터, 게임/블로그, nav/footer 링크를 확인했고 `/play/project-adventure`의 아티클 목록 링크와 sitemap XML도 확인했다.
 - Verification: `server/node --test` 189 passing, `git diff --check`; 이후 웹 빌드는 사용자 중단으로 완료되지 않았다.
+
+## 2026-08-16 -- SEO preview layout fidelity
+
+- Reworked `renderSeoPreview` into page-specific landing, listing, article, and play layouts with shared localized nav/footer, safe links/images, hero artwork, cards, article rows, Markdown blocks, game info, and GRAC review panels.
+- Matched the no-JS preview styling in `web/index.html` to the public page rhythm: landing hero/footer, Arcade/blog grids and sidebar, editorial article frame, Play stage/rail, responsive breakpoints, and landing club copy.
+- Play previews preserve the game-article index link even when the recent article list is empty; section action links are rendered independently of item presence.
+- Added route-level layout regression assertions and kept legacy `items`/section item caps compatible.
+- Verification: full `server/node --test` (191 passing), `web/npm run build`, changed-module `node --check`, `git diff --check`, live SSR checks on `/`, `/en/`, `/arcade`, `/blog`, and `/play/project-adventure`; in-app browser runtime unavailable.
