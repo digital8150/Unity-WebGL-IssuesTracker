@@ -11,6 +11,13 @@ The source is intentionally kept upstream-shaped. The only source change is
 removing the first-line Next.js `"use client"` directive because this app is a
 Vite React app.
 
+`Glass.tsx` is a Vite-compatible local adaptation of Canvas UI's Glass lens:
+
+- Source reference: <https://canvasui.dev/docs/components/glass>
+- Component: Glass (React)
+- Uses the HTML-in-canvas capability gate and `data-glass-target` zoom contract;
+  the shader stays local so the footer has no runtime package dependency.
+
 ## Updating Blaze
 
 When updating, fetch `files[0].content` from the registry URL, replace the

@@ -4,7 +4,7 @@ import BrandLogo from './BrandLogo.jsx';
 import BcsdSymbol from './BcsdSymbol.jsx';
 import PageLink from './PageLink.jsx';
 import CanvasFxLayer from './canvasui/CanvasFxLayer.jsx';
-import Displacement from './canvasui/Displacement.tsx';
+import Glass from './canvasui/Glass.tsx';
 import './Footer.css';
 
 const BCSD_SITE = 'https://bcsdlab.com/';
@@ -12,7 +12,7 @@ const BCSD_SITE = 'https://bcsdlab.com/';
 /**
  * `landing` is a two-tier footer used only on `/`: the club sits above Arcade,
  * closing the page with who BCSD is rather than a thin link bar. It is also the
- * only variant that carries the blaze — the extra height gives the effect room,
+ * only variant that carries the glass lens — the extra height gives the effect room,
  * and every other page keeps the short footer.
  */
 export default function Footer({ variant = 'full' }) {
@@ -39,11 +39,12 @@ export default function Footer({ variant = 'full' }) {
       {isLanding && (
         <div className="site-footer-club">
           <div className="site-footer-club-copy">
-            <span className="site-footer-eyebrow">{t.footer.bcsdEyebrow}</span>
-            <p className="site-footer-club-headline">{t.footer.bcsdHeadline}</p>
-            <p className="site-footer-club-body">{t.footer.bcsdBody}</p>
+            <span className="site-footer-eyebrow" data-glass-target>{t.footer.bcsdEyebrow}</span>
+            <p className="site-footer-club-headline" data-glass-target>{t.footer.bcsdHeadline}</p>
+            <p className="site-footer-club-body" data-glass-target>{t.footer.bcsdBody}</p>
             <a
               className="site-footer-club-cta"
+              data-glass-target
               href={BCSD_SITE}
               target="_blank"
               rel="noreferrer noopener"
@@ -55,7 +56,7 @@ export default function Footer({ variant = 'full' }) {
           {/* Symbol and wordmark set as one lockup in a single ink. The
               visible "BCSD" carries the name, so the symbol stays decorative
               rather than repeating it to a screen reader. */}
-          <div className="site-footer-club-mark">
+          <div className="site-footer-club-mark" data-glass-target>
             <BcsdSymbol className="site-footer-bcsd-symbol" mono />
             <span className="site-footer-bcsd-wordmark">BCSD</span>
           </div>
@@ -64,26 +65,26 @@ export default function Footer({ variant = 'full' }) {
 
       <div className="site-footer-inner">
         <div className="site-footer-brand">
-          <PageLink to="/" className="site-footer-brand-link" aria-label={t.nav.home}>
+          <PageLink to="/" className="site-footer-brand-link" data-glass-target aria-label={t.nav.home}>
             <BrandLogo size="md" />
           </PageLink>
-          <p className="site-footer-tagline">{t.footer.tagline}</p>
+          <p className="site-footer-tagline" data-glass-target>{t.footer.tagline}</p>
         </div>
         <div className="site-footer-columns">
           <nav className="site-footer-column" aria-label={t.footer.playHeading}>
-            <span className="site-footer-heading">{t.footer.playHeading}</span>
-            <PageLink to="/arcade" className="site-footer-link">{t.footer.playAllGames}</PageLink>
-            <PageLink to="/blog" className="site-footer-link">{t.footer.playArticles}</PageLink>
+            <span className="site-footer-heading" data-glass-target>{t.footer.playHeading}</span>
+            <PageLink to="/arcade" className="site-footer-link" data-glass-target>{t.footer.playAllGames}</PageLink>
+            <PageLink to="/blog" className="site-footer-link" data-glass-target>{t.footer.playArticles}</PageLink>
           </nav>
           <nav className="site-footer-column" aria-label={t.footer.trackHeading}>
-            <span className="site-footer-heading">{t.footer.trackHeading}</span>
-            <PageLink to="/dashboard" className="site-footer-link">{t.footer.trackDashboard}</PageLink>
+            <span className="site-footer-heading" data-glass-target>{t.footer.trackHeading}</span>
+            <PageLink to="/dashboard" className="site-footer-link" data-glass-target>{t.footer.trackDashboard}</PageLink>
           </nav>
         </div>
       </div>
       <div className="site-footer-bottom">
-        <span>{t.footer.copyright}</span>
-        <PageLink to="/privacy" className="site-footer-link">{t.footer.privacyPolicy}</PageLink>
+        <span data-glass-target>{t.footer.copyright}</span>
+        <PageLink to="/privacy" className="site-footer-link" data-glass-target>{t.footer.privacyPolicy}</PageLink>
       </div>
     </>
   );
@@ -96,25 +97,23 @@ export default function Footer({ variant = 'full' }) {
     <footer className="site-footer site-footer--landing site-footer--fx">
       <CanvasFxLayer
         mode="measure"
-        effect={Displacement}
-        // Sweeping the cursor shears the footer into offset, colour-fringed
-        // tiles that settle back. `threshold` is the cursor speed in px/s
-        // needed to trigger it — the upstream 1000 needs a hard flick, so it
-        // is lowered to catch an ordinary sweep. This works at all only
-        // because .fx-layer-content is opaque; see the note in Footer.css.
+        effect={Glass}
+        // The lens follows the cursor and uses `data-glass-target` to zoom
+        // footer copy and the BCSD lockup. The content wrapper keeps the
+        // captured surface aligned with the footer; see Footer.css.
         options={{
-          grid: 50,
-          cellAspect: 1,
-          radius: 0.12,
-          strength: 0.14,
-          threshold: 350,
-          relaxation: 0.92,
-          shift: 1.2,
-          aberration: 1.8,
-          grain: 0.1,
-          grainSize: 1,
-          grainSpeed: 1,
-          scramble: 1,
+          shape: 'circle',
+          size: 104,
+          ior: 1.52,
+          edge: 0.68,
+          bevel: 4,
+          depth: 210,
+          aberration: 0.85,
+          reflection: 1.1,
+          shine: 0.08,
+          zoom: 1.55,
+          targets: '[data-glass-target]',
+          follow: 0.26,
         }}
       >
         {footerContent}
