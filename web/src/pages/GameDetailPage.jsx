@@ -9,6 +9,7 @@ import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 import Modal from '../components/Modal.jsx';
 import TranslationEditorPanel, { useTranslationEditor } from '../components/TranslationEditorPanel.jsx';
+import MarkdownField from '../components/MarkdownField.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 import StorageBar from '../components/StorageBar.jsx';
@@ -424,6 +425,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({
     name: game.name || '',
     visibility: game.visibility || 'private',
     description: game.description || '',
+    longDescription: game.longDescription || '',
     thumbnailUrl: game.thumbnailUrl || '',
   }), [game]);
 
@@ -432,6 +434,8 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   const [visibility, setVisibility] = useState(initialSettings.visibility);
   const [description, setDescription] = useState(initialSettings.description);
   const [sourceDescription, setSourceDescription] = useState(initialSettings.description);
+  const [longDescription, setLongDescription] = useState(initialSettings.longDescription);
+  const [sourceLongDescription, setSourceLongDescription] = useState(initialSettings.longDescription);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailRemoved, setThumbnailRemoved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -453,6 +457,11 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   }, [initialSettings.description, isEnglish]);
 
   useEffect(() => {
+    setSourceLongDescription(initialSettings.longDescription);
+    if (!isEnglish) setLongDescription(initialSettings.longDescription);
+  }, [initialSettings.longDescription, isEnglish]);
+
+  useEffect(() => {
     if (!isEnglish) {
       setDescription(sourceDescription);
       return;
@@ -462,9 +471,24 @@ const ArcadeSection = forwardRef(function ArcadeSection({
     }
   }, [isEnglish, sourceDescription, translationReady, translation.row]);
 
+  useEffect(() => {
+    if (!isEnglish) {
+      setLongDescription(sourceLongDescription);
+      return;
+    }
+    if (translationReady) {
+      setLongDescription(translation.row.fields?.longDescription || '');
+    }
+  }, [isEnglish, sourceLongDescription, translationReady, translation.row]);
+
   function updateDescription(value) {
     setDescription(value);
     if (!isEnglish) setSourceDescription(value);
+  }
+
+  function updateLongDescription(value) {
+    setLongDescription(value);
+    if (!isEnglish) setSourceLongDescription(value);
   }
 
   function validateName(value) {
@@ -485,13 +509,20 @@ const ArcadeSection = forwardRef(function ArcadeSection({
   const savedDescription = isEnglish
     ? translation.row?.fields?.description || ''
     : savedSettings.description;
+  const savedLongDescription = isEnglish
+    ? translation.row?.fields?.longDescription || ''
+    : savedSettings.longDescription;
   const hasUnsavedChanges = (
     name !== savedSettings.name
     || (isEnglish
-      ? translationReady && description !== savedDescription
+      ? translationReady && (
+        description !== savedDescription
+        || longDescription !== savedLongDescription
+      )
       : (
         visibility !== savedSettings.visibility
         || description !== savedSettings.description
+        || longDescription !== savedSettings.longDescription
         || draftThumbnailKey !== savedSettings.thumbnailUrl
       ))
   );
@@ -529,8 +560,8 @@ const ArcadeSection = forwardRef(function ArcadeSection({
           setName(nextName);
           setSavedSettings((prev) => ({ ...prev, name: nextName }));
         }
-        if (translationReady && description !== savedDescription) {
-          await translation.save({ description });
+        if (translationReady && (description !== savedDescription || longDescription !== savedLongDescription)) {
+          await translation.save({ description, longDescription });
         }
         return true;
       }
@@ -539,24 +570,29 @@ const ArcadeSection = forwardRef(function ArcadeSection({
         name !== savedSettings.name
         || visibility !== savedSettings.visibility
         || description !== savedSettings.description
+        || longDescription !== savedSettings.longDescription
       );
       if (settingsChanged) {
-        const result = await updateGame(gameId, { name: name.trim(), visibility, description });
+        const result = await updateGame(gameId, { name: name.trim(), visibility, description, longDescription });
         const updated = result.game;
         const nextName = updated?.name ?? name.trim();
         const nextVisibility = updated?.visibility ?? visibility;
         const nextDescription = updated?.description ?? description;
+        const nextLongDescription = updated?.longDescription ?? longDescription;
         const { thumbnailUrl: _serverThumbnailUrl, ...updatedWithoutThumbnail } = updated || {};
         setGame((prev) => ({ ...prev, ...updatedWithoutThumbnail, name: nextName }));
         setName(nextName);
         setVisibility(nextVisibility);
         setDescription(nextDescription);
         setSourceDescription(nextDescription);
+        setLongDescription(nextLongDescription);
+        setSourceLongDescription(nextLongDescription);
         setSavedSettings((prev) => ({
           ...prev,
           name: nextName,
           visibility: nextVisibility,
           description: nextDescription,
+          longDescription: nextLongDescription,
         }));
       }
 
@@ -605,6 +641,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({
     setName(savedSettings.name);
     setVisibility(savedSettings.visibility);
     setDescription(isEnglish ? savedDescription : savedSettings.description);
+    setLongDescription(isEnglish ? savedLongDescription : savedSettings.longDescription);
     setThumbnailFile(null);
     setThumbnailRemoved(false);
   }
@@ -620,7 +657,7 @@ const ArcadeSection = forwardRef(function ArcadeSection({
         refType="Game"
         refId={gameId}
         lang={lang}
-        sourceFields={{ description: sourceDescription }}
+        sourceFields={{ description: sourceDescription, longDescription: sourceLongDescription }}
         translation={translation}
         onRetranslate={() => translation.retranslate().catch(() => {})}
       />
@@ -691,18 +728,31 @@ const ArcadeSection = forwardRef(function ArcadeSection({
       </div>
 
       {(!isEnglish || translationReady) && (
-        <div className="gd-arcade-block">
-          <label className="form-label">{td.arcadeDescription}</label>
-          <textarea
-            className="form-input gd-arcade-desc-input"
-            rows={3}
-            maxLength={500}
-            placeholder={td.arcadeDescPlaceholder}
-            value={description}
-            onChange={(e) => updateDescription(e.target.value)}
-          />
-          <div className="gd-arcade-counter">{description.length} / 500</div>
-        </div>
+        <>
+          <div className="gd-arcade-block">
+            <label className="form-label">{td.arcadeDescription}</label>
+            <textarea
+              className="form-input gd-arcade-desc-input"
+              rows={3}
+              maxLength={500}
+              placeholder={td.arcadeDescPlaceholder}
+              value={description}
+              onChange={(e) => updateDescription(e.target.value)}
+            />
+            <div className="gd-arcade-counter">{description.length} / 500</div>
+          </div>
+          <div className="gd-arcade-block">
+            <MarkdownField
+              id={`arcade-long-description-${gameId}`}
+              label={td.arcadeLongDescription}
+              hint={td.arcadeLongDescHint}
+              placeholder={td.arcadeLongDescPlaceholder}
+              value={longDescription}
+              onChange={updateLongDescription}
+              disabled={saving}
+            />
+          </div>
+        </>
       )}
 
       <div className="gd-arcade-block">

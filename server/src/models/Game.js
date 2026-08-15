@@ -35,6 +35,7 @@ const gameSchema = new mongoose.Schema(
       index: true,
     },
     description: { type: String, default: '', maxlength: 500 },
+    longDescription: { type: String, default: '', maxlength: 20000 },
     thumbnailUrl: { type: String, default: '' },
 
     // ── Game review / rating information ────────────────────────────────────

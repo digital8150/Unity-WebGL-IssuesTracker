@@ -3,7 +3,7 @@ import Translation from '../models/Translation.js';
 export const TRANSLATABLE = Object.freeze({
   BlogPost: ['title', 'summary', 'content', 'tags'],
   GameArticle: ['title', 'summary', 'content', 'tags'],
-  Game: ['description'],
+  Game: ['description', 'longDescription'],
 });
 
 function idString(value) {

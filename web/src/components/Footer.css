@@ -1,14 +1,203 @@
 .site-footer {
+  position: relative;
   flex-shrink: 0;
   background: var(--surface-footer);
   color: var(--surface-footer-muted);
   padding: var(--space-layout-gap) var(--space-xl) var(--space-2xl);
 }
 
+/* The glow bleeds past both edges, so it has to be clipped here. The hero
+   already clips its own ::after through .l-featured-hero { overflow: hidden };
+   without the same guard the footer widens the document and the whole page
+   picks up a horizontal scrollbar. */
+.site-footer--fx {
+  overflow: hidden;
+}
+
+/* Only once the layer actually lights up does the padding move onto its content
+   wrapper, so the blaze covers the whole footer box instead of leaving a
+   visible rectangular seam with unlit padding around it. Browsers that fall
+   back to plain DOM keep the original padding on the footer itself. */
+.site-footer--fx:has(.fx-layer[data-fx-active]) {
+  padding: 0;
+}
+
+/* The opaque background is load-bearing, not decoration.
+   Blaze paints the live subtree AND draws a displaced copy of it on the output
+   canvas above. The composite is `alpha = content.a + fire.a`, so wherever the
+   captured content is transparent the output is transparent too and the crisp
+   original shows through underneath — the text renders as two images at any
+   distortion above zero. Giving the captured content the footer's own
+   background makes content.a 1 everywhere, the output fully opaque, and the
+   original is covered. */
+.site-footer--fx .fx-layer[data-fx-active] .fx-layer-content {
+  padding: var(--space-layout-gap) var(--space-xl) var(--space-2xl);
+  background: var(--surface-footer);
+}
+
+.site-footer--fx::before {
+  position: absolute;
+  z-index: 0;
+  top: -8%;
+  right: -15%;
+  left: -15%;
+  height: 35%;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 18% 0%, var(--grad-develop-start), transparent 60%),
+    radial-gradient(ellipse at 52% 0%, var(--grad-develop-end), transparent 62%),
+    radial-gradient(ellipse at 84% 0%, var(--grad-preview-start), transparent 60%);
+  content: '';
+  opacity: 0.13;
+  pointer-events: none;
+  filter: blur(22px);
+  transition: opacity 240ms ease;
+}
+
+.site-footer:has([data-fx-active])::before {
+  opacity: 0.04;
+}
+
+.site-footer--fx > .fx-layer {
+  z-index: 1;
+}
+
+/* ── Landing-only club tier ──────────────────────────────────────────────────
+   The upper tier closes the page with BCSD itself; Arcade's own tier sits
+   below it. Only `/` uses this, and its extra height is what gives the blaze
+   somewhere to burn. */
+
+.site-footer--landing {
+  padding-top: var(--space-3xl);
+}
+
+.site-footer--landing:has(.fx-layer[data-fx-active]) {
+  padding: 0;
+}
+
+.site-footer--landing .fx-layer[data-fx-active] .fx-layer-content {
+  padding-top: var(--space-3xl);
+}
+
+.site-footer-club,
 .site-footer-inner,
 .site-footer-bottom {
   width: min(100%, 1240px);
   margin: 0 auto;
+}
+
+.site-footer-club {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3xl);
+  padding-bottom: var(--space-3xl);
+  border-bottom: 1px solid var(--surface-footer-line);
+}
+
+.site-footer-club-copy {
+  flex: 1 1 520px;
+  max-width: 640px;
+}
+
+.site-footer-eyebrow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--surface-footer-faint);
+}
+
+.site-footer-club-headline {
+  margin: var(--space-md) 0 0;
+  font-size: clamp(26px, 3.4vw, 40px);
+  font-weight: 600;
+  line-height: 1.18;
+  color: var(--surface-footer-ink);
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+
+.site-footer-club-body {
+  margin: var(--space-lg) 0 0;
+  max-width: 52ch;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--surface-footer-muted);
+}
+
+.site-footer-club-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  padding: 12px 22px;
+  border: 1px solid var(--surface-footer-line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--surface-footer-ink);
+  text-decoration: none;
+  transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.site-footer-club-cta:hover {
+  border-color: transparent;
+  background: var(--surface-footer-ink);
+  color: var(--surface-footer);
+  transform: translateY(-1px);
+}
+
+.site-footer-club-cta span {
+  transition: transform 180ms ease;
+}
+
+.site-footer-club-cta:hover span {
+  transform: translateX(3px);
+}
+
+/* Symbol + wordmark lockup, flattened to one ink. Slightly off white so it
+   sits on the footer rather than glaring off it. `currentColor` carries the
+   ink through both halves, which is what keeps them identical. */
+.site-footer-club-mark {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 16px;
+  align-self: center;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.site-footer-bcsd-symbol {
+  width: auto;
+  height: 52px;
+}
+
+.site-footer-bcsd-wordmark {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.site-footer--landing .site-footer-inner {
+  padding-top: var(--space-3xl);
+}
+
+@media (max-width: 834px) {
+  .site-footer-club {
+    gap: var(--space-2xl);
+    padding-bottom: var(--space-2xl);
+  }
+
+  .site-footer-club-copy,
+  .site-footer-club-mark {
+    flex-basis: 100%;
+  }
+
+  .site-footer--landing .site-footer-inner {
+    padding-top: var(--space-2xl);
+  }
 }
 
 .site-footer-inner {

@@ -5,6 +5,7 @@ const translatedFieldsSchema = new mongoose.Schema({
   summary: { type: String, default: '' },
   content: { type: String, default: '' },
   description: { type: String, default: '' },
+  longDescription: { type: String, default: '' },
   tags: { type: [String], default: [] },
 }, { _id: false });
 

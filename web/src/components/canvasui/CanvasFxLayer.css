@@ -1,0 +1,46 @@
+.fx-layer {
+  display: block;
+  isolation: isolate;
+}
+
+.fx-layer--fill {
+  z-index: 1;
+}
+
+.fx-layer--measure {
+  overflow: visible;
+}
+
+.fx-layer-effect {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* The effects inline overflow:auto on the wrapper they move the subtree into.
+   Inside a fixed-height section that turns it into its own scroll container
+   and it swallows the page's wheel events, so the override has to win over the
+   inline style. */
+.fx-layer-effect > canvas[layoutsubtree] > div {
+  overflow: visible !important;
+}
+
+.fx-layer-content {
+  position: relative;
+  width: 100%;
+}
+
+.fx-layer--fill .fx-layer-content {
+  height: 100%;
+}
+
+.fx-layer-sentinel {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}

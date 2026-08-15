@@ -16,6 +16,7 @@ import {
   escapeXml,
   getGameReviewSeoData,
   injectSeoHtml,
+  markdownToPlainText,
   publicImageUrl,
   resolvePrivacyVersion,
 } from '../services/seo.js';
@@ -369,7 +370,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
   }
 
   async function renderPlay(req, res, next, locale) {
-    const game = await gameModel.findOne({ slug: req.params.gameSlug }).populate('ownerId', 'name').lean();
+    const game = await gameModel.findOne({ slug: req.params.gameSlug })
+      .populate('ownerId', 'name')
+      .select('_id name slug description longDescription thumbnailUrl visibility ownerId reviewInfo serverBackend')
+      .lean();
     if (!game || game.visibility !== 'public') return next();
     const buildQuery = req.params.buildId ? { _id: req.params.buildId, gameId: game._id } : { gameId: game._id, isActive: true };
     const build = await buildModel.findOne(buildQuery).lean();
@@ -391,7 +395,15 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       title: `${effectiveGame.name} — ${SITE_NAME}`, description: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
       jsonLd: { '@context': 'https://schema.org', '@type': 'VideoGame', name: effectiveGame.name, description: effectiveGame.description || undefined, image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin), gamePlatform: 'Web browser', applicationCategory: 'Game', author: effectiveGame.developerName ? { '@type': 'Person', name: effectiveGame.developerName } : undefined, version: build.version || undefined, contentRating: review.ratingLabel || undefined, keywords: review.descriptorLabels.length ? review.descriptorLabels.join(', ') : undefined, additionalProperty: review.additionalProperty.length ? review.additionalProperty : undefined },
       bootstrap: { route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug', data: playData },
-      preview: { title: effectiveGame.name, summary: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), body: [effectiveGame.developerName ? `${c.developer}: ${effectiveGame.developerName}` : '', build.version ? `${c.version}: ${build.version}` : ''].filter(Boolean).join('\n\n') },
+      preview: {
+        title: effectiveGame.name,
+        summary: effectiveGame.description || c.gamePlayDescription(effectiveGame.name),
+        body: [
+          effectiveGame.developerName ? `${c.developer}: ${effectiveGame.developerName}` : '',
+          build.version ? `${c.version}: ${build.version}` : '',
+          markdownToPlainText(effectiveGame.longDescription || effectiveGame.description),
+        ].filter(Boolean).join('\n\n'),
+      },
     });
   }
 

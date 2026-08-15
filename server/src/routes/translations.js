@@ -154,11 +154,17 @@ router.put('/:refType/:refId/:locale', async (req, res, next) => {
     const source = await sourceFor(refType, refId);
     if (!source) return res.status(404).json({ error: 'Source document not found' });
     const fields = req.body?.fields && typeof req.body.fields === 'object' ? req.body.fields : req.body;
-    const allowed = refType === 'Game' ? ['description'] : ['title', 'summary', 'content', 'tags'];
+    const allowed = refType === 'Game' ? ['description', 'longDescription'] : ['title', 'summary', 'content', 'tags'];
     const safeFields = {};
     for (const field of allowed) {
       if (field === 'tags') safeFields[field] = Array.isArray(fields?.[field]) ? fields[field].map(String) : [];
-      else if (fields?.[field] !== undefined) safeFields[field] = String(fields[field]);
+      else if (fields?.[field] !== undefined) {
+        const value = String(fields[field]);
+        if (field === 'longDescription' && value.length > 20000) {
+          return res.status(400).json({ error: 'Game long description must be 20000 characters or fewer.' });
+        }
+        safeFields[field] = value;
+      }
     }
     const update = {
       $set: {

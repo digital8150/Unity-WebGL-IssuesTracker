@@ -6,10 +6,12 @@ import GameCard from '../components/GameCard.jsx';
 import PageLink from '../components/PageLink.jsx';
 import PublicNav from '../components/PublicNav.jsx';
 import { BlogMedia } from '../components/BlogMedia.jsx';
-import { assetUrl, gradientFor } from '../utils/gameVisuals.js';
+import { assetUrl, flamePaletteFor, gradientFor } from '../utils/gameVisuals.js';
 import { activateGameTransitionSource, gameTransitionName } from '../utils/gameTransitions.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { withLocale } from '../i18n/localePath.js';
+import CanvasFxLayer from '../components/canvasui/CanvasFxLayer.jsx';
+import Blaze from '../components/canvasui/Blaze.tsx';
 import './LandingPage.css';
 
 const FEATURED_GAME_LIMIT = 5;
@@ -115,6 +117,9 @@ export default function LandingPage() {
   const featuredGame = games.find((game) => game.id === selectedGameId) ?? games[0] ?? null;
   const featuredGames = games.slice(0, FEATURED_GAME_LIMIT);
   const featuredTransitionName = featuredGame ? gameTransitionName(featuredGame.slug) : undefined;
+  const featuredFlamePalette = featuredGame
+    ? flamePaletteFor(featuredGame.slug || featuredGame.name || 'arcade')
+    : null;
   const moveFeatured = (direction) => {
     if (featuredGames.length < 2) return;
     setSelectedGameId((currentId) => {
@@ -165,46 +170,67 @@ export default function LandingPage() {
             if (!event.currentTarget.contains(event.relatedTarget)) setIsCarouselPaused(false);
           }}
         >
-          <div
-            key={`art-${featuredGame.id}`}
-            ref={featuredArtRef}
-            className="l-featured-art"
-            style={{
-              backgroundImage: gameBackground(featuredGame),
-              ...(activeTransition?.type === 'hero' && activeTransition.id === featuredGame.id
-                ? { viewTransitionName: featuredTransitionName }
-                : {}),
+          <CanvasFxLayer
+            mode="fill"
+            effect={Blaze}
+            className="l-hero-fx"
+            // Fire only — no heat distortion here, so the hero and the footer
+            // do not read as the same effect twice. The artwork and scrim sit
+            // inside the layer so the captured content stays opaque; see the
+            // note on .fx-layer-content in Footer.css.
+            options={{
+              height: 0.9,
+              distortion: 0,
+              layers: 4,
+              sparks: 0.5,
+              sparkDensity: 1.5,
+              sparkSize: 1,
+              smoke: 0.5,
+              glow: 1.5,
+              ...featuredFlamePalette,
             }}
-            aria-hidden="true"
-          />
-          <div className="l-featured-scrim" aria-hidden="true" />
-          <div className="l-featured-inner" key={`copy-${featuredGame.id}`}>
-            <div className="l-hero-copy l-featured-copy" aria-live={isCarouselPaused ? 'polite' : 'off'}>
-              <div className="l-hero-meta-row">
-                <span className="l-featured-pill">{t.home.updatedEyebrow}</span>
-                <span className="l-hero-meta">
-                  {featuredGame.developerName || t.arcade.trackName}
-                  {featuredGame.latestBuildVersion && ` · ${t.home.versionPrefix}${featuredGame.latestBuildVersion}`}
-                </span>
-              </div>
-              <h1 className="l-hero-title">{featuredGame.name}</h1>
-              <p className="l-hero-description">
-                {featuredGame.description || t.home.featuredDescriptionFallback}
-              </p>
-              <div className="l-hero-actions">
-                <PageLink
-                  to={`/play/${featuredGame.slug}`}
-                  className="l-hero-primary"
-                  onMouseEnter={activateFeaturedSource}
-                  onFocus={activateFeaturedSource}
-                  onClick={activateFeaturedSource}
-                >
-                  <span aria-hidden="true">▶</span> {t.home.playNow}
-                </PageLink>
-                <span className="l-hero-note">{t.home.featuredInstallNote}</span>
+          >
+            <div
+              key={`art-${featuredGame.id}`}
+              ref={featuredArtRef}
+              className="l-featured-art"
+              style={{
+                backgroundImage: gameBackground(featuredGame),
+                ...(activeTransition?.type === 'hero' && activeTransition.id === featuredGame.id
+                  ? { viewTransitionName: featuredTransitionName }
+                  : {}),
+              }}
+              aria-hidden="true"
+            />
+            <div className="l-featured-scrim" aria-hidden="true" />
+            <div className="l-featured-inner" key={`copy-${featuredGame.id}`}>
+              <div className="l-hero-copy l-featured-copy" aria-live={isCarouselPaused ? 'polite' : 'off'}>
+                <div className="l-hero-meta-row">
+                  <span className="l-featured-pill">{t.home.updatedEyebrow}</span>
+                  <span className="l-hero-meta">
+                    {featuredGame.developerName || t.arcade.trackName}
+                    {featuredGame.latestBuildVersion && ` · ${t.home.versionPrefix}${featuredGame.latestBuildVersion}`}
+                  </span>
+                </div>
+                <h1 className="l-hero-title">{featuredGame.name}</h1>
+                <p className="l-hero-description">
+                  {featuredGame.description || t.home.featuredDescriptionFallback}
+                </p>
+                <div className="l-hero-actions">
+                  <PageLink
+                    to={`/play/${featuredGame.slug}`}
+                    className="l-hero-primary"
+                    onMouseEnter={activateFeaturedSource}
+                    onFocus={activateFeaturedSource}
+                    onClick={activateFeaturedSource}
+                  >
+                    <span aria-hidden="true">▶</span> {t.home.playNow}
+                  </PageLink>
+                  <span className="l-hero-note">{t.home.featuredInstallNote}</span>
+                </div>
               </div>
             </div>
-          </div>
+          </CanvasFxLayer>
 
           <div
             className={`l-featured-pagination${isCarouselPaused ? ' is-paused' : ''}`}
@@ -318,7 +344,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <Footer />
+      <Footer variant="landing" />
     </div>
   );
 }

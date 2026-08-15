@@ -40,12 +40,13 @@ function publicReviewInfo(reviewInfo) {
   };
 }
 
-function publicGameFields(game) {
+function publicGameFields(game, { includeLongDescription = false } = {}) {
   return {
     id: publicId(game),
     name: String(game?.name ?? ''),
     slug: String(game?.slug ?? ''),
     description: String(game?.description ?? ''),
+    ...(includeLongDescription ? { longDescription: String(game?.longDescription ?? '') } : {}),
     thumbnailUrl: String(game?.thumbnailUrl ?? ''),
   };
 }
@@ -158,7 +159,7 @@ function publicBuildUrls(build) {
 export function toPublicPlayGame(game) {
   if (!game) return null;
   return {
-    ...publicGameFields(game),
+    ...publicGameFields(game, { includeLongDescription: true }),
     visibility: game.visibility || 'private',
     reviewInfo: publicReviewInfo(game.reviewInfo),
     developerName: game.developerName ?? game.ownerId?.name ?? null,

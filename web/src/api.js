@@ -187,6 +187,27 @@ export async function deleteGameArticleComment(gameSlug, articleSlug, commentId)
   return request(`/api/games/play/${gameSlug}/articles/${articleSlug}/comments/${commentId}`, { method: 'DELETE' });
 }
 
+// ── Play page comments (public) ──────────────────────────────────────────────
+
+export async function listGameComments(gameSlug, { limit, before } = {}) {
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (before) params.set('before', before);
+  const query = params.toString();
+  return request(`/api/games/play/${gameSlug}/comments${query ? `?${query}` : ''}`);
+}
+
+export async function addGameComment(gameSlug, body, authorName, turnstileToken) {
+  return request(`/api/games/play/${gameSlug}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body, authorName, turnstileToken }),
+  });
+}
+
+export async function deleteGameComment(gameSlug, commentId) {
+  return request(`/api/games/play/${gameSlug}/comments/${commentId}`, { method: 'DELETE' });
+}
+
 // ── Builds ────────────────────────────────────────────────────────────────────
 
 export function uploadBuild(gameId, files, {

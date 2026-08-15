@@ -15,6 +15,9 @@ import { readSsrData } from '../utils/ssrData.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { withLocale } from '../i18n/localePath.js';
 import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
+import CommentSection from '../components/CommentSection.jsx';
+import { renderMarkdown } from '../utils/renderMarkdown.js';
+import '../styles/markdown-body.css';
 import './PlayPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
@@ -44,6 +47,7 @@ function toBuildInfo(bootstrap) {
     gameSlug: game.slug,
     gameName: game.name,
     description: game.description || '',
+    longDescription: game.longDescription || '',
     thumbnailUrl: game.thumbnailUrl || '',
     visibility: game.visibility || 'private',
     reviewInfo: game.reviewInfo || null,
@@ -397,6 +401,7 @@ export default function PlayPage() {
   const buildVersion = buildInfo.buildVersion ?? null;
   const developerName = buildInfo.developerName ?? null;
   const description = buildInfo.description ?? '';
+  const longDescription = buildInfo.longDescription ?? '';
   const reviewInfo = buildInfo.reviewInfo;
   const canvasW = buildInfo.canvasWidth ?? 1920;
   const canvasH = buildInfo.canvasHeight ?? 1080;
@@ -517,7 +522,15 @@ export default function PlayPage() {
               <span className="play-meta-dot">·</span>
               <span>{buildVersion ? `${t.home.versionPrefix}${buildVersion}` : t.play.noVersion}</span>
             </div>
-            <p className="play-description">{description || t.play.descriptionEmpty}</p>
+            <h2 className="play-description-heading">{t.play.descriptionLabel}</h2>
+            {longDescription ? (
+              <div
+                className="play-description-body markdown-body"
+                dangerouslySetInnerHTML={{ __html: renderMarkdown(longDescription) }}
+              />
+            ) : (
+              <p className="play-description">{description || t.play.descriptionEmpty}</p>
+            )}
             <MachineTranslationNotice translation={translation} path={canonicalPath} />
 
             {!articlesLoading && articles.length > 0 && (
@@ -625,6 +638,10 @@ export default function PlayPage() {
               </section>
             )}
           </aside>
+        </div>
+
+        <div className="play-shell">
+          <CommentSection gameSlug={gameSlug} />
         </div>
       </main>
 

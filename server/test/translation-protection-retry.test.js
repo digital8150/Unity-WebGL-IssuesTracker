@@ -139,3 +139,27 @@ test('a Game translates its description only', async () => {
   assert.equal(result.fields.content, '');
   assert.doesNotMatch(result.fields.description, /[가-힣]/);
 });
+
+test('a Game translates description and longDescription in separate body passes', async () => {
+  const requested = [];
+  const result = await translateDocument({
+    refType: 'Game',
+    source: {
+      description: '짧은 요약입니다.',
+      longDescription: '# 상세 제목\n\n긴 본문입니다.',
+    },
+    model: 'test-model',
+    apiKey: 'test-key',
+    gameModel: gameModel(),
+    generate: async (_model, payload) => {
+      const source = sourceFromPayload(payload);
+      const field = Object.keys(source)[0];
+      requested.push(field);
+      return { [field]: String(source[field]).replace(/[가-힣]+/g, 'English') };
+    },
+  });
+
+  assert.deepEqual(requested, ['description', 'longDescription']);
+  assert.equal(result.fields.description, 'English English.');
+  assert.match(result.fields.longDescription, /# English/);
+});

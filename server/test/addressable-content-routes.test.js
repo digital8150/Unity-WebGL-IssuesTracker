@@ -9,6 +9,7 @@ import AdmZip from 'adm-zip';
 
 import Game from '../src/models/Game.js';
 import GameArticle from '../src/models/GameArticle.js';
+import GameComment from '../src/models/GameComment.js';
 import Build from '../src/models/Build.js';
 import { Issue } from '../src/models/Issue.js';
 import GameConfig from '../src/models/GameConfig.js';
@@ -425,6 +426,7 @@ test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
     articleFind: GameArticle.find,
     buildFind: Build.find,
     articleDeleteMany: GameArticle.deleteMany,
+    commentDeleteMany: GameComment.deleteMany,
     buildDeleteMany: Build.deleteMany,
     issueDeleteMany: Issue.deleteMany,
     contentDeleteMany: AddressableContent.deleteMany,
@@ -440,6 +442,7 @@ test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
   GameArticle.find = () => ({ select: () => ({ lean: async () => [] }) });
   Build.find = () => ({ select: () => ({ lean: async () => [] }) });
   GameArticle.deleteMany = async () => ({ deletedCount: 0 });
+  GameComment.deleteMany = async () => ({ deletedCount: 0 });
   Build.deleteMany = async () => ({ deletedCount: 0 });
   Issue.deleteMany = async () => ({ deletedCount: 0 });
   AddressableContent.deleteMany = async () => ({ deletedCount: 1 });
@@ -464,6 +467,7 @@ test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
     GameArticle.find = originals.articleFind;
     Build.find = originals.buildFind;
     GameArticle.deleteMany = originals.articleDeleteMany;
+    GameComment.deleteMany = originals.commentDeleteMany;
     Build.deleteMany = originals.buildDeleteMany;
     Issue.deleteMany = originals.issueDeleteMany;
     AddressableContent.deleteMany = originals.contentDeleteMany;

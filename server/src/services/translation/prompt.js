@@ -28,6 +28,7 @@ export const BODY_SCHEMA = Object.freeze({
   properties: {
     content: { type: 'string' },
     description: { type: 'string' },
+    longDescription: { type: 'string' },
   },
 });
 
@@ -38,6 +39,7 @@ export const RESPONSE_SCHEMA = Object.freeze({
     summary: { type: 'string' },
     content: { type: 'array', items: { type: 'string' } },
     description: { type: 'array', items: { type: 'string' } },
+    longDescription: { type: 'array', items: { type: 'string' } },
     tags: { type: 'array', items: { type: 'string' } },
   },
   // Gemini's response_schema accepts only a restricted OpenAPI 3.0 subset —
@@ -62,7 +64,7 @@ export function buildTranslationPrompt({
   const errorNote = errors.length
     ? '\nPrevious validation failed. Fix every issue: ' + errors.join('; ')
     : '';
-  const budget = 'title —200 characters; summary —400; description —500; every tag —50.';
+  const budget = 'title —200 characters; summary —400; description —500; longDescription —20000; every tag —50.';
   const bodyRules = [
     'Translate field: ' + field + '. It is a Markdown document. Return the translated Markdown as a single string in the same field.',
     'Reproduce the Markdown structure exactly: same headings and heading levels, same list structure, same emphasis, same blockquotes, same tables, same blank-line layout.',

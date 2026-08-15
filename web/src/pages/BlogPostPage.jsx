@@ -25,6 +25,7 @@ import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { withLocale } from '../i18n/localePath.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
+import '../styles/markdown-body.css';
 
 function formatDate(dateStr, lang) {
   if (!dateStr) return '';
