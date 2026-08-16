@@ -600,9 +600,6 @@ export default function PlayPage() {
                       />
                     ))}
                   </div>
-                  <p className="play-review-classification">
-                    {t.play.classificationNumberShort} {reviewInfo.classificationNumber || '—'}
-                  </p>
                   <dl className="play-review-detail-list" aria-label={t.play.reviewLabel}>
                     {reviewDetails.map(([label, value]) => (
                       <div key={label}>

@@ -35,7 +35,6 @@ export default function DashSidebar({
         ) : (
           <PageLink className="dash-nav-item" to="/dashboard/profile" {...linkProps}>{t.nav.profile}</PageLink>
         )}
-        <PageLink className={`dash-nav-item${active === 'arcade' ? ' active' : ''}`} to="/arcade" {...linkProps}>{t.nav.arcade}</PageLink>
         {gameScope ? (
           <>
             <PageLink className="dash-nav-item" to="/admin/blog" {...linkProps}>{t.nav.blogAdmin} CMS</PageLink>

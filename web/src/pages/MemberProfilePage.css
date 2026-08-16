@@ -44,6 +44,12 @@
   line-height: 1.65;
 }
 
+.member-profile-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-sm);
+}
+
 .member-profile-dashboard-link {
   flex-shrink: 0;
   min-height: 40px;
@@ -61,8 +67,12 @@
     flex-direction: column;
   }
 
-  .member-profile-dashboard-link {
+  .member-profile-header-actions {
     width: 100%;
+  }
+
+  .member-profile-dashboard-link {
+    flex: 1;
   }
 }
 

@@ -15,7 +15,7 @@
 }
 
 /* Only once the layer actually lights up does the padding move onto its content
-   wrapper, so the glass canvas covers the whole footer box instead of leaving
+   wrapper, so the effect canvas covers the whole footer box instead of leaving
    a visible rectangular seam with unlit padding around it. Browsers that fall
    back to plain DOM keep the original padding on the footer itself. */
 .site-footer--fx:has(.fx-layer[data-fx-active]) {
@@ -23,8 +23,8 @@
 }
 
 /* Keep the captured subtree on the same opaque surface as the footer. The
-   Glass lens is transparent outside its rim, so the live HTML remains crisp
-   underneath while the lens refracts the content it passes over. */
+   rain shader is transparent outside the drops it paints, so the live HTML
+   remains crisp underneath while it passes over the content. */
 .site-footer--fx .fx-layer[data-fx-active] .fx-layer-content {
   padding: var(--space-layout-gap) var(--space-xl) var(--space-2xl);
   background: var(--surface-footer);
@@ -59,8 +59,8 @@
 
 /* ── Landing-only club tier ──────────────────────────────────────────────────
    The upper tier closes the page with BCSD itself; Arcade's own tier sits
-   below it. Only `/` uses this, and its extra height gives the glass lens room
-   to follow the cursor without crowding the lockup. */
+   below it. Only `/` uses this, and its extra height gives the rain effect
+   room to run without crowding the lockup. */
 
 .site-footer--landing {
   padding-top: var(--space-3xl);
@@ -93,13 +93,6 @@
 .site-footer-club-copy {
   flex: 1 1 520px;
   max-width: 640px;
-}
-
-.site-footer-eyebrow {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--surface-footer-faint);
 }
 
 .site-footer-club-headline {
@@ -151,45 +144,60 @@
   transform: translateX(3px);
 }
 
-/* Symbol + wordmark lockup, flattened to one ink. Slightly off white so it
-   sits on the footer rather than glaring off it. `currentColor` carries the
-   ink through both halves, which is what keeps them identical. */
-.site-footer-club-mark {
+/* Wraps the BI/CI lockup and the slogan underneath it as one column, kept
+   apart from `.site-footer-club-copy` on the other side of the flex row. */
+.site-footer-club-identity {
   display: flex;
   flex: 0 1 auto;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-sm);
   align-self: center;
+}
+
+/* Symbol + wordmark lockup, flattened to one ink. Slightly off white so it
+   sits on the footer rather than glaring off it. `currentColor` carries the
+   ink through both halves, which is what keeps them identical. The slogan
+   below shares this exact color so the two read as one finished BI/CI block
+   instead of a bright logo over a greyed-out caption.
+   `--mark-scale` is set at runtime by `useScaleMarkToSlogan` in Footer.jsx —
+   not here — growing the gap (and the symbol/wordmark sizes below) together
+   until the lockup is exactly as wide as the slogan underneath it. */
+.site-footer-club-mark {
+  display: flex;
+  align-items: center;
+  gap: calc(16px * var(--mark-scale, 1));
   color: rgba(255, 255, 255, 0.82);
-  transition: transform 180ms ease, color 180ms ease;
+  transition: color 180ms ease;
+}
+
+.site-footer-club-slogan {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  transition: color 180ms ease;
 }
 
 .site-footer-bcsd-symbol {
   width: auto;
-  height: 52px;
+  height: calc(52px * var(--mark-scale, 1));
 }
 
 .site-footer-bcsd-wordmark {
-  font-size: 40px;
+  font-size: calc(40px * var(--mark-scale, 1));
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.02em;
 }
 
-/* Glass handles the zoom on supported desktop browsers. This small fallback
-   keeps the requested hover affordance on mobile and browsers without
-   HTML-in-canvas, where CanvasFxLayer intentionally leaves ordinary DOM. */
-.site-footer:not(:has(.fx-layer[data-fx-active])) [data-glass-target] {
-  transition: transform 180ms ease, color 180ms ease;
-}
-
-.site-footer:not(:has(.fx-layer[data-fx-active])) [data-glass-target]:hover {
-  transform: scale(1.035);
-}
-
-.site-footer:not(:has(.fx-layer[data-fx-active])) .site-footer-club-mark:hover {
+/* Hovering anywhere in the lockup — mark or slogan — brightens both together,
+   since they're one BI/CI unit now rather than two independently-hoverable
+   pieces. */
+.site-footer-club-identity:hover .site-footer-club-mark,
+.site-footer-club-identity:hover .site-footer-club-slogan {
   color: rgba(255, 255, 255, 0.98);
-  transform: scale(1.05);
 }
 
 .site-footer--landing .site-footer-inner {
@@ -203,7 +211,7 @@
   }
 
   .site-footer-club-copy,
-  .site-footer-club-mark {
+  .site-footer-club-identity {
     flex-basis: 100%;
   }
 
