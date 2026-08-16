@@ -3,10 +3,10 @@ import { getArcadeGames, listBlogPosts } from '../api.js';
 import { useI18n } from '../i18n.jsx';
 import Footer from '../components/Footer.jsx';
 import GameCard from '../components/GameCard.jsx';
+import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import PageLink from '../components/PageLink.jsx';
 import PublicNav from '../components/PublicNav.jsx';
-import { BlogMedia } from '../components/BlogMedia.jsx';
-import { assetUrl, flamePaletteFor, gradientFor } from '../utils/gameVisuals.js';
+import { flamePaletteFor, gradientFor, assetUrl } from '../utils/gameVisuals.js';
 import { activateGameTransitionSource, gameTransitionName } from '../utils/gameTransitions.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
 import { readSsrData } from '../utils/ssrData.js';
@@ -18,40 +18,9 @@ import './LandingPage.css';
 const FEATURED_GAME_LIMIT = 5;
 const CAROUSEL_INTERVAL_MS = 3000;
 
-function formatArticleDate(dateStr, lang) {
-  if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString(lang === 'ko' ? 'ko-KR' : 'en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
 function gameBackground(game) {
   if (game?.thumbnailUrl) return `url("${assetUrl(game.thumbnailUrl)}")`;
   return gradientFor(game?.slug || game?.name || 'arcade');
-}
-
-function RecentArticle({ post, lang, t }) {
-  const coverUrl = post.coverImageUrl ? assetUrl(post.coverImageUrl) : '';
-  return (
-    <PageLink to={`/blog/${post.slug}`} className="l-recent-card">
-      <div className="l-recent-cover">
-        {coverUrl ? (
-          <BlogMedia src={coverUrl} alt={post.title} loading="lazy" />
-        ) : (
-          <div className="l-recent-cover-fallback" aria-hidden="true" />
-        )}
-      </div>
-      <div className="l-recent-card-copy">
-        <span className="l-article-tag">{post.tags?.[0] || t.home.articleFallbackTag}</span>
-        <h3>{post.title}</h3>
-        <time dateTime={post.publishedAt || post.createdAt}>
-          {formatArticleDate(post.publishedAt || post.createdAt, lang)}
-        </time>
-      </div>
-    </PageLink>
-  );
 }
 
 export default function LandingPage() {
@@ -131,14 +100,6 @@ export default function LandingPage() {
   const featuredFlamePalette = featuredGame
     ? flamePaletteFor(featuredGame.slug || featuredGame.name || 'arcade')
     : null;
-  const moveFeatured = (direction) => {
-    if (featuredGames.length < 2) return;
-    setSelectedGameId((currentId) => {
-      const currentIndex = featuredGames.findIndex((game) => game.id === currentId);
-      const nextIndex = (currentIndex + direction + featuredGames.length) % featuredGames.length;
-      return featuredGames[nextIndex].id;
-    });
-  };
   const activateFeaturedSource = () => {
     if (!featuredGame) return;
     setActiveTransition({ id: featuredGame.id, type: 'hero' });
@@ -185,13 +146,12 @@ export default function LandingPage() {
             mode="fill"
             effect={Blaze}
             className="l-hero-fx"
-            // Fire only — no heat distortion here, so the hero and the footer
-            // do not read as the same effect twice. The artwork and scrim sit
-            // inside the layer so the captured content stays opaque; see the
-            // note on .fx-layer-content in Footer.css.
+            // The artwork and scrim sit inside the layer so the captured
+            // content stays opaque; see the note on .fx-layer-content in
+            // Footer.css.
             options={{
               height: 0.9,
-              distortion: 0,
+              distortion: 0.6,
               layers: 4,
               sparks: 0.5,
               sparkDensity: 1.5,
@@ -249,16 +209,6 @@ export default function LandingPage() {
             className={`l-featured-pagination${isCarouselPaused ? ' is-paused' : ''}`}
             aria-label={t.home.updatedEyebrow}
           >
-            {featuredGames.length > 1 && (
-              <button
-                type="button"
-                className="l-featured-arrow"
-                onClick={() => moveFeatured(-1)}
-                aria-label={t.home.previousFeatured}
-              >
-                <span aria-hidden="true">‹</span>
-              </button>
-            )}
             <div className="l-featured-dots" aria-label={t.home.updatedEyebrow}>
               {featuredGames.map((game) => (
                 <button
@@ -273,16 +223,6 @@ export default function LandingPage() {
                 </button>
               ))}
             </div>
-            {featuredGames.length > 1 && (
-              <button
-                type="button"
-                className="l-featured-arrow"
-                onClick={() => moveFeatured(1)}
-                aria-label={t.home.nextFeatured}
-              >
-                <span aria-hidden="true">›</span>
-              </button>
-            )}
           </div>
         </section>
       ) : (
@@ -345,11 +285,12 @@ export default function LandingPage() {
             {articlesLoading ? (
               <p className="l-recent-state">{t.blog.loading}</p>
             ) : recentPosts.length > 0 ? (
-              <div className="l-recent-grid">
-                {recentPosts.map((post) => (
-                  <RecentArticle key={post._id || post.slug} post={post} lang={lang} t={t} />
-                ))}
-              </div>
+              <ArticleCardGrid
+                posts={recentPosts}
+                lang={lang}
+                labels={t.blog}
+                linkForPost={(post) => `/blog/${post.slug}`}
+              />
             ) : (
               <p className="l-recent-state">{t.home.noArticles}</p>
             )}
