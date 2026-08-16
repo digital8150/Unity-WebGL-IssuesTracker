@@ -398,12 +398,16 @@ export function createLiquid(
 
   const programs: WebGLProgram[] = [];
 
-  function createProgram(fragSource: string): Program {
+  function createProgram(fragSource: string): Program | null {
     const program = gl!.createProgram()!;
     gl!.attachShader(program, vertexShader);
     gl!.attachShader(program, compile(gl!.FRAGMENT_SHADER, fragSource));
     gl!.linkProgram(program);
     programs.push(program);
+    if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
+      console.error("Liquid program error:", gl!.getProgramInfoLog(program));
+      return null;
+    }
     const uniforms: Record<string, WebGLUniformLocation> = {};
     const count = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS);
     for (let i = 0; i < count; i++) {
@@ -422,6 +426,23 @@ export function createLiquid(
   const vorticityProgram = createProgram(FRAG_VORTICITY);
   const pressureProgram = createProgram(FRAG_PRESSURE);
   const gradientProgram = createProgram(FRAG_GRADIENT);
+
+  if (
+    !displayProgram ||
+    !splatProgram ||
+    !advectProgram ||
+    !clearProgram ||
+    !divergenceProgram ||
+    !curlProgram ||
+    !vorticityProgram ||
+    !pressureProgram ||
+    !gradientProgram
+  ) {
+    programs.forEach((item) => gl!.deleteProgram(item));
+    shaders.forEach((shader) => gl!.deleteShader(shader));
+    if (htmlInCanvas) paintable.onpaint = null;
+    return null;
+  }
 
   const quad = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, quad);
@@ -891,7 +912,11 @@ export function createLiquid(
     pointers.delete(event.pointerId);
   }
 
-  const listenTarget = window;
+  // Scoped to the captured content, like every other effect here. On `window`
+  // each of these handlers ran a getBoundingClientRect for every pointermove
+  // anywhere on the page — including long after the layer scrolled away, since
+  // the measure-mode layer latches on and never deactivates.
+  const listenTarget: HTMLElement = content;
   listenTarget.addEventListener("pointerdown", onPointerDown as EventListener, {
     passive: true,
   });
@@ -929,12 +954,19 @@ export function createLiquid(
       start();
     },
     setOptions(next) {
-      if (
-        !Object.entries(next).some(
-          ([key, value]) => config[key as keyof LiquidOptions] !== value,
-        )
-      )
-        return;
+      // `color` is an array, so a caller re-rendering with the same literal
+      // must not read as a change; compare element-wise.
+      const changed = Object.entries(next).some(([key, value]) => {
+        const previous = config[key as keyof LiquidOptions];
+        if (Array.isArray(value) && Array.isArray(previous)) {
+          return (
+            value.length !== previous.length ||
+            value.some((item, i) => item !== previous[i])
+          );
+        }
+        return previous !== value;
+      });
+      if (!changed) return;
       const simResolution = next.simResolution ?? config.simResolution;
       const dyeResolution = next.dyeResolution ?? config.dyeResolution;
       const resolutionChanged =

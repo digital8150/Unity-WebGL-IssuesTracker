@@ -507,17 +507,8 @@
   object-fit: contain;
 }
 
-.play-rating-mark { width: 72px; height: 72px; }
-.play-descriptor-mark { width: 48px; height: 48px; }
-
-.play-review-classification {
-  margin-top: 10px;
-  color: var(--color-mute);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
+.play-rating-mark,
+.play-descriptor-mark { width: 72px; height: 72px; }
 
 .play-review-detail-list {
   display: grid;

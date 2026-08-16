@@ -17,9 +17,10 @@ Magnify, Glyph Rain, and Particle Reveal, each vendored below.
 - Component: Blaze (React)
 - Retrieved: 2026-08-15
 - License: MIT + Commons Clause (the component may not be resold or redistributed as a component)
-- Used both in the landing hero (`FireLayer.jsx`, `distortion: 0.6`) and as one
-  of the footer's random effects (`sparkColor`/`smokeColor` recolored to white
-  so it reads as light rather than fire on a dark footer).
+- Used both in the landing hero (`LandingPage.jsx`, through `CanvasFxLayer` in
+  `mode="fill"` with `distortion: 0.6`) and as one of the footer's random
+  effects (`sparkColor`/`smokeColor` recolored to white so it reads as light
+  rather than fire on a dark footer).
 
 The source is intentionally kept upstream-shaped. The only source change is
 removing the first-line Next.js `"use client"` directive because this app is a
@@ -81,6 +82,22 @@ When updating, fetch `files[0].content` from the registry URL (e.g.
 remove only the first `"use client"` line, then run the web build and inspect
 the Landing page with the HTMLInCanvas Origin Trial enabled.
 
-`FireLayer.jsx` is repository code. It gates Blaze on HTML-in-Canvas support,
-desktop width, reduced-motion preference, and viewport visibility, and keeps
-the layout height explicit after Blaze moves content into its canvas subtree.
+`CanvasFxLayer.jsx` is repository code. It gates any of these effects on
+HTML-in-Canvas support, desktop width, reduced-motion preference, and viewport
+visibility, and keeps the layout height explicit after the effect moves content
+into its canvas subtree.
+
+### Local patches to re-apply after an update
+
+Beyond the `"use client"` removal, the vendored sources carry these fixes.
+Re-apply them when replacing a file from the registry:
+
+- `Bubble.tsx`, `Magnify.tsx`, `Liquid.tsx`, `GlyphRain.tsx`,
+  `ParticleReveal.tsx`: check `LINK_STATUS` after `linkProgram` and return
+  `null` (after deleting the program/shaders and clearing `onpaint`) instead of
+  running a render loop against an unlinked program. Returning `null` is what
+  makes the React wrapper flip to `failed` and render plain DOM.
+- `Bubble.tsx`, `Magnify.tsx`, `Liquid.tsx`: `setOptions` compares array
+  options element-wise, the way `GlyphRain.tsx` already did upstream.
+- `Liquid.tsx`: pointer listeners bind to the captured content element rather
+  than `window`.

@@ -74,3 +74,10 @@ git diff --check
 - Moved `bcsdEyebrow` ("BUILD COMMUNITIES, SHARE DREAMS") out of the club copy column and renamed it `bcsdSlogan`; it now renders under the BCSD symbol+wordmark lockup as a tagline (`site-footer-club-identity` wraps the mark + new `.site-footer-club-slogan`) instead of as an eyebrow above the headline.
 - Updated `canvasui/README.md` with the new roster, the four new vendored-component entries, and moved the Droplets/Bubble nesting failure notes into a "Nesting history" subsection (still don't retry that blind).
 - Verification: `cd web && npx vite build` clean; `git diff --check` clean (only benign LF/CRLF warnings). Not yet live-tested in a browser — no browser backend was connected this session, so the 8 effects' actual on-screen appearance (especially Particle Reveal/Magnify/GlyphRain, which are new to this footer) is unverified.
+
+## 2026-08-16 — Canvas UI fallback hardening and account/play UI cleanup
+
+- Added WebGL program-link failure cleanup so Canvas UI effects fall back to plain DOM instead of rendering against invalid programs; made array-valued options compare element-wise.
+- Scoped Liquid pointer listeners to the captured content element and documented the vendored-source patches.
+- Added member-profile logout/dashboard actions, removed the dashboard Arcade link, and simplified play review metadata presentation.
+- Verification: `cd web && npm run build`, `git diff --check` passed; browser visual inspection remains unavailable.

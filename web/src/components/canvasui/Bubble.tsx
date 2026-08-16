@@ -303,6 +303,14 @@ export function createBubble(
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error("Bubble program error:", gl.getProgramInfoLog(program));
+    gl.deleteProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    if (htmlInCanvas) paintable.onpaint = null;
+    return null;
+  }
 
   const uniforms: Record<string, WebGLUniformLocation> = {};
   const uniformCount = gl.getProgramParameter(program, gl.ACTIVE_UNIFORMS);
@@ -619,12 +627,19 @@ export function createBubble(
 
   return {
     setOptions(next) {
-      if (
-        !Object.entries(next).some(
-          ([key, value]) => config[key as keyof BubbleOptions] !== value,
-        )
-      )
-        return;
+      // Color options are arrays, so a caller re-rendering with the same
+      // literal must not read as a change; compare element-wise.
+      const changed = Object.entries(next).some(([key, value]) => {
+        const previous = config[key as keyof BubbleOptions];
+        if (Array.isArray(value) && Array.isArray(previous)) {
+          return (
+            value.length !== previous.length ||
+            value.some((item, i) => item !== previous[i])
+          );
+        }
+        return previous !== value;
+      });
+      if (!changed) return;
       Object.assign(config, next);
       start();
     },
