@@ -40,6 +40,78 @@ function contentSwapPrefixes(channel) {
 const CONTENT_MAX_FILE_INSPECTOR_LIMIT = 500;
 const contentReplaceLocks = new Map();
 
+// ── Cross-origin content serving ────────────────────────────────────────────
+// A game's Addressables bundles are usually fetched by a WebGL player served
+// from this same origin, which never triggers CORS at all. But a player can
+// also be hosted elsewhere (e.g. GitHub Pages) with its RemoteLoadPath
+// pointing back at this server's /content/<gameId>/<channel>/ URLs — that is
+// a genuine cross-origin fetch, and Range/If-None-Match (used by
+// createContentFileHandler) are not CORS-safelisted headers, so the browser
+// preflights it. The developer opts specific origins in per-game via
+// Game.allowedOrigins (dashboard: Addressables content tab); this module is
+// the only thing that reads that field to answer CORS checks.
+//
+// In-process TTL cache: this route runs a DB lookup only for requests that
+// actually carry an Origin header (i.e. real cross-origin traffic), and a
+// settings save calls `invalidateAllowedOriginsCache` directly so an added
+// origin takes effect immediately rather than waiting out the TTL. Like the
+// storage-quota lock elsewhere in this file, the cache is in-process only —
+// a multi-instance deployment needs a shared cache or pub/sub invalidation.
+const ALLOWED_ORIGINS_CACHE_TTL_MS = 30_000;
+const allowedOriginsCache = new Map(); // gameId -> { origins: Set<string>, expiresAt: number }
+
+export function invalidateAllowedOriginsCache(gameId) {
+  allowedOriginsCache.delete(String(gameId));
+}
+
+async function resolveAllowedOrigins(gameId) {
+  const key = String(gameId);
+  const cached = allowedOriginsCache.get(key);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.origins;
+  const doc = await Game.findById(key).select('allowedOrigins').lean();
+  const origins = new Set((doc?.allowedOrigins || []).map((origin) => String(origin).toLowerCase()));
+  allowedOriginsCache.set(key, { origins, expiresAt: now + ALLOWED_ORIGINS_CACHE_TTL_MS });
+  return origins;
+}
+
+const CONTENT_CORS_METHODS = 'GET, HEAD, OPTIONS';
+const CONTENT_CORS_REQUEST_HEADERS = 'Range, If-None-Match, If-Modified-Since';
+const CONTENT_CORS_EXPOSED_HEADERS = 'Content-Length, Content-Range, ETag, Accept-Ranges';
+
+// Mounted ahead of createContentFileHandler for GET/HEAD, and standalone for
+// the OPTIONS preflight. A request without an Origin header is same-origin
+// (or a non-browser client) and never needs a CORS decision, so it is the
+// overwhelmingly common case and skips the Game lookup entirely.
+export async function contentCors(req, res, next) {
+  const origin = req.headers.origin;
+  if (!origin) return req.method === 'OPTIONS' ? res.status(204).end() : next();
+  if (!isValidGameId(req.params.gameId)) return next();
+
+  try {
+    const lowerOrigin = origin.toLowerCase();
+    const allowed = lowerOrigin === CONTENT_PUBLIC_ORIGIN.toLowerCase()
+      || (await resolveAllowedOrigins(req.params.gameId)).has(lowerOrigin);
+
+    if (allowed) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Expose-Headers', CONTENT_CORS_EXPOSED_HEADERS);
+    }
+    if (req.method === 'OPTIONS') {
+      if (allowed) {
+        res.setHeader('Access-Control-Allow-Methods', CONTENT_CORS_METHODS);
+        res.setHeader('Access-Control-Allow-Headers', CONTENT_CORS_REQUEST_HEADERS);
+        res.setHeader('Access-Control-Max-Age', '600');
+      }
+      return res.status(204).end();
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, callback) => callback(null, os.tmpdir()),

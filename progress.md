@@ -75,6 +75,43 @@ git diff --check
 - Updated `canvasui/README.md` with the new roster, the four new vendored-component entries, and moved the Droplets/Bubble nesting failure notes into a "Nesting history" subsection (still don't retry that blind).
 - Verification: `cd web && npx vite build` clean; `git diff --check` clean (only benign LF/CRLF warnings). Not yet live-tested in a browser — no browser backend was connected this session, so the 8 effects' actual on-screen appearance (especially Particle Reveal/Magnify/GlyphRain, which are new to this footer) is unverified.
 
+## 2026-08-19 — Addressables content: per-game CORS allowlist for externally-hosted players
+
+- Fixed a gap flagged (but left unaddressed) in `docs/plan-addressables-content-hosting.md`:
+  a WebGL player hosted off-platform (GitHub Pages, itch.io, …) whose Addressables
+  `RemoteLoadPath` points at this server's `/content/<gameId>/<channel>/` made a genuine
+  cross-origin request that the single-origin `cors({ origin: CORS_ORIGIN })` middleware
+  couldn't satisfy — no ACAO header for that origin, and Range/If-None-Match aren't
+  CORS-safelisted so the browser preflighted every request and got blocked.
+- Added `Game.allowedOrigins` (`server/src/models/Game.js`), validated/normalized in the
+  existing `PATCH /api/games/:gameId` settings route (`normalizeAllowedOrigins` in
+  `routes/games.js`: scheme+host[:port] only, no path/trailing slash, max 20, deduped
+  case-insensitively).
+- New `contentCors` middleware in `routes/gameContent.js`, mounted ahead of
+  `createContentFileHandler` for both `GET` and `OPTIONS` on `/content/:gameId/:channel/*`
+  in `index.js`. Reflects the request's `Origin` back as `Access-Control-Allow-Origin` only
+  when it matches `SITE_ORIGIN` (always allowed) or an entry in that game's
+  `allowedOrigins`; sets `Vary: Origin`, exposes `Content-Length/Content-Range/ETag/
+  Accept-Ranges`, and answers preflights with `Access-Control-Allow-Methods/Headers/Max-Age`.
+  Same-origin requests (no `Origin` header) skip the DB lookup entirely.
+- In-process 30s TTL cache (`allowedOriginsCache` Map) keyed by `gameId`, invalidated
+  synchronously by the settings route via `invalidateAllowedOriginsCache` so a save takes
+  effect immediately rather than waiting out the TTL — same in-process-only caveat as the
+  storage-quota lock already documented for a multi-instance deployment.
+- Dashboard: new "Allowed external origins" panel in `GameContentTab.jsx` (right after the
+  RemoteLoadPath URL card), reusing `updateGame`/the collaborator-list CSS classes — add/remove
+  origins with immediate persistence, matching `CollaboratorSection`'s UX. Full ko/en i18n.
+- New `server/test/addressable-content-cors.test.js` (8 cases: same-origin bypass, SITE_ORIGIN
+  always-allow, allowed/disallowed origin ACAO presence, preflight shape, cache invalidation,
+  invalid-gameId passthrough) plus an `allowedOrigins` validation case added to
+  `game-settings.test.js`. Scope was deliberately just `/content/`, not `/builds/` — the
+  latter's own player is expected to load from wherever it's hosted, not from a foreign origin.
+- Docs: `docs/addressables-content-operations.md` gained a "Cross-origin (CORS) content
+  access" runbook section; `docs/plan-addressables-content-hosting.md`'s CORS gap note marked
+  done with a pointer to the implementation.
+- Verification: `cd server && npm test` (198/198 pass, was 189), `cd web && npm run build`
+  clean, `node --check` on every changed server file.
+
 ## 2026-08-16 — Canvas UI fallback hardening and account/play UI cleanup
 
 - Added WebGL program-link failure cleanup so Canvas UI effects fall back to plain DOM instead of rendering against invalid programs; made array-valued options compare element-wise.

@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
 import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
 import gamesRouter from './routes/games.js';
-import gameContentRouter, { CONTENT_ROOT } from './routes/gameContent.js';
+import gameContentRouter, { CONTENT_ROOT, contentCors } from './routes/gameContent.js';
 import gameArticlesRouter from './routes/gameArticles.js';
 import backendRouter from './routes/backend.js';
 import blogRouter from './routes/blog.js';
@@ -61,7 +61,11 @@ app.use('/api/admin/translations', translationsRouter);
 app.use('/api/v2', apiV2Router());
 
 app.get('/builds/:buildId/*', createBuildFileHandler(STORAGE_ROOT));
-app.get('/content/:gameId/:channel/*', createContentFileHandler(CONTENT_ROOT));
+// Per-game allowed origins (Game.allowedOrigins) let a WebGL player hosted
+// elsewhere (e.g. GitHub Pages) fetch this game's Addressables content
+// cross-origin; see contentCors in routes/gameContent.js for the policy.
+app.options('/content/:gameId/:channel/*', contentCors);
+app.get('/content/:gameId/:channel/*', contentCors, createContentFileHandler(CONTENT_ROOT));
 app.get('/thumbnails/:filename', createThumbnailFileHandler(THUMBNAIL_ROOT));
 
 app.get('/blog-images/:filename', createBlogImageFileHandler(BLOG_IMAGE_ROOT));

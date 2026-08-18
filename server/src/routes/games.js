@@ -11,6 +11,7 @@ import GameComment, { MAX_GAME_COMMENTS } from '../models/GameComment.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import AddressableContent from '../models/AddressableContent.js';
+import { invalidateAllowedOriginsCache } from './gameContent.js';
 import GameConfig from '../models/GameConfig.js';
 import Leaderboard from '../models/Leaderboard.js';
 import LeaderboardScore from '../models/LeaderboardScore.js';
@@ -53,6 +54,36 @@ function normalizeGameRating(value) {
     ? LEGACY_RATING_ALIASES[raw]
     : '';
 }
+
+// scheme://host[:port] only — no path, query, or trailing slash. That keeps
+// the value directly usable as an Access-Control-Allow-Origin echo.
+const ORIGIN_PATTERN = /^https?:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:\d{1,5})?$/i;
+const MAX_ALLOWED_ORIGINS = 20;
+
+function normalizeAllowedOrigins(value) {
+  if (!Array.isArray(value)) return { error: 'allowedOrigins must be an array of origin strings.' };
+  if (value.length > MAX_ALLOWED_ORIGINS) {
+    return { error: `allowedOrigins supports at most ${MAX_ALLOWED_ORIGINS} entries.` };
+  }
+  const origins = [];
+  const seen = new Set();
+  for (const raw of value) {
+    if (typeof raw !== 'string') return { error: 'Each allowed origin must be a string.' };
+    const trimmed = raw.trim().replace(/\/+$/, '');
+    if (!trimmed) continue;
+    if (trimmed.length > 253) return { error: `"${trimmed.slice(0, 40)}…" is too long to be a valid origin.` };
+    if (!ORIGIN_PATTERN.test(trimmed)) {
+      return { error: `"${trimmed}" is not a valid origin. Use the form https://example.com or https://example.com:8080 — no path, no trailing slash.` };
+    }
+    const normalized = trimmed.toLowerCase();
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      origins.push(normalized);
+    }
+  }
+  return { origins };
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -284,9 +315,10 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
   try {
     const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
     if (!game) return res.status(404).json({ error: 'Game not found' });
-    const { name, discordWebhookUrl, visibility, description, longDescription, reviewInfo } = req.body;
+    const { name, discordWebhookUrl, visibility, description, longDescription, reviewInfo, allowedOrigins } = req.body;
     const previousDescription = game.description;
     const previousLongDescription = game.longDescription;
+    let originsChanged = false;
     if (name !== undefined) {
       if (typeof name !== 'string') {
         return res.status(400).json({ error: 'Game name must be a string.' });
@@ -301,6 +333,12 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       game.name = trimmedName;
     }
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
+    if (allowedOrigins !== undefined) {
+      const result = normalizeAllowedOrigins(allowedOrigins);
+      if (result.error) return res.status(400).json({ error: result.error });
+      game.allowedOrigins = result.origins;
+      originsChanged = true;
+    }
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
       game.visibility = visibility;
     }
@@ -333,6 +371,7 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       };
     }
     await game.save();
+    if (originsChanged) invalidateAllowedOriginsCache(String(game._id));
     if (
       (description !== undefined && String(previousDescription ?? '') !== String(game.description ?? ''))
       || (longDescription !== undefined && String(previousLongDescription ?? '') !== String(game.longDescription ?? ''))

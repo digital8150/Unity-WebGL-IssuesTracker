@@ -327,6 +327,15 @@ CORS needs no change as long as content is served from the same origin as the pl
 `cors({ origin: CORS_ORIGIN })` (`index.js:43`) is SPA-scoped; if content ever moves to a
 separate CDN hostname, that becomes a required addition.
 
+**Update (2026-08-19): done.** A WebGL player hosted off-platform (GitHub Pages, itch.io,
+etc.) with its RemoteLoadPath pointing back at `/content/<gameId>/<channel>/` is a genuine
+cross-origin fetch — and Range/If-None-Match aren't CORS-safelisted headers, so the browser
+preflights it. `Game.allowedOrigins` (dashboard: Addressables content tab) now drives a
+per-game CORS decision in `contentCors` (`routes/gameContent.js`), mounted ahead of
+`createContentFileHandler` for `/content/:gameId/:channel/*` (both GET and the OPTIONS
+preflight) in `index.js`. The global `cors({ origin: CORS_ORIGIN })` middleware is untouched
+and keeps handling the SPA's own API calls. See `docs/addressables-content-operations.md`.
+
 ---
 
 ## 10. Tests — `server/test/`

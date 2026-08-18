@@ -97,3 +97,48 @@ test('game settings persist longDescription, reject overflow, enqueue changes, a
     Translation.findOneAndUpdate = originals.translationFindOneAndUpdate;
   }
 });
+
+test('allowedOrigins is validated, normalized, and rejects malformed or excessive entries', async () => {
+  const originals = { userFindById: User.findById, gameFindOne: Game.findOne };
+  User.findById = () => ({ select: async () => approvedUser() });
+  Game.findOne = async ({ ownerId: requestedOwnerId } = {}) => (
+    requestedOwnerId === ownerId ? game : null
+  );
+  const server = await startServer();
+
+  try {
+    // Trailing slash stripped, case folded, duplicates collapsed.
+    const okResponse = await patchGame(server, {
+      allowedOrigins: ['https://MyDev.GitHub.io/', 'https://mydev.github.io', 'https://other.example:8080'],
+    });
+    assert.equal(okResponse.status, 200);
+    assert.deepEqual(game.allowedOrigins, ['https://mydev.github.io', 'https://other.example:8080']);
+
+    const pathResponse = await patchGame(server, { allowedOrigins: ['https://example.com/some/path'] });
+    assert.equal(pathResponse.status, 400);
+    assert.match((await pathResponse.json()).error, /not a valid origin/);
+
+    const schemeResponse = await patchGame(server, { allowedOrigins: ['ftp://example.com'] });
+    assert.equal(schemeResponse.status, 400);
+
+    const wildcardResponse = await patchGame(server, { allowedOrigins: ['*'] });
+    assert.equal(wildcardResponse.status, 400);
+
+    const tooManyResponse = await patchGame(server, {
+      allowedOrigins: Array.from({ length: 21 }, (_, i) => `https://origin-${i}.example`),
+    });
+    assert.equal(tooManyResponse.status, 400);
+    assert.match((await tooManyResponse.json()).error, /at most 20/);
+
+    // A rejected update leaves the previously-saved list untouched.
+    assert.deepEqual(game.allowedOrigins, ['https://mydev.github.io', 'https://other.example:8080']);
+
+    const clearResponse = await patchGame(server, { allowedOrigins: [] });
+    assert.equal(clearResponse.status, 200);
+    assert.deepEqual(game.allowedOrigins, []);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
+    User.findById = originals.userFindById;
+    Game.findOne = originals.gameFindOne;
+  }
+});

@@ -73,6 +73,27 @@ games. Uploads to different games wait for the check to finish instead of being 
 mutex is in-process only; a multi-instance deployment must replace it with a distributed lock or
 an atomic storage reservation.
 
+## Cross-origin (CORS) content access
+
+A WebGL player hosted on this platform loads its own game's content same-origin — no CORS
+involved. A player hosted elsewhere (GitHub Pages, itch.io, a self-managed static host) with
+its Addressables `RemoteLoadPath` pointing back at this server's `/content/<gameId>/<channel>/`
+URLs makes a genuine cross-origin request, which the browser blocks unless that origin is
+explicitly allowed.
+
+- Add the player's origin (e.g. `https://username.github.io`) on the dashboard's Addressables
+  content tab, under **Allowed external origins**. Scheme + host (+ port) only — no path, no
+  trailing slash.
+- Changes take effect immediately; the server also runs a 30-second fallback in-process cache
+  so a save always beats the TTL, but that cache is per server process — a multi-instance
+  deployment needs either a shared cache or to route all `/content/` traffic to a single
+  instance until that is added (`server/src/routes/gameContent.js`, `contentCors`).
+- This platform's own origin (`SITE_ORIGIN`) is always allowed and never needs a manual entry.
+- Up to 20 origins per game. There is no wildcard/`*` option — every origin is explicit.
+- This setting only affects `/content/`. It does not affect `/builds/` (the player itself is
+  still expected to load from wherever it's hosted) or the dashboard/API's own CORS policy
+  (`CORS_ORIGIN`, unrelated and SPA-scoped).
+
 ## Retiring content
 
 - Prefer retiring an entire old channel after its player population has aged out.

@@ -26,6 +26,12 @@ const gameSchema = new mongoose.Schema(
     ownerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     collaborators: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], default: [] },
     discordWebhookUrl: { type: String, default: '' },
+    // Extra browser origins allowed to fetch this game's Addressables content
+    // cross-origin (e.g. a WebGL player hosted on GitHub Pages that points its
+    // RemoteLoadPath at this server). Same-origin requests never need this —
+    // see server/src/routes/gameContent.js's `contentCors`. Normalized
+    // lowercase `scheme://host[:port]`, no path, no trailing slash.
+    allowedOrigins: { type: [String], default: [] },
 
     // ── Arcade gallery ───────────────────────────────────────────────────────
     visibility: {

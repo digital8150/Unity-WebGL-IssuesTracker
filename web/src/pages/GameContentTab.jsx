@@ -5,10 +5,15 @@ import {
   uploadGameContent,
   getGameContentFiles,
   deleteGameContent,
+  updateGame,
 } from '../api.js';
 
 const CHANNEL_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const FILES_PAGE_SIZE = 100;
+// Mirrors the server-side pattern in server/src/routes/games.js
+// (normalizeAllowedOrigins) — client-side validation is a courtesy, the
+// server is the actual gate.
+const ORIGIN_PATTERN = /^https?:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:\d{1,5})?$/i;
 
 function formatBytes(bytes) {
   if (bytes === null || bytes === undefined || !Number.isFinite(Number(bytes))) return '—';
@@ -73,9 +78,15 @@ function urlForChannel(channelsData, channel) {
   return channelsData.defaultChannelUrl.replace(new RegExp(`/${escapedDefault}/$`), `/${channel}/`);
 }
 
-export default function GameContentTab({ gameId }) {
+export default function GameContentTab({ gameId, game, setGame }) {
   const { t, lang } = useI18n();
   const td = t.gameDetail;
+
+  const allowedOrigins = game?.allowedOrigins || [];
+  const [originInput, setOriginInput] = useState('');
+  const [originsError, setOriginsError] = useState('');
+  const [savingOrigin, setSavingOrigin] = useState(false);
+  const [removingOrigin, setRemovingOrigin] = useState(null);
 
   const [channelsData, setChannelsData] = useState({ channels: [], defaultChannel: 'live', defaultChannelUrl: '' });
   const [loadingChannels, setLoadingChannels] = useState(true);
@@ -140,6 +151,47 @@ export default function GameContentTab({ gameId }) {
     navigator.clipboard.writeText(remoteLoadPath)
       .then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })
       .catch(() => {});
+  }
+
+  async function handleAddOrigin(event) {
+    event.preventDefault();
+    const candidate = originInput.trim().replace(/\/+$/, '');
+    if (!candidate) return;
+    if (!ORIGIN_PATTERN.test(candidate)) {
+      setOriginsError(td.gcOriginsInvalid);
+      return;
+    }
+    const normalized = candidate.toLowerCase();
+    if (allowedOrigins.includes(normalized)) {
+      setOriginsError(td.gcOriginsDuplicate);
+      return;
+    }
+    setOriginsError('');
+    setSavingOrigin(true);
+    try {
+      const { game: updated } = await updateGame(gameId, { allowedOrigins: [...allowedOrigins, normalized] });
+      setGame(updated);
+      setOriginInput('');
+    } catch (err) {
+      setOriginsError(err.message);
+    } finally {
+      setSavingOrigin(false);
+    }
+  }
+
+  async function handleRemoveOrigin(origin) {
+    setRemovingOrigin(origin);
+    setOriginsError('');
+    try {
+      const { game: updated } = await updateGame(gameId, {
+        allowedOrigins: allowedOrigins.filter((o) => o !== origin),
+      });
+      setGame(updated);
+    } catch (err) {
+      setOriginsError(err.message);
+    } finally {
+      setRemovingOrigin(null);
+    }
   }
 
   function handleFileChange(event) {
@@ -319,6 +371,50 @@ export default function GameContentTab({ gameId }) {
           </button>
         </div>
         <p className="gi-step-hint">{td.gcUrlHint}</p>
+      </div>
+
+      {/* ── Allowed external origins (CORS) ── */}
+      <div className="gd-subsection si-data-subsection" style={{ marginTop: 20 }}>
+        <h3 className="gd-section-title">{td.gcOriginsTitle}</h3>
+        <p className="gd-upload-hint">{td.gcOriginsDesc}</p>
+
+        {allowedOrigins.length === 0 ? (
+          <p className="gd-empty-text">{td.gcOriginsEmpty}</p>
+        ) : (
+          <div className="gd-collab-list">
+            {allowedOrigins.map((origin) => (
+              <div key={origin} className="gd-collab-row">
+                <span style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13, wordBreak: 'break-all' }}>
+                  {origin}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost gd-collab-remove"
+                  disabled={removingOrigin === origin}
+                  onClick={() => handleRemoveOrigin(origin)}
+                >
+                  {removingOrigin === origin ? td.gcOriginsRemoving : td.gcOriginsRemove}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form className="gd-collab-invite-form" onSubmit={handleAddOrigin}>
+          <input
+            type="url"
+            className="form-input"
+            placeholder="https://username.github.io"
+            value={originInput}
+            onChange={(e) => setOriginInput(e.target.value)}
+            disabled={savingOrigin}
+            style={{ maxWidth: 320 }}
+          />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={savingOrigin || !originInput.trim()}>
+            {savingOrigin ? td.gcOriginsAdding : td.gcOriginsAdd}
+          </button>
+          {originsError && <span className="gd-error gd-collab-err">{originsError}</span>}
+        </form>
       </div>
 
       {/* ── Upload ── */}
