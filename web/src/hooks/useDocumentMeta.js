@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useI18n } from '../i18n.jsx';
 import { isLocalizedPath, stripLocale, withLocale } from '../i18n/localePath.js';
 
@@ -128,9 +128,27 @@ function applyMeta({ title, description, image, url, type, robots, jsonLd, lang,
 export function useDocumentMeta({ title, description, image, url, type, robots, jsonLd, lang, alternates } = {}) {
   const context = useI18n();
   const resolvedLang = lang || context?.lang || 'ko';
+  // Captured on the first render only, before this page's own applyMeta call
+  // below can touch <html lang>. Used by the unmount-only effect further down
+  // to know what to restore once this page is actually torn down.
+  const previousLangRef = useRef(typeof document === 'undefined' ? 'ko' : document.documentElement.lang);
+
+  // Deliberately has no cleanup. Callers routinely pass an inline `jsonLd`/
+  // `alternates` object that gets a new reference on every render (e.g. a
+  // list page whose jsonLd embeds a computed canonical URL), so this effect
+  // re-runs far more often than the page itself actually changes. If a reset
+  // lived in this effect's cleanup, each such re-run would briefly reset
+  // <meta name="robots"> to the noindex default below, and since callers that
+  // don't pass `robots` explicitly re-derive their value from "whatever's
+  // currently in the DOM" (to defer to the server's index/noindex decision),
+  // that transient reset would stick — silently noindexing an otherwise
+  // indexable page after the very first client-side re-render. That is
+  // exactly what happened to /en/blog: BlogListPage never passes `robots`,
+  // its inline `jsonLd` changes reference on every render, and the resulting
+  // reset-then-reread cycle poisoned the tag to `noindex,follow` in Google's
+  // rendered DOM even though the SSR response was `index,follow`.
   useEffect(() => {
-    if (!title) return undefined;
-    const previousLang = document.documentElement.lang;
+    if (!title) return;
     // Callers deliberately pass the canonical URL. In particular, an English
     // fallback page must be allowed to canonicalize back to Korean instead of
     // being silently localized back to /en here.
@@ -139,13 +157,17 @@ export function useDocumentMeta({ title, description, image, url, type, robots, 
       ? currentMetaContent('meta[name="robots"]') || DEFAULTS.robots
       : 'index,follow');
     applyMeta({ title, description, image, url: resolvedUrl, type: type || 'website', robots: resolvedRobots, jsonLd, lang: resolvedLang, alternates });
-    return () => {
-      applyMeta({ ...DEFAULTS, url: DEFAULTS.url, lang: previousLang === 'en' ? 'en' : 'ko', alternates: undefined });
-      setAlternateLinks([]);
-      document.title = DEFAULTS.title;
-      document.documentElement.lang = previousLang || 'ko';
-    };
   }, [title, description, image, url, type, robots, jsonLd, resolvedLang, alternates]);
+
+  // Empty deps: this cleanup only fires when the page truly unmounts (route
+  // change to something that isn't this component), never on a dependency
+  // change within the same mounted page.
+  useEffect(() => () => {
+    applyMeta({ ...DEFAULTS, url: DEFAULTS.url, lang: previousLangRef.current === 'en' ? 'en' : 'ko', alternates: undefined });
+    setAlternateLinks([]);
+    document.title = DEFAULTS.title;
+    document.documentElement.lang = previousLangRef.current || 'ko';
+  }, []);
 }
 
 export { DEFAULTS, localizeUrl };
