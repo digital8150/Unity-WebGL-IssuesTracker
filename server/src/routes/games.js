@@ -23,6 +23,7 @@ import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.j
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
+import { normalizeHttpOrigin } from '../services/origin.js';
 import { enqueue } from '../services/translation/queue.js';
 import { toPublicSdkV2 } from '../services/publicData.js';
 import {
@@ -55,9 +56,6 @@ function normalizeGameRating(value) {
     : '';
 }
 
-// scheme://host[:port] only — no path, query, or trailing slash. That keeps
-// the value directly usable as an Access-Control-Allow-Origin echo.
-const ORIGIN_PATTERN = /^https?:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*(:\d{1,5})?$/i;
 const MAX_ALLOWED_ORIGINS = 20;
 
 function normalizeAllowedOrigins(value) {
@@ -69,13 +67,13 @@ function normalizeAllowedOrigins(value) {
   const seen = new Set();
   for (const raw of value) {
     if (typeof raw !== 'string') return { error: 'Each allowed origin must be a string.' };
-    const trimmed = raw.trim().replace(/\/+$/, '');
+    const trimmed = raw.trim();
     if (!trimmed) continue;
     if (trimmed.length > 253) return { error: `"${trimmed.slice(0, 40)}…" is too long to be a valid origin.` };
-    if (!ORIGIN_PATTERN.test(trimmed)) {
+    const normalized = normalizeHttpOrigin(trimmed);
+    if (!normalized) {
       return { error: `"${trimmed}" is not a valid origin. Use the form https://example.com or https://example.com:8080 — no path, no trailing slash.` };
     }
-    const normalized = trimmed.toLowerCase();
     if (!seen.has(normalized)) {
       seen.add(normalized);
       origins.push(normalized);

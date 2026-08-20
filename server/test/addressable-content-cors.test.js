@@ -77,8 +77,10 @@ test('an origin absent from Game.allowedOrigins gets no ACAO header, so the brow
   assert.equal(response.headers.get('access-control-allow-origin'), null);
 });
 
-test('an origin present in Game.allowedOrigins (case-insensitively) gets ACAO + exposed headers', async () => {
-  allowedOrigins = ['https://mydev.github.io'];
+test('a stored default port matches the canonical Origin header and gets ACAO + exposed headers', async () => {
+  // Settings saved before canonicalization may still contain an explicit
+  // default port, while browsers omit it from the Origin header.
+  allowedOrigins = ['https://mydev.github.io:443'];
   const response = await fetch(`${baseUrl(server)}/content/${GAME_ID}/live/catalog.json`, {
     headers: { Origin: 'https://MyDev.GitHub.io' },
   });

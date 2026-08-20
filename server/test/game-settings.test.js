@@ -107,16 +107,32 @@ test('allowedOrigins is validated, normalized, and rejects malformed or excessiv
   const server = await startServer();
 
   try {
-    // Trailing slash stripped, case folded, duplicates collapsed.
+    // Trailing slash stripped, case folded, default ports removed, duplicates collapsed.
     const okResponse = await patchGame(server, {
-      allowedOrigins: ['https://MyDev.GitHub.io/', 'https://mydev.github.io', 'https://other.example:8080'],
+      allowedOrigins: [
+        'https://MyDev.GitHub.io:443/',
+        'https://mydev.github.io',
+        'http://preview.example:80',
+        'https://other.example:8080',
+      ],
     });
     assert.equal(okResponse.status, 200);
-    assert.deepEqual(game.allowedOrigins, ['https://mydev.github.io', 'https://other.example:8080']);
+    assert.deepEqual(game.allowedOrigins, [
+      'https://mydev.github.io',
+      'http://preview.example',
+      'https://other.example:8080',
+    ]);
 
-    const pathResponse = await patchGame(server, { allowedOrigins: ['https://example.com/some/path'] });
-    assert.equal(pathResponse.status, 400);
-    assert.match((await pathResponse.json()).error, /not a valid origin/);
+    for (const invalidOrigin of [
+      'https://example.com/some/path',
+      'https://example.com?preview=1',
+      'https://example.com#preview',
+      'https://user@example.com',
+    ]) {
+      const invalidResponse = await patchGame(server, { allowedOrigins: [invalidOrigin] });
+      assert.equal(invalidResponse.status, 400);
+      assert.match((await invalidResponse.json()).error, /not a valid origin/);
+    }
 
     const schemeResponse = await patchGame(server, { allowedOrigins: ['ftp://example.com'] });
     assert.equal(schemeResponse.status, 400);
@@ -131,7 +147,11 @@ test('allowedOrigins is validated, normalized, and rejects malformed or excessiv
     assert.match((await tooManyResponse.json()).error, /at most 20/);
 
     // A rejected update leaves the previously-saved list untouched.
-    assert.deepEqual(game.allowedOrigins, ['https://mydev.github.io', 'https://other.example:8080']);
+    assert.deepEqual(game.allowedOrigins, [
+      'https://mydev.github.io',
+      'http://preview.example',
+      'https://other.example:8080',
+    ]);
 
     const clearResponse = await patchGame(server, { allowedOrigins: [] });
     assert.equal(clearResponse.status, 200);

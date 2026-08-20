@@ -19,12 +19,13 @@ import {
   sweepSwapArtifacts,
 } from '../services/assetArchive.js';
 import { validateAddressablesLayout } from '../services/addressablesLayout.js';
+import { normalizeHttpOrigin } from '../services/origin.js';
 import { acquireStorageQuotaLock, assertStorageQuota } from '../services/storageQuota.js';
 
 const router = Router();
 
 export const CONTENT_ROOT = path.resolve('storage', 'content');
-const CONTENT_PUBLIC_ORIGIN = (process.env.SITE_ORIGIN || 'https://arcade.codingbot.kr').replace(/\/$/, '');
+const CONTENT_PUBLIC_ORIGIN = normalizeHttpOrigin(process.env.SITE_ORIGIN || 'https://arcade.codingbot.kr');
 const CONTENT_CHANNEL_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
 // Swap artifacts live beside the channel directories under the game root, so
 // their prefixes must carry the channel. A shared prefix would let an upload to
@@ -70,7 +71,7 @@ async function resolveAllowedOrigins(gameId) {
   const now = Date.now();
   if (cached && cached.expiresAt > now) return cached.origins;
   const doc = await Game.findById(key).select('allowedOrigins').lean();
-  const origins = new Set((doc?.allowedOrigins || []).map((origin) => String(origin).toLowerCase()));
+  const origins = new Set((doc?.allowedOrigins || []).map(normalizeHttpOrigin).filter(Boolean));
   allowedOriginsCache.set(key, { origins, expiresAt: now + ALLOWED_ORIGINS_CACHE_TTL_MS });
   return origins;
 }
@@ -89,9 +90,11 @@ export async function contentCors(req, res, next) {
   if (!isValidGameId(req.params.gameId)) return next();
 
   try {
-    const lowerOrigin = origin.toLowerCase();
-    const allowed = lowerOrigin === CONTENT_PUBLIC_ORIGIN.toLowerCase()
-      || (await resolveAllowedOrigins(req.params.gameId)).has(lowerOrigin);
+    const normalizedOrigin = normalizeHttpOrigin(origin);
+    const allowed = normalizedOrigin !== null && (
+      normalizedOrigin === CONTENT_PUBLIC_ORIGIN
+      || (await resolveAllowedOrigins(req.params.gameId)).has(normalizedOrigin)
+    );
 
     if (allowed) {
       res.setHeader('Access-Control-Allow-Origin', origin);

@@ -2028,7 +2028,7 @@ export default function GameDetailPage() {
 
         {/* ── Addressables remote content ── */}
         {tab === 'content' && (
-          <GameContentTab gameId={gameId} game={game} setGame={setGame} />
+          <GameContentTab gameId={gameId} game={game} setGame={setGame} isOwner={isOwner} />
         )}
 
         {/* ── Settings ── */}

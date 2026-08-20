@@ -118,3 +118,9 @@ git diff --check
 - Scoped Liquid pointer listeners to the captured content element and documented the vendored-source patches.
 - Added member-profile logout/dashboard actions, removed the dashboard Arcade link, and simplified play review metadata presentation.
 - Verification: `cd web && npm run build`, `git diff --check` passed; browser visual inspection remains unavailable.
+
+## 2026-08-20 — Addressables CORS review follow-up
+
+- Canonicalized saved and request origins with URL parsing, including lowercase hosts and removal of HTTP/HTTPS default ports while rejecting paths, queries, fragments, and credentials.
+- Made Addressables content mutation controls owner-only in the dashboard; collaborators retain read-only URLs, allowlist, stats, and file inspection.
+- Verification: `cd server && npm test` (198/198), `cd web && npm run build`, server syntax checks, and `git diff --check` passed.
