@@ -137,3 +137,10 @@ git diff --check
 - Moved shared Modal styling into the component, added dialog semantics, and routed Unity loader alert fallbacks exclusively into Growl notifications.
 - Removed the native `beforeunload` prompt; unsaved in-app navigation remains protected by the existing custom settings-leave Modal.
 - Verification: exhaustive source audit found no native dialog calls or unload prompts, `cd web && npm run build`, `cd server && npm test` (198/198), and `git diff --check` passed.
+
+## 2026-08-20 — Unity fatal-error and teardown containment
+
+- Root cause confirmed against the deployed My Universe loader: its fatal-error path calls bare `alert(...)`, while the prior UnityGame-scoped interceptor could be restored before a late loader error fired. Native alerts are now intercepted for the full app lifetime and rendered through Growl.
+- Replaced the unhandled `unload()` call on React unmount with the react-unity-webgl 9.x immediate detach/unload path, guarded by the live Unity instance and awaited before SPA navigation.
+- Track Unity-created Web Audio contexts so fatal or partial initialization failures suspend/close audio immediately; failed, timed-out, or never-instantiated runtimes use a document navigation when leaving as the final cleanup boundary.
+- Added an inline stopped-runtime/reload state and localized session-closing state. Verification: Unity lifecycle helper checks, `cd web && npm run build`, `cd server && npm test` (198/198), native-dialog source audit, and `git diff --check` passed. Browser automation was unavailable; PR-preview retest remains required after deployment.

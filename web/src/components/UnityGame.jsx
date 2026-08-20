@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Unity, useUnityContext } from 'react-unity-webgl';
-import { useGrowl } from '../context/GrowlContext.jsx';
+import { useBlocker } from 'react-router-dom';
+import { NATIVE_ALERT_EVENT, useGrowl } from '../context/GrowlContext.jsx';
 import { useUnityKeyboardCapture } from '../unityKeyboardDiagnostics.js';
+import { disposeUnityRuntime, installUnityAudioContextTracker } from '../utils/unityLifecycle.js';
 
 export default function UnityGame({
   loaderUrl, dataUrl, frameworkUrl, codeUrl, streamingAssetsUrl, onReady,
   gameOverTitle, gameOverReload, clickToActivate, unityErrorTitle,
+  leavingLabel,
 }) {
   const { notify } = useGrowl();
   const lastErrorRef = useRef({ message: '', at: 0 });
@@ -22,20 +25,17 @@ export default function UnityGame({
     });
   }, [notify, unityErrorTitle]);
 
-  // Unity's generated loader can fall back to window.alert. Route every such
-  // call through the app growl while the runtime is mounted, then restore the
-  // original function without ever invoking it here.
-  useLayoutEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-    const nativeAlert = window.alert;
-    const interceptAlert = (message) => reportUnityError(message);
-    window.alert = interceptAlert;
-    return () => {
-      if (window.alert === interceptAlert) window.alert = nativeAlert;
-    };
-  }, [reportUnityError]);
-
-  const { unityProvider, sendMessage, unload, addEventListener, removeEventListener, isLoaded, loadingProgression, initialisationError } = useUnityContext({
+  const {
+    unityProvider,
+    sendMessage,
+    addEventListener,
+    removeEventListener,
+    isLoaded,
+    loadingProgression,
+    initialisationError,
+    UNSAFE__unityInstance,
+    UNSAFE__detachAndUnloadImmediate,
+  } = useUnityContext({
     loaderUrl,
     dataUrl,
     frameworkUrl,
@@ -44,27 +44,89 @@ export default function UnityGame({
   });
   const [focused, setFocused] = useState(false);
   const [isGameQuit, setIsGameQuit] = useState(false);
+  const [runtimeStopped, setRuntimeStopped] = useState(false);
+  const [isUnloading, setIsUnloading] = useState(false);
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
-  const unloadRef = useRef(unload);
+  const audioContextsRef = useRef(new Set());
+  const unityInstanceRef = useRef(UNSAFE__unityInstance);
+  const detachAndUnloadRef = useRef(UNSAFE__detachAndUnloadImmediate);
+  const disposePromiseRef = useRef(null);
+  const navigationReleasedRef = useRef(false);
+  const onReadyRef = useRef(onReady);
+
+  unityInstanceRef.current = UNSAFE__unityInstance;
+  detachAndUnloadRef.current = UNSAFE__detachAndUnloadImmediate;
+  onReadyRef.current = onReady;
 
   useUnityKeyboardCapture(canvasRef, isLoaded);
 
-  useEffect(() => {
-    if (initialisationError) reportUnityError(initialisationError);
-  }, [initialisationError, reportUnityError]);
-
-  useEffect(() => { unloadRef.current = unload; }, [unload]);
+  useLayoutEffect(() => (
+    installUnityAudioContextTracker(window, audioContextsRef.current)
+  ), []);
 
   useEffect(() => {
     if (isLoaded) onReady?.(sendMessage);
   }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Run only on unmount. Using a ref avoids re-running (and premature cleanup)
-  // every time useUnityContext re-creates the unload reference during loading.
-  useEffect(() => {
-    return () => { unloadRef.current(); };
+  const dispose = useCallback((showLeavingState = false) => {
+    if (showLeavingState) setIsUnloading(true);
+    if (disposePromiseRef.current) return disposePromiseRef.current;
+
+    onReadyRef.current?.(null);
+    disposePromiseRef.current = disposeUnityRuntime({
+      unityInstance: unityInstanceRef.current,
+      detachAndUnload: detachAndUnloadRef.current,
+      audioContexts: audioContextsRef.current,
+      container: containerRef.current,
+    });
+    return disposePromiseRef.current;
   }, []);
+
+  const navigationBlocker = useBlocker(useCallback(({ currentLocation, nextLocation }) => (
+    !navigationReleasedRef.current && currentLocation.pathname !== nextLocation.pathname
+  ), []));
+
+  useEffect(() => {
+    if (!initialisationError) return;
+    setRuntimeStopped(true);
+    reportUnityError(initialisationError);
+    void dispose();
+  }, [initialisationError, reportUnityError, dispose]);
+
+  useEffect(() => {
+    const handleNativeRuntimeAlert = () => {
+      setRuntimeStopped(true);
+      void dispose();
+    };
+    window.addEventListener(NATIVE_ALERT_EVENT, handleNativeRuntimeAlert);
+    return () => window.removeEventListener(NATIVE_ALERT_EVENT, handleNativeRuntimeAlert);
+  }, [dispose]);
+
+  useEffect(() => {
+    if (navigationBlocker.state !== 'blocked') return undefined;
+    let active = true;
+    const destination = navigationBlocker.location;
+
+    dispose(true).then((result) => {
+      if (!active) return;
+      if (result.status === 'unloaded') {
+        navigationReleasedRef.current = true;
+        navigationBlocker.proceed();
+        return;
+      }
+
+      // A failed or only partially-created Unity runtime cannot be trusted to
+      // release Web Audio in an SPA transition. A document navigation is the
+      // final containment boundary and guarantees the runtime is destroyed.
+      navigationReleasedRef.current = true;
+      window.location.assign(`${destination.pathname}${destination.search}${destination.hash}`);
+    });
+
+    return () => { active = false; };
+  }, [navigationBlocker.state, navigationBlocker.location, navigationBlocker.proceed, dispose]);
+
+  useEffect(() => () => { void dispose(); }, [dispose]);
 
   // Once the game is loaded, tell the browser not to activate IME on the canvas.
   // Without this, Korean IME intercepts A/S/D (ㅁ/ㄴ/ㅇ) as composition keys
@@ -115,17 +177,31 @@ export default function UnityGame({
           <div style={loadingLabel}>{Math.round(loadingProgression * 100)}%</div>
         </div>
       )}
-      {isLoaded && !focused && !isGameQuit && (
+      {isLoaded && !focused && !isGameQuit && !runtimeStopped && (
         <div style={focusHintStyle}>
           {clickToActivate ?? 'Click to activate controls'}
         </div>
       )}
-      {isGameQuit && (
+      {isGameQuit && !runtimeStopped && (
         <div style={gameOverStyle}>
           <p style={gameOverText}>{gameOverTitle ?? 'Game Over'}</p>
           <button style={reloadBtn} onClick={() => window.location.reload()}>
             {gameOverReload ?? 'Reload'}
           </button>
+        </div>
+      )}
+      {runtimeStopped && !isUnloading && (
+        <div style={gameOverStyle}>
+          <p style={gameOverText}>{unityErrorTitle ?? 'Unity runtime notice'}</p>
+          <button style={reloadBtn} onClick={() => window.location.reload()}>
+            {gameOverReload ?? 'Reload'}
+          </button>
+        </div>
+      )}
+      {isUnloading && (
+        <div style={unloadingStyle} role="status" aria-live="polite">
+          <span className="play-login-gate-spinner" aria-hidden="true" />
+          <span>{leavingLabel ?? 'Closing game session…'}</span>
         </div>
       )}
     </div>
@@ -174,4 +250,11 @@ const reloadBtn = {
   border: 'none', borderRadius: 100, cursor: 'pointer',
   fontSize: 14, fontWeight: 500,
   transition: 'opacity 0.15s',
+};
+
+const unloadingStyle = {
+  position: 'absolute', inset: 0, zIndex: 4,
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+  background: 'rgba(0, 0, 0, 0.82)', color: 'rgba(255, 255, 255, 0.8)',
+  fontSize: 13, letterSpacing: '0.02em',
 };

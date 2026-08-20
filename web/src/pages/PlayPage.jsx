@@ -502,11 +502,12 @@ export default function PlayPage() {
             ) : (
               <UnityGame
                 {...urls}
-                onReady={(fn) => { sendMessageFn.current = fn; pushCredential(); }}
+                onReady={(fn) => { sendMessageFn.current = fn; if (fn) pushCredential(); }}
                 gameOverTitle={t.play.gameOver}
                 gameOverReload={t.play.reload}
                 clickToActivate={t.play.clickToActivate}
                 unityErrorTitle={t.play.unityErrorTitle}
+                leavingLabel={t.play.leavingGame}
               />
             )}
           </div>
