@@ -11,6 +11,7 @@ import GameComment, { MAX_GAME_COMMENTS } from '../models/GameComment.js';
 import Build, { detectRole } from '../models/Build.js';
 import { Issue } from '../models/Issue.js';
 import AddressableContent from '../models/AddressableContent.js';
+import { invalidateAllowedOriginsCache } from './gameContent.js';
 import GameConfig from '../models/GameConfig.js';
 import Leaderboard from '../models/Leaderboard.js';
 import LeaderboardScore from '../models/LeaderboardScore.js';
@@ -22,6 +23,7 @@ import { requireAuth, optionalAuth, requireApproved } from '../middleware/auth.j
 import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
+import { normalizeHttpOrigin } from '../services/origin.js';
 import { enqueue } from '../services/translation/queue.js';
 import { toPublicSdkV2 } from '../services/publicData.js';
 import {
@@ -53,6 +55,33 @@ function normalizeGameRating(value) {
     ? LEGACY_RATING_ALIASES[raw]
     : '';
 }
+
+const MAX_ALLOWED_ORIGINS = 20;
+
+function normalizeAllowedOrigins(value) {
+  if (!Array.isArray(value)) return { error: 'allowedOrigins must be an array of origin strings.' };
+  if (value.length > MAX_ALLOWED_ORIGINS) {
+    return { error: `allowedOrigins supports at most ${MAX_ALLOWED_ORIGINS} entries.` };
+  }
+  const origins = [];
+  const seen = new Set();
+  for (const raw of value) {
+    if (typeof raw !== 'string') return { error: 'Each allowed origin must be a string.' };
+    const trimmed = raw.trim();
+    if (!trimmed) continue;
+    if (trimmed.length > 253) return { error: `"${trimmed.slice(0, 40)}…" is too long to be a valid origin.` };
+    const normalized = normalizeHttpOrigin(trimmed);
+    if (!normalized) {
+      return { error: `"${trimmed}" is not a valid origin. Use the form https://example.com or https://example.com:8080 — no path, no trailing slash.` };
+    }
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      origins.push(normalized);
+    }
+  }
+  return { origins };
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, os.tmpdir()),
@@ -183,7 +212,7 @@ function isOwner(game, userId) {
 
 function isAuthorized(game, userId) {
   if (isOwner(game, userId)) return true;
-  return game.collaborators.some((c) => (c._id ?? c).toString() === String(userId));
+  return (game.collaborators ?? []).some((c) => (c._id ?? c).toString() === String(userId));
 }
 
 // ── Public Arcade gallery ────────────────────────────────────────────────────
@@ -279,14 +308,15 @@ router.get('/:gameId', requireAuth, requireApproved, async (req, res, next) => {
   }
 });
 
-// Settings update — owner only
+// Settings update — owner or collaborator
 router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) => {
   try {
-    const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-    if (!game) return res.status(404).json({ error: 'Game not found' });
-    const { name, discordWebhookUrl, visibility, description, longDescription, reviewInfo } = req.body;
+    const game = await Game.findOne({ _id: req.params.gameId });
+    if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
+    const { name, discordWebhookUrl, visibility, description, longDescription, reviewInfo, allowedOrigins } = req.body;
     const previousDescription = game.description;
     const previousLongDescription = game.longDescription;
+    let originsChanged = false;
     if (name !== undefined) {
       if (typeof name !== 'string') {
         return res.status(400).json({ error: 'Game name must be a string.' });
@@ -301,6 +331,12 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       game.name = trimmedName;
     }
     if (discordWebhookUrl !== undefined) game.discordWebhookUrl = discordWebhookUrl;
+    if (allowedOrigins !== undefined) {
+      const result = normalizeAllowedOrigins(allowedOrigins);
+      if (result.error) return res.status(400).json({ error: result.error });
+      game.allowedOrigins = result.origins;
+      originsChanged = true;
+    }
     if (visibility !== undefined && ['private', 'public'].includes(visibility)) {
       game.visibility = visibility;
     }
@@ -333,13 +369,14 @@ router.patch('/:gameId', requireAuth, requireApproved, async (req, res, next) =>
       };
     }
     await game.save();
+    if (originsChanged) invalidateAllowedOriginsCache(String(game._id));
     if (
       (description !== undefined && String(previousDescription ?? '') !== String(game.description ?? ''))
       || (longDescription !== undefined && String(previousLongDescription ?? '') !== String(game.longDescription ?? ''))
     ) {
       enqueue({ refType: 'Game', refId: game._id, source: game.toObject(), priority: 10 }).catch((error) => console.error('[translation enqueue]', error));
     }
-    res.json({ game: { ...game.toObject(), isOwner: true } });
+    res.json({ game: { ...game.toObject(), isOwner: isOwner(game, req.user.sub) } });
   } catch (err) {
     next(err);
   }
@@ -364,25 +401,28 @@ router.delete('/:gameId', requireAuth, requireApproved, async (req, res, next) =
     await fs.rm(path.join(CONTENT_ROOT, String(game._id)), { recursive: true, force: true });
     await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
 
-    await GameArticle.deleteMany({ gameId: game._id });
-    await GameComment.deleteMany({ gameId: game._id });
-    await Build.deleteMany({ gameId: game._id });
-    await Issue.deleteMany({ gameId: game._id });
-    await AddressableContent.deleteMany({ gameId: game._id });
-    await GameConfig.deleteMany({ gameId: game._id });
-    await LeaderboardScore.deleteMany({ gameId: game._id });
-    await Leaderboard.deleteMany({ gameId: game._id });
-    await CloudSave.deleteMany({ gameId: game._id });
+    await Promise.all([
+      GameArticle.deleteMany({ gameId: game._id }),
+      GameComment.deleteMany({ gameId: game._id }),
+      Build.deleteMany({ gameId: game._id }),
+      Issue.deleteMany({ gameId: game._id }),
+      AddressableContent.deleteMany({ gameId: game._id }),
+      GameConfig.deleteMany({ gameId: game._id }),
+      LeaderboardScore.deleteMany({ gameId: game._id }),
+      Leaderboard.deleteMany({ gameId: game._id }),
+      CloudSave.deleteMany({ gameId: game._id }),
+      Translation.deleteOne({ refType: 'Game', refId: game._id, locale: 'en' }),
+      Translation.deleteMany({ refType: 'GameArticle', refId: { $in: articles.map((article) => article._id) }, locale: 'en' }),
+    ]);
     await game.deleteOne();
-    Translation.deleteOne({ refType: 'Game', refId: game._id, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
-    Translation.deleteMany({ refType: 'GameArticle', refId: { $in: articles.map((article) => article._id) }, locale: 'en' }).catch((error) => console.error('[translation cleanup]', error));
+    invalidateAllowedOriginsCache(String(game._id));
     res.json({ ok: true });
   } catch (err) {
     next(err);
   }
 });
 
-// Thumbnail upload — owner only
+// Thumbnail upload — owner or collaborator
 router.post(
   '/:gameId/thumbnail',
   requireAuth,
@@ -390,8 +430,8 @@ router.post(
   thumbUpload.single('file'),
   async (req, res, next) => {
     try {
-      const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      const game = await Game.findOne({ _id: req.params.gameId });
+      if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
       if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
       const ext = THUMBNAIL_MIME_TO_EXT[req.file.mimetype];
@@ -414,8 +454,8 @@ router.post(
 
 router.delete('/:gameId/thumbnail', requireAuth, requireApproved, async (req, res, next) => {
   try {
-    const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const game = await Game.findOne({ _id: req.params.gameId });
+    if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
     await removeGameThumbnailFiles(game._id, game.thumbnailUrl);
     if (game.thumbnailUrl) {
       game.thumbnailUrl = '';
@@ -441,11 +481,11 @@ router.get('/:gameId/collaborators', requireAuth, requireApproved, async (req, r
   }
 });
 
-// Invite by email — owner only
+// Invite by email — owner or collaborator
 router.post('/:gameId/collaborators', requireAuth, requireApproved, async (req, res, next) => {
   try {
-    const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const game = await Game.findOne({ _id: req.params.gameId });
+    if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
 
     const { email } = req.body;
     if (!email) return res.status(400).json({ error: 'email is required' });
@@ -471,15 +511,15 @@ router.post('/:gameId/collaborators', requireAuth, requireApproved, async (req, 
   }
 });
 
-// Remove collaborator — owner only
+// Remove collaborator — owner or collaborator
 router.delete(
   '/:gameId/collaborators/:userId',
   requireAuth,
   requireApproved,
   async (req, res, next) => {
     try {
-      const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      const game = await Game.findOne({ _id: req.params.gameId });
+      if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
       game.collaborators = game.collaborators.filter((c) => c.toString() !== req.params.userId);
       await game.save();
       res.json({ ok: true });
@@ -696,8 +736,8 @@ router.delete(
   requireApproved,
   async (req, res, next) => {
     try {
-      const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-      if (!game) return res.status(404).json({ error: 'Game not found' });
+      const game = await Game.findOne({ _id: req.params.gameId });
+      if (!game || !isAuthorized(game, req.user.sub)) return res.status(404).json({ error: 'Game not found' });
       const build = await Build.findOne({ _id: req.params.buildId, gameId: game._id });
       if (!build) return res.status(404).json({ error: 'Build not found' });
       const dir = path.join(STORAGE_ROOT, String(build._id));

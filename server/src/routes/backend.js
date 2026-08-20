@@ -234,8 +234,8 @@ router.post('/:gameId/backend/v2/dev-token', requireAuth, requireApproved, async
 
 router.post('/:gameId/backend/secret/rotate', requireAuth, requireApproved, async (req, res, next) => {
   try {
-    const game = await Game.findOne({ _id: req.params.gameId, ownerId: req.user.sub });
-    if (!game) return res.status(404).json({ error: 'Game not found' });
+    const game = await loadAuthorizedGame(req, res);
+    if (!game) return;
 
     game.serverBackend.secret = generateSecret();
     game.serverBackend.secretRotatedAt = new Date();

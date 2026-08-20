@@ -373,6 +373,49 @@
   cursor: not-allowed;
 }
 
+.gd-danger-zone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 24px;
+  align-items: center;
+  margin-top: 40px;
+  padding: 20px;
+  border: 1px solid rgba(238, 0, 0, 0.22);
+  border-left: 3px solid var(--color-error-deep);
+  border-radius: var(--radius-md);
+  background: linear-gradient(110deg, var(--color-error-soft), transparent 72%);
+}
+
+.gd-danger-zone .gd-section-title,
+.gd-danger-zone .gd-section-desc {
+  margin-bottom: 0;
+}
+
+.gd-delete-game-btn {
+  min-width: 112px;
+}
+
+.gd-danger-zone-note,
+.gd-danger-zone .gd-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.gd-danger-zone-note {
+  color: var(--color-mute);
+}
+
+@media (max-width: 640px) {
+  .gd-danger-zone {
+    grid-template-columns: 1fr;
+  }
+
+  .gd-delete-game-btn {
+    width: 100%;
+  }
+}
+
 .gd-storage-summary {
   font-size: 12px;
   font-weight: 300;
@@ -988,89 +1031,6 @@
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* ── Server integration: modal ── */
-.si-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.18);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-  padding: var(--space-lg);
-}
-
-.si-modal {
-  width: 100%;
-  max-width: 480px;
-  max-height: 85vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-5);
-  overflow: hidden;
-}
-
-.si-modal-wide { max-width: 760px; }
-
-.si-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--color-hairline);
-  background: var(--color-canvas-soft);
-  flex-shrink: 0;
-}
-
-.si-modal-header h3 {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-ink);
-  margin: 0;
-}
-
-.si-modal-close {
-  background: transparent;
-  border: none;
-  font-size: 20px;
-  color: var(--color-mute);
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-
-.si-modal-close:hover { color: var(--color-ink); }
-
-.si-modal-body {
-  padding: var(--space-lg);
-  overflow-y: auto;
-}
-
-.si-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-xs);
-  margin-top: var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-hairline);
-}
-
-/* Both footer buttons share one size/shape so cancel + save read as a pair. */
-.si-modal-btn {
-  height: 40px;
-  padding: 0 20px;
-  border-radius: var(--radius-md);
-  font-size: 14px;
 }
 
 /* ── Leaderboard entries modal ── */

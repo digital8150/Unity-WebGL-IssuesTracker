@@ -1,0 +1,103 @@
+.si-modal-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: var(--space-lg);
+}
+
+.si-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-5);
+  overflow: hidden;
+}
+
+.si-modal-wide { max-width: 760px; }
+
+.si-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  flex-shrink: 0;
+}
+
+.si-modal-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+.si-modal-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  color: var(--color-mute);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.si-modal-close:hover { color: var(--color-ink); }
+
+.si-modal-body {
+  padding: var(--space-lg);
+  overflow-y: auto;
+}
+
+.si-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-hairline);
+}
+
+.si-modal-btn {
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+}
+
+.si-modal-danger-btn {
+  color: var(--color-danger, #c43d32);
+  border-color: color-mix(in srgb, var(--color-danger, #c43d32) 35%, transparent);
+}
+
+.si-modal-danger-btn:hover {
+  color: #fff;
+  background: var(--color-danger, #c43d32);
+  border-color: var(--color-danger, #c43d32);
+}
+
+.si-confirm-message {
+  margin: 0;
+  color: var(--color-ink-soft);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+
+@media (max-width: 640px) {
+  .si-modal-overlay { padding: var(--space-md); }
+  .si-modal-body { padding: var(--space-lg) var(--space-md); }
+}

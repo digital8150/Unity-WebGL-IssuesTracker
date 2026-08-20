@@ -75,9 +75,72 @@ git diff --check
 - Updated `canvasui/README.md` with the new roster, the four new vendored-component entries, and moved the Droplets/Bubble nesting failure notes into a "Nesting history" subsection (still don't retry that blind).
 - Verification: `cd web && npx vite build` clean; `git diff --check` clean (only benign LF/CRLF warnings). Not yet live-tested in a browser — no browser backend was connected this session, so the 8 effects' actual on-screen appearance (especially Particle Reveal/Magnify/GlyphRain, which are new to this footer) is unverified.
 
+## 2026-08-19 — Addressables content: per-game CORS allowlist for externally-hosted players
+
+- Fixed a gap flagged (but left unaddressed) in `docs/plan-addressables-content-hosting.md`:
+  a WebGL player hosted off-platform (GitHub Pages, itch.io, …) whose Addressables
+  `RemoteLoadPath` points at this server's `/content/<gameId>/<channel>/` made a genuine
+  cross-origin request that the single-origin `cors({ origin: CORS_ORIGIN })` middleware
+  couldn't satisfy — no ACAO header for that origin, and Range/If-None-Match aren't
+  CORS-safelisted so the browser preflighted every request and got blocked.
+- Added `Game.allowedOrigins` (`server/src/models/Game.js`), validated/normalized in the
+  existing `PATCH /api/games/:gameId` settings route (`normalizeAllowedOrigins` in
+  `routes/games.js`: scheme+host[:port] only, no path/trailing slash, max 20, deduped
+  case-insensitively).
+- New `contentCors` middleware in `routes/gameContent.js`, mounted ahead of
+  `createContentFileHandler` for both `GET` and `OPTIONS` on `/content/:gameId/:channel/*`
+  in `index.js`. Reflects the request's `Origin` back as `Access-Control-Allow-Origin` only
+  when it matches `SITE_ORIGIN` (always allowed) or an entry in that game's
+  `allowedOrigins`; sets `Vary: Origin`, exposes `Content-Length/Content-Range/ETag/
+  Accept-Ranges`, and answers preflights with `Access-Control-Allow-Methods/Headers/Max-Age`.
+  Same-origin requests (no `Origin` header) skip the DB lookup entirely.
+- In-process 30s TTL cache (`allowedOriginsCache` Map) keyed by `gameId`, invalidated
+  synchronously by the settings route via `invalidateAllowedOriginsCache` so a save takes
+  effect immediately rather than waiting out the TTL — same in-process-only caveat as the
+  storage-quota lock already documented for a multi-instance deployment.
+- Dashboard: new "Allowed external origins" panel in `GameContentTab.jsx` (right after the
+  RemoteLoadPath URL card), reusing `updateGame`/the collaborator-list CSS classes — add/remove
+  origins with immediate persistence, matching `CollaboratorSection`'s UX. Full ko/en i18n.
+- New `server/test/addressable-content-cors.test.js` (8 cases: same-origin bypass, SITE_ORIGIN
+  always-allow, allowed/disallowed origin ACAO presence, preflight shape, cache invalidation,
+  invalid-gameId passthrough) plus an `allowedOrigins` validation case added to
+  `game-settings.test.js`. Scope was deliberately just `/content/`, not `/builds/` — the
+  latter's own player is expected to load from wherever it's hosted, not from a foreign origin.
+- Docs: `docs/addressables-content-operations.md` gained a "Cross-origin (CORS) content
+  access" runbook section; `docs/plan-addressables-content-hosting.md`'s CORS gap note marked
+  done with a pointer to the implementation.
+- Verification: `cd server && npm test` (198/198 pass, was 189), `cd web && npm run build`
+  clean, `node --check` on every changed server file.
+
 ## 2026-08-16 — Canvas UI fallback hardening and account/play UI cleanup
 
 - Added WebGL program-link failure cleanup so Canvas UI effects fall back to plain DOM instead of rendering against invalid programs; made array-valued options compare element-wise.
 - Scoped Liquid pointer listeners to the captured content element and documented the vendored-source patches.
 - Added member-profile logout/dashboard actions, removed the dashboard Arcade link, and simplified play review metadata presentation.
 - Verification: `cd web && npm run build`, `git diff --check` passed; browser visual inspection remains unavailable.
+
+## 2026-08-20 — Addressables CORS review follow-up
+
+- Canonicalized saved and request origins with URL parsing, including lowercase hosts and removal of HTTP/HTTPS default ports while rejecting paths, queries, fragments, and credentials.
+- Made Addressables content mutation controls owner-only in the dashboard; collaborators retain read-only URLs, allowlist, stats, and file inspection.
+- Verification: `cd server && npm test` (198/198), `cd web && npm run build`, server syntax checks, and `git diff --check` passed.
+
+## 2026-08-20 — Collaborator management parity and owner-only game deletion
+
+- User decision supersedes the prior owner-only content-controls review change: collaborators can manage settings, thumbnails, builds/content, LiveOps, articles, and collaborators at owner-equivalent scope.
+- Added an owner-only game deletion danger zone in Settings; the existing API now awaits cleanup of builds/content/thumbnails and every game-scoped model/translation before deleting the Game record.
+- Added owner-vs-collaborator deletion and cascade coverage; verification: `cd server && npm test` (198/198), `cd web && npm run build`, syntax checks, and `git diff --check` passed.
+
+## 2026-08-20 — Browser-native dialog removal
+
+- Replaced every application `alert`/`confirm` call with the existing custom Growl/Modal system; added a reusable localized `ConfirmDialog` wrapper for destructive and non-destructive confirmations.
+- Moved shared Modal styling into the component, added dialog semantics, and routed Unity loader alert fallbacks exclusively into Growl notifications.
+- Removed the native `beforeunload` prompt; unsaved in-app navigation remains protected by the existing custom settings-leave Modal.
+- Verification: exhaustive source audit found no native dialog calls or unload prompts, `cd web && npm run build`, `cd server && npm test` (198/198), and `git diff --check` passed.
+
+## 2026-08-20 — Unity fatal-error and teardown containment
+
+- Root cause confirmed against the deployed My Universe loader: its fatal-error path calls bare `alert(...)`, while the prior UnityGame-scoped interceptor could be restored before a late loader error fired. Native alerts are now intercepted for the full app lifetime and rendered through Growl.
+- Replaced the unhandled `unload()` call on React unmount with the react-unity-webgl 9.x immediate detach/unload path, guarded by the live Unity instance and awaited before SPA navigation.
+- Track Unity-created Web Audio contexts so fatal or partial initialization failures suspend/close audio immediately; failed, timed-out, or never-instantiated runtimes use a document navigation when leaving as the final cleanup boundary.
+- Added an inline stopped-runtime/reload state and localized session-closing state. Verification: Unity lifecycle helper checks, `cd web && npm run build`, `cd server && npm test` (198/198), native-dialog source audit, and `git diff --check` passed. Browser automation was unavailable; PR-preview retest remains required after deployment.

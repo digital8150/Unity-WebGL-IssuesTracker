@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from
 import { useI18n } from '../i18n.jsx';
 import { CodeBlock } from './GameDetailPage.jsx';
 import Modal from '../components/Modal.jsx';
+import { useConfirmDialog } from '../components/ConfirmDialog.jsx';
 
 // Heavy editor libs (guifier + vanilla-jsoneditor) live in this lazily-loaded
 // chunk so they only download when the config editor is actually opened.
@@ -90,6 +91,7 @@ function resolveLiveOpsEnabled(serverBackend) {
 export default function ServerIntegrationTab({ gameId }) {
   const { lang, t } = useI18n();
   const td = t.gameDetail;
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   const [backend, setBackend] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -172,7 +174,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleRotateSecret() {
-    if (!window.confirm(td.siSecretRotateConfirm)) return;
+    if (!(await confirm({ message: td.siSecretRotateConfirm, danger: true }))) return;
     setError('');
     try {
       await rotateGameSecret(gameId);
@@ -212,7 +214,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleDeleteLeaderboard(lbId) {
-    if (!window.confirm(td.siDeleteLeaderboardConfirm)) return;
+    if (!(await confirm({ message: td.siDeleteLeaderboardConfirm, danger: true }))) return;
     setError('');
     try {
       await deleteLeaderboard(gameId, lbId);
@@ -252,7 +254,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleDeleteLegacyEntries(lbId) {
-    if (!window.confirm(td.siV2DeleteLegacyConfirm)) return;
+    if (!(await confirm({ message: td.siV2DeleteLegacyConfirm, danger: true }))) return;
     setError('');
     try {
       await deleteLegacyLeaderboardEntries(gameId, lbId);
@@ -274,7 +276,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleDeleteDevScores(lbId) {
-    if (!window.confirm(td.siV2DeleteTestConfirm)) return;
+    if (!(await confirm({ message: td.siV2DeleteTestConfirm, danger: true }))) return;
     setError('');
     try {
       await deleteDevLeaderboardScores(gameId, lbId);
@@ -337,7 +339,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleIssueDevToken() {
-    if (devToken && !window.confirm(td.siV2DevTokenReissueConfirm)) return;
+    if (devToken && !(await confirm({ message: td.siV2DevTokenReissueConfirm }))) return;
     setDevTokenBusy(true);
     setSdkError('');
     try {
@@ -371,7 +373,7 @@ export default function ServerIntegrationTab({ gameId }) {
   }
 
   async function handleDeleteDevSaves() {
-    if (!window.confirm(td.siV2DeleteTestConfirm)) return;
+    if (!(await confirm({ message: td.siV2DeleteTestConfirm, danger: true }))) return;
     setError('');
     try {
       await deleteDevCloudSaves(gameId);
@@ -787,6 +789,7 @@ export default function ServerIntegrationTab({ gameId }) {
           <ConfigEditModal cfg={configModalCfg} td={td} onClose={() => setConfigModalCfg(null)} onSave={handleUpdateConfig} />
         </Suspense>
       )}
+      {confirmationDialog}
     </div>
   );
 }

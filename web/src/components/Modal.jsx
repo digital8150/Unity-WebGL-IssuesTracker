@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import './Modal.css';
 
-export default function Modal({ title, onClose, children, wide = false }) {
+export default function Modal({ title, onClose, children, wide = false, closeLabel = 'Close dialog' }) {
   useEffect(() => {
     function onKey(e) { if (e.key === 'Escape') onClose(); }
     document.addEventListener('keydown', onKey);
@@ -18,10 +19,16 @@ export default function Modal({ title, onClose, children, wide = false }) {
   // backdrop-filter sample an inconsistent backdrop).
   return createPortal(
     <div className="si-modal-overlay" onClick={onClose}>
-      <div className={`si-modal${wide ? ' si-modal-wide' : ''}`} onClick={(e) => e.stopPropagation()}>
+      <div
+        className={`si-modal${wide ? ' si-modal-wide' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="si-modal-header">
           <h3>{title}</h3>
-          <button type="button" className="si-modal-close" onClick={onClose}>×</button>
+          <button type="button" className="si-modal-close" aria-label={closeLabel} onClick={onClose}>×</button>
         </div>
         <div className="si-modal-body">{children}</div>
       </div>

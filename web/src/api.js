@@ -146,6 +146,10 @@ export async function updateGame(gameId, fields) {
   return request(`/api/games/${gameId}`, { method: 'PATCH', body: JSON.stringify(fields) });
 }
 
+export async function deleteGame(gameId) {
+  return request(`/api/games/${gameId}`, { method: 'DELETE' });
+}
+
 // ── Game articles (public play page + dashboard CMS) ─────────────────────────
 
 export async function listGameArticles(gameId) {

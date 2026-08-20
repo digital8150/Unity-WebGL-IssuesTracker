@@ -1,9 +1,10 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import GrowlViewport from '../components/Growl.jsx';
 
 const GrowlContext = createContext(null);
 const MAX_GROWLS = 3;
 const DEFAULT_DURATION = 7000;
+export const NATIVE_ALERT_EVENT = 'arcade:native-alert';
 
 export function GrowlProvider({ children }) {
   const [items, setItems] = useState([]);
@@ -44,6 +45,21 @@ export function GrowlProvider({ children }) {
     }
     return id;
   }, [dismiss]);
+
+  // Keep browser-native alert UI out of the application, including late
+  // errors emitted by third-party runtimes after their React view unmounts.
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const nativeAlert = window.alert;
+    const showCustomAlert = (message) => {
+      notify(message, { type: 'error', duration: 8000 });
+      window.dispatchEvent(new CustomEvent(NATIVE_ALERT_EVENT, { detail: message }));
+    };
+    window.alert = showCustomAlert;
+    return () => {
+      if (window.alert === showCustomAlert) window.alert = nativeAlert;
+    };
+  }, [notify]);
 
   useEffect(() => () => {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
