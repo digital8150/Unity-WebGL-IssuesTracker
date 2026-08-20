@@ -12,10 +12,12 @@ import gamesRouter from '../src/routes/games.js';
 process.env.JWT_SECRET ||= 'game-settings-test-secret';
 
 const ownerId = 'owner-game-settings-test';
+const collaboratorId = 'collaborator-game-settings-test';
 const otherUserId = 'other-game-settings-test';
 const game = {
   _id: 'game-settings-test',
   ownerId,
+  collaborators: [collaboratorId],
   name: 'Settings game',
   slug: 'settings-game',
   visibility: 'private',
@@ -55,7 +57,7 @@ async function patchGame(server, body, userId = ownerId) {
   });
 }
 
-test('game settings persist longDescription, reject overflow, enqueue changes, and scope ownership', async () => {
+test('game settings allow collaborators, reject strangers, and preserve validation and translation enqueueing', async () => {
   const originals = {
     userFindById: User.findById,
     gameFindOne: Game.findOne,
@@ -64,16 +66,21 @@ test('game settings persist longDescription, reject overflow, enqueue changes, a
   };
   let enqueueCount = 0;
   User.findById = () => ({ select: async () => approvedUser() });
-  Game.findOne = async ({ ownerId: requestedOwnerId } = {}) => (
-    requestedOwnerId === ownerId ? game : null
+  Game.findOne = async ({ _id: requestedGameId } = {}) => (
+    requestedGameId === game._id ? game : null
   );
   Translation.findOne = () => ({ lean: async () => null });
   Translation.findOneAndUpdate = () => ({ lean: async () => { enqueueCount += 1; return {}; } });
   const server = await startServer();
 
   try {
-    const saveResponse = await patchGame(server, { longDescription: '# Full game guide\n\n![Screenshot](/blog-images/game.webp)' });
+    const saveResponse = await patchGame(
+      server,
+      { longDescription: '# Full game guide\n\n![Screenshot](/blog-images/game.webp)' },
+      collaboratorId,
+    );
     assert.equal(saveResponse.status, 200);
+    assert.equal((await saveResponse.json()).game.isOwner, false);
     assert.equal(game.longDescription, '# Full game guide\n\n![Screenshot](/blog-images/game.webp)');
 
     const overflowResponse = await patchGame(server, { longDescription: 'x'.repeat(20001) });
@@ -101,8 +108,8 @@ test('game settings persist longDescription, reject overflow, enqueue changes, a
 test('allowedOrigins is validated, normalized, and rejects malformed or excessive entries', async () => {
   const originals = { userFindById: User.findById, gameFindOne: Game.findOne };
   User.findById = () => ({ select: async () => approvedUser() });
-  Game.findOne = async ({ ownerId: requestedOwnerId } = {}) => (
-    requestedOwnerId === ownerId ? game : null
+  Game.findOne = async ({ _id: requestedGameId } = {}) => (
+    requestedGameId === game._id ? game : null
   );
   const server = await startServer();
 
@@ -115,7 +122,7 @@ test('allowedOrigins is validated, normalized, and rejects malformed or excessiv
         'http://preview.example:80',
         'https://other.example:8080',
       ],
-    });
+    }, collaboratorId);
     assert.equal(okResponse.status, 200);
     assert.deepEqual(game.allowedOrigins, [
       'https://mydev.github.io',

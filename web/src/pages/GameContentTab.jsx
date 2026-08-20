@@ -91,7 +91,7 @@ function urlForChannel(channelsData, channel) {
   return channelsData.defaultChannelUrl.replace(new RegExp(`/${escapedDefault}/$`), `/${channel}/`);
 }
 
-export default function GameContentTab({ gameId, game, setGame, isOwner }) {
+export default function GameContentTab({ gameId, game, setGame }) {
   const { t, lang } = useI18n();
   const td = t.gameDetail;
 
@@ -169,7 +169,6 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
 
   async function handleAddOrigin(event) {
     event.preventDefault();
-    if (!isOwner) return;
     const normalized = normalizeHttpOrigin(originInput);
     if (!originInput.trim()) return;
     if (!normalized) {
@@ -196,7 +195,6 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
   }
 
   async function handleRemoveOrigin(origin) {
-    if (!isOwner) return;
     setRemovingOrigin(origin);
     setOriginsError('');
     try {
@@ -264,7 +262,6 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
 
   async function handleUpload(event) {
     event.preventDefault();
-    if (!isOwner) return;
     if (!channelValid || !zipFile || uploading) return;
     if (mode === 'replace' && !window.confirm(td.gcModeReplaceConfirm)) return;
 
@@ -315,7 +312,6 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
   }
 
   async function handleDeleteChannel() {
-    if (!isOwner) return;
     if (!window.confirm(td.gcDeleteChannelConfirm)) return;
     setDeleting(true);
     try {
@@ -406,45 +402,40 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
                 <span style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 13, wordBreak: 'break-all' }}>
                   {origin}
                 </span>
-                {isOwner && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost gd-collab-remove"
-                    disabled={removingOrigin === origin}
-                    onClick={() => handleRemoveOrigin(origin)}
-                  >
-                    {removingOrigin === origin ? td.gcOriginsRemoving : td.gcOriginsRemove}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-ghost gd-collab-remove"
+                  disabled={removingOrigin === origin}
+                  onClick={() => handleRemoveOrigin(origin)}
+                >
+                  {removingOrigin === origin ? td.gcOriginsRemoving : td.gcOriginsRemove}
+                </button>
               </div>
             ))}
           </div>
         )}
 
-        {isOwner && (
-          <form className="gd-collab-invite-form" onSubmit={handleAddOrigin}>
-            <input
-              type="url"
-              className="form-input"
-              placeholder="https://username.github.io"
-              value={originInput}
-              onChange={(e) => setOriginInput(e.target.value)}
-              disabled={savingOrigin}
-              style={{ maxWidth: 320 }}
-            />
-            <button type="submit" className="btn btn-primary btn-sm" disabled={savingOrigin || !originInput.trim()}>
-              {savingOrigin ? td.gcOriginsAdding : td.gcOriginsAdd}
-            </button>
-            {originsError && <span className="gd-error gd-collab-err">{originsError}</span>}
-          </form>
-        )}
+        <form className="gd-collab-invite-form" onSubmit={handleAddOrigin}>
+          <input
+            type="url"
+            className="form-input"
+            placeholder="https://username.github.io"
+            value={originInput}
+            onChange={(e) => setOriginInput(e.target.value)}
+            disabled={savingOrigin}
+            style={{ maxWidth: 320 }}
+          />
+          <button type="submit" className="btn btn-primary btn-sm" disabled={savingOrigin || !originInput.trim()}>
+            {savingOrigin ? td.gcOriginsAdding : td.gcOriginsAdd}
+          </button>
+          {originsError && <span className="gd-error gd-collab-err">{originsError}</span>}
+        </form>
       </div>
 
       {/* ── Upload ── */}
-      {isOwner && (
-        <div className="gd-subsection si-data-subsection" style={{ marginTop: 20 }}>
-          <h3 className="gd-section-title">{td.gcUploadTitle}</h3>
-          <form onSubmit={handleUpload}>
+      <div className="gd-subsection si-data-subsection" style={{ marginTop: 20 }}>
+        <h3 className="gd-section-title">{td.gcUploadTitle}</h3>
+        <form onSubmit={handleUpload}>
           <div className="gd-upload-row">
             <label className="btn btn-ghost gd-file-label">
               {td.gcChooseZip}
@@ -523,26 +514,25 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
               {uploadError && <div className="gd-error">{uploadError}</div>}
             </div>
           )}
-          </form>
+        </form>
 
-          {unhashedCount > 0 && (
-            <div className="gi-step-warn">
-              <strong>{td.gcUnhashedTitle}</strong> — {td.gcUnhashedWarning(unhashedCount)}
-            </div>
-          )}
+        {unhashedCount > 0 && (
+          <div className="gi-step-warn">
+            <strong>{td.gcUnhashedTitle}</strong> — {td.gcUnhashedWarning(unhashedCount)}
+          </div>
+        )}
 
-          {layoutWarnings.length > 0 && (
-            <div className="gi-step-warn" role="status">
-              <strong>{td.gcLayoutWarningTitle}</strong>
-              <ul>
-                {layoutWarnings.map((warning, index) => (
-                  <li key={`${warning.code}-${index}`}>{layoutWarningText(td, warning)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      )}
+        {layoutWarnings.length > 0 && (
+          <div className="gi-step-warn" role="status">
+            <strong>{td.gcLayoutWarningTitle}</strong>
+            <ul>
+              {layoutWarnings.map((warning, index) => (
+                <li key={`${warning.code}-${index}`}>{layoutWarningText(td, warning)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
 
       {/* ── Stats ── */}
       <div className="gd-subsection si-data-subsection" style={{ marginTop: 20 }}>
@@ -558,17 +548,15 @@ export default function GameContentTab({ gameId, game, setGame, isOwner }) {
               <span className="gd-file-chip">{td.gcStatsSize}: {formatBytes(currentStats.storageBytes)}</span>
               <span className="gd-build-date">{td.gcStatsLastUpload}: {formatDate(currentStats.lastUploadAt, lang)}</span>
             </div>
-            {isOwner && (
-              <button
-                type="button"
-                className="btn btn-ghost gd-delete-btn"
-                onClick={handleDeleteChannel}
-                disabled={deleting}
-                style={{ marginTop: 12 }}
-              >
-                {deleting ? td.gcDeleting : td.gcDeleteChannel}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn btn-ghost gd-delete-btn"
+              onClick={handleDeleteChannel}
+              disabled={deleting}
+              style={{ marginTop: 12 }}
+            >
+              {deleting ? td.gcDeleting : td.gcDeleteChannel}
+            </button>
           </>
         ) : (
           <p className="gd-empty-text">{td.gcStatsEmpty}</p>

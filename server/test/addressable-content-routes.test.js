@@ -401,19 +401,33 @@ test('a concurrent upload to the same channel returns 409 for the loser', async 
 
 // ── Game deletion removes its Addressables content directory ──────────────
 
-test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
+test('game deletion is owner-only and removes all game-scoped files and records', async () => {
   const deletionGameId = '64b7f1c2d4e5f6a7b8c9d0f0';
   const deletionOwnerId = 'owner-deletion-test';
+  const deletionCollaboratorId = 'collaborator-deletion-test';
+  const deletionBuildId = '64b7f1c2d4e5f6a7b8c9d0f1';
+  const deletionArticleId = '64b7f1c2d4e5f6a7b8c9d0f2';
+  const thumbnailName = `${deletionGameId}-cover.png`;
+  let gameDeleted = false;
   const gameDoc = {
     _id: deletionGameId,
     ownerId: deletionOwnerId,
-    thumbnailUrl: '',
-    async deleteOne() { return { deletedCount: 1 }; },
+    collaborators: [deletionCollaboratorId],
+    thumbnailUrl: `/thumbnails/${thumbnailName}`,
+    async deleteOne() { gameDeleted = true; return { deletedCount: 1 }; },
   };
   const contentDir = path.join(CONTENT_ROOT, deletionGameId);
+  const buildDir = path.resolve('storage', 'builds', deletionBuildId);
+  const thumbnailPath = path.resolve('storage', 'thumbnails', thumbnailName);
   await fs.rm(contentDir, { recursive: true, force: true });
+  await fs.rm(buildDir, { recursive: true, force: true });
+  await fs.rm(thumbnailPath, { force: true });
   await fs.mkdir(path.join(contentDir, 'live'), { recursive: true });
+  await fs.mkdir(buildDir, { recursive: true });
+  await fs.mkdir(path.dirname(thumbnailPath), { recursive: true });
   await fs.writeFile(path.join(contentDir, 'live', 'bundle.bundle'), 'payload');
+  await fs.writeFile(path.join(buildDir, 'game.wasm'), 'payload');
+  await fs.writeFile(thumbnailPath, 'thumbnail');
 
   const app = express();
   app.use('/api/games', gamesRouter);
@@ -438,28 +452,55 @@ test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
     translationDeleteMany: Translation.deleteMany,
   };
   User.findById = () => ({ select: async () => ({ status: 'approved', role: 'user' }) });
-  Game.findOne = async () => gameDoc;
-  GameArticle.find = () => ({ select: () => ({ lean: async () => [] }) });
-  Build.find = () => ({ select: () => ({ lean: async () => [] }) });
-  GameArticle.deleteMany = async () => ({ deletedCount: 0 });
-  GameComment.deleteMany = async () => ({ deletedCount: 0 });
-  Build.deleteMany = async () => ({ deletedCount: 0 });
-  Issue.deleteMany = async () => ({ deletedCount: 0 });
-  AddressableContent.deleteMany = async () => ({ deletedCount: 1 });
-  GameConfig.deleteMany = async () => ({ deletedCount: 0 });
-  LeaderboardScore.deleteMany = async () => ({ deletedCount: 0 });
-  Leaderboard.deleteMany = async () => ({ deletedCount: 0 });
-  CloudSave.deleteMany = async () => ({ deletedCount: 0 });
-  Translation.deleteOne = async () => ({ deletedCount: 0 });
-  Translation.deleteMany = async () => ({ deletedCount: 0 });
+  Game.findOne = async ({ ownerId } = {}) => (ownerId === deletionOwnerId ? gameDoc : null);
+  GameArticle.find = () => ({ select: () => ({ lean: async () => [{ _id: deletionArticleId }] }) });
+  Build.find = () => ({ select: () => ({ lean: async () => [{ _id: deletionBuildId }] }) });
+  const deletedRecords = new Set();
+  GameArticle.deleteMany = async () => { deletedRecords.add('articles'); return { deletedCount: 1 }; };
+  GameComment.deleteMany = async () => { deletedRecords.add('comments'); return { deletedCount: 1 }; };
+  Build.deleteMany = async () => { deletedRecords.add('builds'); return { deletedCount: 1 }; };
+  Issue.deleteMany = async () => { deletedRecords.add('issues'); return { deletedCount: 1 }; };
+  AddressableContent.deleteMany = async () => { deletedRecords.add('content'); return { deletedCount: 1 }; };
+  GameConfig.deleteMany = async () => { deletedRecords.add('configs'); return { deletedCount: 1 }; };
+  LeaderboardScore.deleteMany = async () => { deletedRecords.add('scores'); return { deletedCount: 1 }; };
+  Leaderboard.deleteMany = async () => { deletedRecords.add('leaderboards'); return { deletedCount: 1 }; };
+  CloudSave.deleteMany = async () => { deletedRecords.add('saves'); return { deletedCount: 1 }; };
+  Translation.deleteOne = async () => { deletedRecords.add('gameTranslation'); return { deletedCount: 1 }; };
+  Translation.deleteMany = async () => { deletedRecords.add('articleTranslations'); return { deletedCount: 1 }; };
 
   try {
+    const collaboratorResponse = await fetch(`${baseUrl(server)}/api/games/${deletionGameId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${authToken(deletionCollaboratorId)}` },
+    });
+    assert.equal(collaboratorResponse.status, 404);
+    assert.equal(gameDeleted, false);
+    await assert.doesNotReject(fs.access(contentDir));
+    await assert.doesNotReject(fs.access(buildDir));
+    await assert.doesNotReject(fs.access(thumbnailPath));
+
     const response = await fetch(`${baseUrl(server)}/api/games/${deletionGameId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${authToken(deletionOwnerId)}` },
     });
     assert.equal(response.status, 200);
     await assert.rejects(fs.access(contentDir));
+    await assert.rejects(fs.access(buildDir));
+    await assert.rejects(fs.access(thumbnailPath));
+    assert.equal(gameDeleted, true);
+    assert.deepEqual([...deletedRecords].sort(), [
+      'articleTranslations',
+      'articles',
+      'builds',
+      'comments',
+      'configs',
+      'content',
+      'gameTranslation',
+      'issues',
+      'leaderboards',
+      'saves',
+      'scores',
+    ]);
   } finally {
     await close(server);
     User.findById = originals.userFindById;
@@ -478,6 +519,8 @@ test('DELETE /api/games/:gameId removes storage/content/<gameId>', async () => {
     Translation.deleteOne = originals.translationDeleteOne;
     Translation.deleteMany = originals.translationDeleteMany;
     await fs.rm(contentDir, { recursive: true, force: true });
+    await fs.rm(buildDir, { recursive: true, force: true });
+    await fs.rm(thumbnailPath, { force: true });
   }
 });
 

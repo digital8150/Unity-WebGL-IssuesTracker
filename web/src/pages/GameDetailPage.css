@@ -373,6 +373,49 @@
   cursor: not-allowed;
 }
 
+.gd-danger-zone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 24px;
+  align-items: center;
+  margin-top: 40px;
+  padding: 20px;
+  border: 1px solid rgba(238, 0, 0, 0.22);
+  border-left: 3px solid var(--color-error-deep);
+  border-radius: var(--radius-md);
+  background: linear-gradient(110deg, var(--color-error-soft), transparent 72%);
+}
+
+.gd-danger-zone .gd-section-title,
+.gd-danger-zone .gd-section-desc {
+  margin-bottom: 0;
+}
+
+.gd-delete-game-btn {
+  min-width: 112px;
+}
+
+.gd-danger-zone-note,
+.gd-danger-zone .gd-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.gd-danger-zone-note {
+  color: var(--color-mute);
+}
+
+@media (max-width: 640px) {
+  .gd-danger-zone {
+    grid-template-columns: 1fr;
+  }
+
+  .gd-delete-game-btn {
+    width: 100%;
+  }
+}
+
 .gd-storage-summary {
   font-size: 12px;
   font-weight: 300;

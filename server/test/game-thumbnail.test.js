@@ -15,6 +15,7 @@ process.env.JWT_SECRET ||= 'game-thumbnail-test-secret';
 const game = {
   _id: 'game-thumbnail-test',
   ownerId: 'owner-thumbnail-test',
+  collaborators: ['collaborator-thumbnail-test'],
   thumbnailUrl: '/thumbnails/game-thumbnail-test.png',
   async save() { return this; },
 };
@@ -32,12 +33,12 @@ async function startServer() {
   return server;
 }
 
-async function uploadThumbnail(server, contents, type = 'image/png', filename = 'thumbnail.png') {
+async function uploadThumbnail(server, contents, type = 'image/png', filename = 'thumbnail.png', userId = game.ownerId) {
   const form = new FormData();
   form.append('file', new Blob([contents], { type }), filename);
   return fetch(`http://127.0.0.1:${server.address().port}/api/games/${game._id}/thumbnail`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${authToken(game.ownerId)}` },
+    headers: { Authorization: `Bearer ${authToken(userId)}` },
     body: form,
   });
 }
@@ -60,7 +61,13 @@ test('thumbnail replacement versions files, removes orphans, and preserves MIME 
     await fs.writeFile(path.join(thumbnailRoot, 'game-thumbnail-test.png'), 'legacy thumbnail');
     await fs.writeFile(path.join(thumbnailRoot, 'game-thumbnail-test-orphan.webp'), 'orphan thumbnail');
 
-    const firstResponse = await uploadThumbnail(server, Buffer.from('first image'));
+    const firstResponse = await uploadThumbnail(
+      server,
+      Buffer.from('first image'),
+      'image/png',
+      'thumbnail.png',
+      game.collaborators[0],
+    );
     assert.equal(firstResponse.status, 200);
     const firstBody = await firstResponse.json();
     const firstUrl = firstBody.thumbnailUrl;
@@ -87,7 +94,7 @@ test('thumbnail replacement versions files, removes orphans, and preserves MIME 
       `http://127.0.0.1:${server.address().port}/api/games/${game._id}/thumbnail`,
       {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${authToken(game.ownerId)}` },
+        headers: { Authorization: `Bearer ${authToken(game.collaborators[0])}` },
       },
     );
     assert.equal(deleteResponse.status, 200);

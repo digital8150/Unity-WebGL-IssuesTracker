@@ -124,3 +124,9 @@ git diff --check
 - Canonicalized saved and request origins with URL parsing, including lowercase hosts and removal of HTTP/HTTPS default ports while rejecting paths, queries, fragments, and credentials.
 - Made Addressables content mutation controls owner-only in the dashboard; collaborators retain read-only URLs, allowlist, stats, and file inspection.
 - Verification: `cd server && npm test` (198/198), `cd web && npm run build`, server syntax checks, and `git diff --check` passed.
+
+## 2026-08-20 — Collaborator management parity and owner-only game deletion
+
+- User decision supersedes the prior owner-only content-controls review change: collaborators can manage settings, thumbnails, builds/content, LiveOps, articles, and collaborators at owner-equivalent scope.
+- Added an owner-only game deletion danger zone in Settings; the existing API now awaits cleanup of builds/content/thumbnails and every game-scoped model/translation before deleting the Game record.
+- Added owner-vs-collaborator deletion and cascade coverage; verification: `cd server && npm test` (198/198), `cd web && npm run build`, syntax checks, and `git diff --check` passed.

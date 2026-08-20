@@ -138,7 +138,9 @@ test('game deletion cleans Game and all cascaded GameArticle translation rows', 
   const handler = source.slice(start, end);
 
   assert.match(handler, /GameArticle\.find\(\{ gameId: game\._id \}\)\.select\('_id'\)\.lean\(\)/);
-  assert.match(handler, /await GameArticle\.deleteMany\(\{ gameId: game\._id \}\)/);
-  assert.match(handler, /Translation\.deleteOne\(\{ refType: 'Game', refId: game\._id, locale: 'en' \}\)\.catch\(\(error\) => console\.error\('\[translation cleanup\]', error\)\)/);
-  assert.match(handler, /Translation\.deleteMany\(\{ refType: 'GameArticle', refId: \{ \$in: articles\.map\(\(article\) => article\._id\) \}, locale: 'en' \}\)\.catch\(\(error\) => console\.error\('\[translation cleanup\]', error\)\)/);
+  assert.match(handler, /GameArticle\.deleteMany\(\{ gameId: game\._id \}\)/);
+  assert.match(handler, /await Promise\.all\(\[/);
+  assert.match(handler, /Translation\.deleteOne\(\{ refType: 'Game', refId: game\._id, locale: 'en' \}\)/);
+  assert.match(handler, /Translation\.deleteMany\(\{ refType: 'GameArticle', refId: \{ \$in: articles\.map\(\(article\) => article\._id\) \}, locale: 'en' \}\)/);
+  assert.ok(handler.indexOf('await Promise.all([') < handler.indexOf('await game.deleteOne()'));
 });

@@ -44,7 +44,7 @@ function serializeGameArticle(article) {
 
 function canManageArticle(game, article, user) {
   return user.role === 'admin'
-    || isOwner(game, user.sub)
+    || isAuthorized(game, user.sub)
     || String(article.author) === String(user.sub);
 }
 
