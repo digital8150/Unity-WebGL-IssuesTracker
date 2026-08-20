@@ -2,12 +2,14 @@ import React, { forwardRef, useState, useEffect, useRef, useMemo, useCallback, u
 import { useParams, useLocation, useBlocker } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useGrowl } from '../context/GrowlContext.jsx';
 import { getGame, uploadBuild, replaceStreamingAssets, activateBuild, deleteBuild, deleteGame, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 import GameContentTab from './GameContentTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
 import AdminBlogEditorPage from './AdminBlogEditorPage.jsx';
 import Modal from '../components/Modal.jsx';
+import { useConfirmDialog } from '../components/ConfirmDialog.jsx';
 import TranslationEditorPanel, { useTranslationEditor } from '../components/TranslationEditorPanel.jsx';
 import MarkdownField from '../components/MarkdownField.jsx';
 
@@ -980,6 +982,7 @@ const ReviewInfoSection = forwardRef(function ReviewInfoSection({ gameId, game, 
 function CollaboratorSection({ gameId, game, setGame, t }) {
   const tc = t.collab;
   const collaborators = game?.collaborators ?? [];
+  const { notify } = useGrowl();
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -1016,7 +1019,7 @@ function CollaboratorSection({ gameId, game, setGame, t }) {
         ),
       }));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setRemovingId(null);
     }
@@ -1086,6 +1089,7 @@ function ReportsTab({
   reportSort, setReportSort,
 }) {
   const tt = t.triage;
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   const filtered = reports
     .filter((r) => {
@@ -1116,7 +1120,7 @@ function ReportsTab({
   }
 
   async function handleDeleteReport(issueId) {
-    if (!window.confirm(t.gameDetail.deleteReportConfirm)) return;
+    if (!(await confirm({ message: t.gameDetail.deleteReportConfirm, danger: true }))) return;
     setDeletingReportId(issueId);
     try {
       await deleteIssue(issueId);
@@ -1223,6 +1227,7 @@ function ReportsTab({
           ))}
         </div>
       )}
+      {confirmationDialog}
     </>
   );
 }
@@ -1300,6 +1305,8 @@ export default function GameDetailPage() {
   const location = useLocation();
   const { lang, t } = useI18n();
   const { user } = useAuth();
+  const { notify } = useGrowl();
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   const [game, setGame] = useState(null);
   const [builds, setBuilds] = useState([]);
@@ -1365,16 +1372,6 @@ export default function GameDetailPage() {
     if (settingsBlocker.state !== 'blocked') return;
     setPendingSettingsNavigation(() => () => settingsBlocker.proceed());
   }, [settingsBlocker.state, settingsBlocker.location]);
-
-  useEffect(() => {
-    if (!settingsDirty) return undefined;
-    const handleBeforeUnload = (event) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [settingsDirty]);
 
   useEffect(() => {
     Promise.all([getGame(gameId), getGameReports(gameId)])
@@ -1524,18 +1521,18 @@ export default function GameDetailPage() {
       await activateBuild(gameId, buildId);
       setBuilds((prev) => prev.map((b) => ({ ...b, isActive: b._id === buildId })));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     }
   }
 
   async function handleDeleteBuild(buildId) {
-    if (!window.confirm(td.deleteConfirm)) return;
+    if (!(await confirm({ message: td.deleteConfirm, danger: true }))) return;
     setDeletingBuildId(buildId);
     try {
       await deleteBuild(gameId, buildId);
       setBuilds((prev) => prev.filter((b) => b._id !== buildId));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setDeletingBuildId(null);
     }
@@ -1543,7 +1540,7 @@ export default function GameDetailPage() {
 
   async function handleDeleteGame() {
     if (!isOwner || deletingGame) return;
-    if (!window.confirm(td.deleteGameConfirm(game?.name || ''))) return;
+    if (!(await confirm({ message: td.deleteGameConfirm(game?.name || ''), danger: true }))) return;
     setDeletingGame(true);
     setDeleteGameError('');
     try {
@@ -1564,7 +1561,7 @@ export default function GameDetailPage() {
       setEditingWebhook(false);
       return true;
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
       return false;
     } finally {
       setSavingWebhook(false);
@@ -2157,6 +2154,7 @@ export default function GameDetailPage() {
         </div>
       </Modal>
     )}
+    {confirmationDialog}
     </>
   );
 }

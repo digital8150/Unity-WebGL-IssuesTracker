@@ -3,13 +3,6 @@ import { Unity, useUnityContext } from 'react-unity-webgl';
 import { useGrowl } from '../context/GrowlContext.jsx';
 import { useUnityKeyboardCapture } from '../unityKeyboardDiagnostics.js';
 
-function isUnityRuntimeMessage(message) {
-  const normalized = message.toLowerCase();
-  return normalized.includes('an error occurred running the unity content on this page')
-    || normalized.includes('the browser could not allocate enough memory for the webgl content')
-    || normalized.includes('if you are the developer of this content');
-}
-
 export default function UnityGame({
   loaderUrl, dataUrl, frameworkUrl, codeUrl, streamingAssetsUrl, onReady,
   gameOverTitle, gameOverReload, clickToActivate, unityErrorTitle,
@@ -29,20 +22,13 @@ export default function UnityGame({
     });
   }, [notify, unityErrorTitle]);
 
-  // Unity's generated loader falls back to window.alert when no showBanner
-  // callback is supplied. Catch only its recognizable messages so unrelated
-  // application alerts keep their original browser behavior.
+  // Unity's generated loader can fall back to window.alert. Route every such
+  // call through the app growl while the runtime is mounted, then restore the
+  // original function without ever invoking it here.
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const nativeAlert = window.alert;
-    const interceptAlert = (message) => {
-      const text = String(message ?? '');
-      if (isUnityRuntimeMessage(text)) {
-        reportUnityError(text);
-        return;
-      }
-      nativeAlert.call(window, message);
-    };
+    const interceptAlert = (message) => reportUnityError(message);
     window.alert = interceptAlert;
     return () => {
       if (window.alert === interceptAlert) window.alert = nativeAlert;

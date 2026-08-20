@@ -130,3 +130,10 @@ git diff --check
 - User decision supersedes the prior owner-only content-controls review change: collaborators can manage settings, thumbnails, builds/content, LiveOps, articles, and collaborators at owner-equivalent scope.
 - Added an owner-only game deletion danger zone in Settings; the existing API now awaits cleanup of builds/content/thumbnails and every game-scoped model/translation before deleting the Game record.
 - Added owner-vs-collaborator deletion and cascade coverage; verification: `cd server && npm test` (198/198), `cd web && npm run build`, syntax checks, and `git diff --check` passed.
+
+## 2026-08-20 — Browser-native dialog removal
+
+- Replaced every application `alert`/`confirm` call with the existing custom Growl/Modal system; added a reusable localized `ConfirmDialog` wrapper for destructive and non-destructive confirmations.
+- Moved shared Modal styling into the component, added dialog semantics, and routed Unity loader alert fallbacks exclusively into Growl notifications.
+- Removed the native `beforeunload` prompt; unsaved in-app navigation remains protected by the existing custom settings-leave Modal.
+- Verification: exhaustive source audit found no native dialog calls or unload prompts, `cd web && npm run build`, `cd server && npm test` (198/198), and `git diff --check` passed.

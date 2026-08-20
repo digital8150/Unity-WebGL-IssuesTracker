@@ -11,6 +11,8 @@ import {
 } from '../api.js';
 import DashSidebar from '../components/DashSidebar.jsx';
 import PageLink from '../components/PageLink.jsx';
+import { useConfirmDialog } from '../components/ConfirmDialog.jsx';
+import { useGrowl } from '../context/GrowlContext.jsx';
 import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { withLocale } from '../i18n/localePath.js';
 import './DashboardPage.css';
@@ -19,6 +21,8 @@ import './AdminBlogPage.css';
 export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId, game: embeddedGame }) {
   const { user: me, logout } = useAuth();
   const { lang, t } = useI18n();
+  const { notify } = useGrowl();
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const navigate = usePageNavigate();
   const { gameId: routeGameId } = useParams();
   const gameId = embeddedGameId ?? routeGameId;
@@ -33,7 +37,9 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
   useEffect(() => {
     refresh();
     if (isGameScope && !embeddedGame) {
-      getGame(gameId).then(({ game: loadedGame }) => setGame(loadedGame)).catch((err) => alert(err.message));
+      getGame(gameId)
+        .then(({ game: loadedGame }) => setGame(loadedGame))
+        .catch((err) => notify(err.message, { type: 'error', title: t.dialog.errorTitle }));
     }
   }, [gameId, isGameScope, embeddedGame]);
 
@@ -50,21 +56,21 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
       const posts = response.articles ?? response.posts ?? [];
       setPosts(posts);
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setLoading(false);
     }
   }
 
   async function handleDelete(id) {
-    if (!window.confirm(labels.deleteConfirm)) return;
+    if (!(await confirm({ message: labels.deleteConfirm, danger: true }))) return;
     setBusyId(id);
     try {
       if (isGameScope) await deleteGameArticle(gameId, id);
       else await deleteBlogPost(id);
       setPosts(prev => prev.filter(p => p._id !== id));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setBusyId(null);
     }
@@ -207,6 +213,7 @@ export default function AdminBlogPage({ embedded = false, gameId: embeddedGameId
           </div>
         )}
       </Main>
+      {confirmationDialog}
     </div>
   );
 }

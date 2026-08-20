@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useI18n } from '../i18n.jsx';
 import { listAllUsers, updateUser, deleteUser } from '../api.js';
 import DashSidebar from '../components/DashSidebar.jsx';
+import { useConfirmDialog } from '../components/ConfirmDialog.jsx';
+import { useGrowl } from '../context/GrowlContext.jsx';
 import './DashboardPage.css';
 import './AdminUsersPage.css';
 
@@ -12,6 +14,8 @@ const FILTERS = ['all', 'pending', 'approved', 'rejected'];
 export default function AdminUsersPage() {
   const { user: me, logout } = useAuth();
   const { t } = useI18n();
+  const { notify } = useGrowl();
+  const { confirm, confirmationDialog } = useConfirmDialog();
   const navigate = usePageNavigate();
 
   const [users, setUsers] = useState([]);
@@ -30,7 +34,7 @@ export default function AdminUsersPage() {
       const { users } = await listAllUsers();
       setUsers(users);
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setLoading(false);
     }
@@ -42,7 +46,7 @@ export default function AdminUsersPage() {
       const { user } = await updateUser(userId, fields);
       setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, ...user } : u)));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setBusyId(null);
     }
@@ -56,13 +60,13 @@ export default function AdminUsersPage() {
   }
 
   async function handleDelete(userId) {
-    if (!window.confirm(t.admin.removeConfirm)) return;
+    if (!(await confirm({ message: t.admin.removeConfirm, danger: true }))) return;
     setBusyId(userId);
     try {
       await deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
     } catch (err) {
-      alert(err.message);
+      notify(err.message, { type: 'error', title: t.dialog.errorTitle });
     } finally {
       setBusyId(null);
     }
@@ -244,6 +248,7 @@ export default function AdminUsersPage() {
           </div>
         )}
       </main>
+      {confirmationDialog}
     </div>
   );
 }

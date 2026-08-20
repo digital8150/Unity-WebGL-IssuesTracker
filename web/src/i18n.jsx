@@ -9,6 +9,14 @@ const BRAND_FULL = `${BRAND_PREFIX} ${BRAND_SUFFIX}`;
 const translations = {
   en: {
     brand: { prefix: BRAND_PREFIX, suffix: BRAND_SUFFIX, full: BRAND_FULL },
+    dialog: {
+      confirmTitle: 'Confirm action',
+      deleteTitle: 'Delete permanently?',
+      cancel: 'Cancel',
+      confirm: 'Continue',
+      delete: 'Delete',
+      errorTitle: 'Something went wrong',
+    },
     nav: {
       home: 'Home',
       signIn: 'Sign in',
@@ -840,6 +848,14 @@ const translations = {
 
   ko: {
     brand: { prefix: BRAND_PREFIX, suffix: BRAND_SUFFIX, full: BRAND_FULL },
+    dialog: {
+      confirmTitle: '작업을 진행할까요?',
+      deleteTitle: '영구 삭제할까요?',
+      cancel: '취소',
+      confirm: '계속하기',
+      delete: '삭제',
+      errorTitle: '작업을 완료하지 못했습니다',
+    },
     nav: {
       login: '로그인',
       myPage: '마이페이지',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useI18n } from '../i18n.jsx';
+import { useConfirmDialog } from '../components/ConfirmDialog.jsx';
 import {
   getGameContent,
   uploadGameContent,
@@ -94,6 +95,7 @@ function urlForChannel(channelsData, channel) {
 export default function GameContentTab({ gameId, game, setGame }) {
   const { t, lang } = useI18n();
   const td = t.gameDetail;
+  const { confirm, confirmationDialog } = useConfirmDialog();
 
   const allowedOrigins = game?.allowedOrigins || [];
   const normalizedAllowedOrigins = [...new Set(allowedOrigins.map(normalizeHttpOrigin).filter(Boolean))];
@@ -263,7 +265,7 @@ export default function GameContentTab({ gameId, game, setGame }) {
   async function handleUpload(event) {
     event.preventDefault();
     if (!channelValid || !zipFile || uploading) return;
-    if (mode === 'replace' && !window.confirm(td.gcModeReplaceConfirm)) return;
+    if (mode === 'replace' && !(await confirm({ message: td.gcModeReplaceConfirm, danger: true }))) return;
 
     setUploadError('');
     setLayoutWarnings([]);
@@ -312,7 +314,7 @@ export default function GameContentTab({ gameId, game, setGame }) {
   }
 
   async function handleDeleteChannel() {
-    if (!window.confirm(td.gcDeleteChannelConfirm)) return;
+    if (!(await confirm({ message: td.gcDeleteChannelConfirm, danger: true }))) return;
     setDeleting(true);
     try {
       await deleteGameContent(gameId, activeChannel);
@@ -618,6 +620,7 @@ export default function GameContentTab({ gameId, game, setGame }) {
           </div>
         )}
       </div>
+      {confirmationDialog}
     </div>
   );
 }
