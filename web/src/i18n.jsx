@@ -1734,4 +1734,4 @@ export function useI18n() {
   return useContext(I18nContext);
 }
 
-export { BRAND_PREFIX, BRAND_SUFFIX, BRAND_FULL };
+export { BRAND_PREFIX, BRAND_SUFFIX, BRAND_FULL, translations };
