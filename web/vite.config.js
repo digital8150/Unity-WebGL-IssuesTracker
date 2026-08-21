@@ -17,4 +17,13 @@ export default defineConfig({
       '/thumbnails': 'http://localhost:4000',
     },
   },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.js'],
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
+  },
 });

@@ -42,7 +42,9 @@ npm run build
 npm run preview
 ```
 
-The server test suite uses `node --test` (`server/test/**/*.test.js`). No frontend test runner or linter is configured yet; prefer Vitest when adding web coverage.
+The server test suite uses `node --test` (`server/test/**/*.test.js`). The web suite uses Vitest (`web/src/**/*.{test,spec}.{js,jsx}`, run with `cd web && npm test`). No linter is configured yet.
+
+Web coverage targets silently-failing logic — locale routing, `api.js` plumbing, locale key parity, the metadata probe, and the play-token lifecycle. `web/src/components/canvasui/` is intentionally untested.
 
 ## End-to-end data flow (the architecture that spans files)
 

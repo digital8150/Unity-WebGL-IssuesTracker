@@ -44,11 +44,13 @@ npm run build
 npm run preview
 ```
 
-The server uses `node --test` under `server/test/`. No frontend test runner or linter is configured yet; prefer Vitest when adding web coverage.
+The server uses `node --test` under `server/test/`; the web workspace uses Vitest + jsdom + Testing Library (`cd web && npm test`, config in `vite.config.js`, shared setup in `web/src/test/setup.js`). No linter is configured yet.
+
+Web coverage is deliberately scoped to logic that fails silently in production — locale routing, the `api.js` request/upload plumbing, locale key parity, the bug-report metadata probe, and the SDK v2 play-token lifecycle. Canvas/WebGL effect components under `web/src/components/canvasui/` are intentionally untested; jsdom cannot verify them meaningfully.
 
 ## Authenticated Arcade SDK v2
 
-- `PlayPage.jsx` exchanges the site JWT for a 15-minute, single-game token at `POST /api/v2/games/:gameSlug/play-token`, refreshes it every nine minutes, and injects it with `SendMessage("ArcadeSdk", "SetCredential", json)`.
+- `useArcadePlayToken` (in `web/src/hooks/`, called from `PlayPage.jsx`) exchanges the site JWT for a 15-minute, single-game token at `POST /api/v2/games/:gameSlug/play-token`, refreshes it every nine minutes, and injects it with `SendMessage("ArcadeSdk", "SetCredential", json)`. It owns the whole browser side of the handshake — refresh, retry, debounce, and teardown — and is covered by `useArcadePlayToken.test.jsx`; change the timing constants there, not in the page.
 - `ArcadeSdk.jslib` uses `window.__arcadeSdkReady` and `window.__arcadeSdkRequestToken`; both globals must be cleaned up when the play page unmounts.
 - `ArcadeSdk.cs` lives in namespace `ArcadeBackend`, uses a GameObject named `ArcadeSdk`, waits at most ten seconds for credentials, and retries once after a 401. Editor testing reads `UnityEditor.EditorPrefs["ArcadeSdk.DevToken"]` before the inspector fallback.
 - `/api/v2` trusts identity only from the game token. Never accept a display name, `userId`, or `gameId` from a game request body. `LeaderboardScore` is separate from legacy v1 entries, and cloud-save JSON stays opaque.

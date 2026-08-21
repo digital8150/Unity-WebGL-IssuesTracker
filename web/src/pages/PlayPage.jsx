@@ -13,6 +13,7 @@ import { assetUrl } from '../utils/gameVisuals.js';
 import { gameTransitionName } from '../utils/gameTransitions.js';
 import { readSsrData } from '../utils/ssrData.js';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
+import { useArcadePlayToken } from '../hooks/useArcadePlayToken.js';
 import { withLocale } from '../i18n/localePath.js';
 import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
 import CommentSection from '../components/CommentSection.jsx';
@@ -21,9 +22,6 @@ import '../styles/markdown-body.css';
 import './PlayPage.css';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
-const TOKEN_REFRESH_MS = 9 * 60 * 1000;
-const TOKEN_REQUEST_DEBOUNCE_MS = 2 * 1000;
-const TOKEN_RETRY_MS = 5 * 1000;
 
 function formatReviewDate(date, lang) {
   if (!date) return '';
@@ -109,91 +107,14 @@ export default function PlayPage() {
       .catch((err) => setLoadError(err.message));
   }, [gameSlug, buildId, lang]);
 
-  useEffect(() => {
-    const sdkV2Enabled = buildInfo?.sdkV2?.enabled === true;
-    const shouldConnect = Boolean(gameSlug && sdkV2Enabled && !authLoading && user);
-
-    tokenRef.current = null;
-    if (!shouldConnect) return undefined;
-
-    let disposed = false;
-    let refreshTimer = null;
-    let debounceTimer = null;
-    let lastRequestAt = 0;
-    let requestInFlight = null;
-
-    const pushCredential = () => {
-      const nextToken = tokenRef.current;
-      if (!nextToken || !sendMessageFn.current) return;
-      sendMessageFn.current('ArcadeSdk', 'SetCredential', JSON.stringify(nextToken));
-    };
-
-    const scheduleRefresh = () => {
-      window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
-        requestToken();
-      }, TOKEN_REFRESH_MS);
-    };
-
-    const refreshToken = () => {
-      if (disposed || requestInFlight) return requestInFlight;
-      lastRequestAt = Date.now();
-      requestInFlight = issuePlayToken(gameSlug)
-        .then((nextToken) => {
-          if (!nextToken?.token) throw new Error('Play token response did not include a token');
-          if (disposed) return;
-          tokenRef.current = nextToken;
-          pushCredential();
-          scheduleRefresh();
-        })
-        .catch((error) => {
-          if (!disposed) {
-            console.warn('[ArcadeSdk] play token request failed', error);
-            window.clearTimeout(refreshTimer);
-            refreshTimer = window.setTimeout(() => {
-              refreshTimer = null;
-              if (!disposed) requestToken();
-            }, TOKEN_RETRY_MS);
-          }
-        })
-        .finally(() => {
-          requestInFlight = null;
-        });
-      return requestInFlight;
-    };
-
-    const requestToken = () => {
-      if (disposed) return;
-      const waitMs = TOKEN_REQUEST_DEBOUNCE_MS - (Date.now() - lastRequestAt);
-      if (waitMs > 0) {
-        window.clearTimeout(debounceTimer);
-        debounceTimer = window.setTimeout(() => {
-          debounceTimer = null;
-          refreshToken();
-        }, waitMs);
-        return;
-      }
-      refreshToken();
-    };
-
-    // Unity may announce readiness before its React wrapper reports isLoaded;
-    // the callback remains available until either side is ready.
-    window.__arcadeSdkReady = pushCredential;
-    // Unity can also ask the page for a replacement after a 401. Keep this
-    // browser-owned request path debounced so repeated SDK calls cannot stampede
-    // the play-token endpoint.
-    window.__arcadeSdkRequestToken = requestToken;
-    requestToken();
-
-    return () => {
-      disposed = true;
-      tokenRef.current = null;
-      window.clearTimeout(refreshTimer);
-      window.clearTimeout(debounceTimer);
-      if (window.__arcadeSdkReady === pushCredential) delete window.__arcadeSdkReady;
-      if (window.__arcadeSdkRequestToken === requestToken) delete window.__arcadeSdkRequestToken;
-    };
-  }, [gameSlug, buildInfo?.sdkV2?.enabled, authLoading, user]);
+  useArcadePlayToken({
+    gameSlug,
+    sdkV2Enabled: buildInfo?.sdkV2?.enabled,
+    authLoading,
+    user,
+    sendMessageRef: sendMessageFn,
+    tokenRef,
+  });
 
   useEffect(() => {
     if (bootstrapArticlesPendingRef.current) {
