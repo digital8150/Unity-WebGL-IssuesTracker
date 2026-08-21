@@ -20,8 +20,8 @@ import PublicNav from '../components/PublicNav.jsx';
 import PageLink from '../components/PageLink.jsx';
 import CommentForm from '../components/CommentForm.jsx';
 import MachineTranslationNotice from '../components/MachineTranslationNotice.jsx';
+import ArticleCardGrid from '../components/ArticleCardGrid.jsx';
 import { useDocumentMeta } from '../hooks/useDocumentMeta.js';
-import { usePageNavigate } from '../hooks/usePageTransition.js';
 import { withLocale } from '../i18n/localePath.js';
 import './BlogListPage.css';
 import './BlogPostPage.css';
@@ -44,12 +44,13 @@ export default function BlogPostPage() {
   const bootstrap = readSsrData(isGameArticle ? '/play/:gameSlug/articles/:articleSlug' : '/blog/:slug');
   const initialPost = bootstrap?.post ?? bootstrap?.article ?? null;
   const initialGame = bootstrap?.game ?? null;
+  const initialRelatedPosts = bootstrap?.relatedPosts ?? bootstrap?.relatedArticles ?? [];
   const hasBootstrap = Boolean(initialPost && typeof initialPost === 'object' && initialPost.title);
-  const navigate = usePageNavigate();
   const { user } = useAuth();
   const { lang, t } = useI18n();
   const [post, setPost] = useState(initialPost);
   const [game, setGame] = useState(initialGame);
+  const [relatedPosts, setRelatedPosts] = useState(initialRelatedPosts);
   const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const [loading, setLoading] = useState(!hasBootstrap);
   const [notFound, setNotFound] = useState(false);
@@ -127,14 +128,16 @@ export default function BlogPostPage() {
     setNotFound(false);
     setPost(null);
     setGame(null);
+    setRelatedPosts([]);
     const loadArticle = isGameArticle
       ? getPublicGameArticle(gameSlug, contentSlug, lang)
       : getBlogPost(contentSlug, lang);
     loadArticle
-      .then(({ post: blogPost, article, game: gameInfo, translation: translationInfo }) => {
+      .then(({ post: blogPost, article, game: gameInfo, relatedPosts: blogRelatedPosts, relatedArticles, translation: translationInfo }) => {
         if (!active) return;
         setPost(blogPost ?? article);
         setGame(gameInfo ?? null);
+        setRelatedPosts(blogRelatedPosts ?? relatedArticles ?? []);
         setTranslation(translationInfo ?? null);
       })
       .catch(() => {
@@ -257,6 +260,24 @@ export default function BlogPostPage() {
 
               <CommentForm onSubmit={handleAddComment} />
             </section>
+
+            {relatedPosts.length > 0 && (
+              <section className="bpost-related" aria-labelledby="bpost-related-title">
+                <header className="bpost-related-header">
+                  <h2 id="bpost-related-title">{t.blog.keepReading}</h2>
+                </header>
+                <ArticleCardGrid
+                  posts={relatedPosts}
+                  lang={lang}
+                  labels={t.blog}
+                  linkForPost={(relatedPost) => isGameArticle
+                    ? `/play/${gameSlug}/articles/${relatedPost.slug}`
+                    : `/blog/${relatedPost.slug}`}
+                  className="bpost-related-grid"
+                  titleLevel={3}
+                />
+              </section>
+            )}
           </article>
         )}
       </main>

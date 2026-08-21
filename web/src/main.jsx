@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext.jsx';
 import { GrowlProvider } from './context/GrowlContext.jsx';
 import { I18nProvider } from './i18n.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+import RouteErrorPage, { RouteHydrateFallback } from './components/RouteErrorPage.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import App from './App.jsx';
 import { routeLoaders } from './utils/routeLoaders.js';
@@ -48,6 +49,8 @@ const routes = ROUTES.flatMap((routeConfig) => [
 const router = createBrowserRouter([
   {
     element: <App />,
+    errorElement: <RouteErrorPage />,
+    hydrateFallbackElement: <RouteHydrateFallback />,
     children: routes,
   },
 ]);

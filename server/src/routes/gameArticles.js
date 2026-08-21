@@ -10,6 +10,7 @@ import { requireTurnstileIfGuest } from '../middleware/turnstile.js';
 import { isPublishedTranslation, loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
 import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
+import { toPublicGameArticleSummary } from '../services/publicData.js';
 
 const router = express.Router();
 
@@ -127,16 +128,32 @@ router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
     }).populate('author', 'name').populate('comments.authorId', 'name').lean();
     if (!article) return res.status(404).json({ error: 'Article not found' });
     const serializedArticle = serializeGameArticle(article);
+    const relatedCandidates = await GameArticle.find({
+      gameId: game._id,
+      published: true,
+      _id: { $ne: article._id },
+    })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(3)
+      .populate('author', 'name')
+      .select('-content')
+      .lean();
+    const relatedArticles = relatedCandidates.map(serializeGameArticle);
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
-    const [gameRow, articleRow] = await Promise.all([
+    const [gameRow, articleRows] = await Promise.all([
       loadTranslations('Game', [game._id], req.query.locale, Translation),
-      loadTranslations('GameArticle', [serializedArticle._id], req.query.locale, Translation),
+      loadTranslations('GameArticle', [serializedArticle._id, ...relatedArticles.map((relatedArticle) => relatedArticle._id)], req.query.locale, Translation),
     ]);
     const gameTranslation = gameRow.get(String(game._id));
-    const articleTranslation = articleRow.get(String(serializedArticle._id));
+    const articleTranslation = articleRows.get(String(serializedArticle._id));
     const translatedGame = mergeTranslation(game.toObject(), publicTranslation(gameTranslation, req.query.locale, publishEnabled), 'Game');
     const translatedArticle = mergeTranslation(serializedArticle, publicTranslation(articleTranslation, req.query.locale, publishEnabled), 'GameArticle');
-    res.json({ article: translatedArticle, game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description, visibility: game.visibility || 'private' }, translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled) });
+    res.json({
+      article: translatedArticle,
+      game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description, visibility: game.visibility || 'private' },
+      relatedArticles: relatedArticles.map((relatedArticle) => toPublicGameArticleSummary(mergeTranslation(relatedArticle, publicTranslation(articleRows.get(String(relatedArticle._id)), req.query.locale, publishEnabled), 'GameArticle'))),
+      translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled),
+    });
   } catch (err) {
     next(err);
   }

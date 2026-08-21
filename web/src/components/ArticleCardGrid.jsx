@@ -19,7 +19,9 @@ export default function ArticleCardGrid({
   labels,
   linkForPost,
   className = '',
+  titleLevel = 2,
 }) {
+  const TitleTag = titleLevel === 3 ? 'h3' : 'h2';
   return (
     <div className={`blog-grid${className ? ` ${className}` : ''}`}>
       {posts.map((post, index) => (
@@ -42,7 +44,7 @@ export default function ArticleCardGrid({
                 ))}
               </div>
             )}
-            <h2 className="blog-card-title">{post.title}</h2>
+            <TitleTag className="blog-card-title">{post.title}</TitleTag>
             {post.summary && <p className="blog-card-summary">{post.summary}</p>}
             <div className="blog-card-meta">
               <span className="blog-card-date">

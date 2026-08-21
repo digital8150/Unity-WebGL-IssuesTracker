@@ -63,8 +63,13 @@ function disabledTranslationModels() {
   return {
     BlogPost: { findOne: () => query(post), find: () => query([post]), countDocuments: async () => 1 },
     GameArticle: { findOne: () => query(article), find: () => query([article]) },
-    Game: { findOne: () => query(game), find: () => query([game]) },
-    Build: { findOne: () => query(build) },
+    Game: {
+      aggregate: async () => [],
+      findOne: () => query(game),
+      find: () => query([game]),
+      populate: async (games) => games,
+    },
+    Build: { collection: { name: 'builds' }, findOne: () => query(build) },
     Translation: {
       findOne: ({ refType }) => query(rows[refType]),
       find: ({ refType }) => query(rows[refType] ? [rows[refType]] : []),

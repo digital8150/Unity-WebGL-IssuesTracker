@@ -172,6 +172,44 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     return { games: visibleGames, translation: arcadeTranslation };
   }
 
+  async function loadRelatedArcadeGames(gameId, locale, policy) {
+    const games = await gameModel.aggregate([
+      { $match: { _id: { $ne: gameId }, visibility: 'public' } },
+      { $sort: { updatedAt: -1 } },
+      {
+        $lookup: {
+          from: buildModel.collection?.name || 'builds',
+          let: { gameId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$gameId', '$$gameId'] }, { $eq: ['$isActive', true] }] } } },
+            { $project: { _id: 0, version: 1 } },
+            { $limit: 1 },
+          ],
+          as: 'activeBuilds',
+        },
+      },
+      { $match: { 'activeBuilds.0': { $exists: true } } },
+      { $limit: 3 },
+      {
+        $project: {
+          name: 1,
+          slug: 1,
+          description: 1,
+          thumbnailUrl: 1,
+          ownerId: 1,
+          updatedAt: 1,
+          latestBuildVersion: { $arrayElemAt: ['$activeBuilds.version', 0] },
+        },
+      },
+    ]);
+    const populatedGames = await gameModel.populate(games, { path: 'ownerId', select: 'name' });
+    const gameTranslations = await loadTranslations('Game', populatedGames.map((candidate) => candidate._id), locale, translationModel || emptyTranslationModel);
+    return populatedGames.map((candidate) => {
+      const translatedGame = mergeTranslation(candidate, publicTranslation(gameTranslations.get(String(candidate._id)), locale, policy.publishEnabled), 'Game');
+      return { ...translatedGame, developerName: candidate.ownerId?.name ?? null };
+    });
+  }
+
   async function loadRecentBlogPosts(locale, policy) {
     const posts = await blogPostModel.find({ published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
@@ -181,6 +219,30 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       .lean();
     const rows = await loadTranslations('BlogPost', posts.map((post) => post._id), locale, translationModel || emptyTranslationModel);
     return posts.map((post) => mergeTranslation(post, publicTranslation(rows.get(String(post._id)), locale, policy.publishEnabled), 'BlogPost'));
+  }
+
+  async function loadRelatedBlogPosts(post, locale, policy) {
+    const candidates = await blogPostModel.find({ published: true, _id: { $ne: post._id } })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(4)
+      .populate('author', 'name')
+      .select('-content')
+      .lean();
+    const related = candidates.filter((candidate) => String(candidate._id) !== String(post._id)).slice(0, 3);
+    const rows = await loadTranslations('BlogPost', related.map((candidate) => candidate._id), locale, translationModel || emptyTranslationModel);
+    return related.map((candidate) => mergeTranslation(candidate, publicTranslation(rows.get(String(candidate._id)), locale, policy.publishEnabled), 'BlogPost'));
+  }
+
+  async function loadRelatedGameArticles(gameId, article, locale, policy) {
+    const candidates = await gameArticleModel.find({ gameId, published: true, _id: { $ne: article._id } })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(4)
+      .populate('author', 'name')
+      .select('-content')
+      .lean();
+    const related = candidates.filter((candidate) => String(candidate._id) !== String(article._id)).slice(0, 3);
+    const rows = await loadTranslations('GameArticle', related.map((candidate) => candidate._id), locale, translationModel || emptyTranslationModel);
+    return related.map((candidate) => mergeTranslation(candidate, publicTranslation(rows.get(String(candidate._id)), locale, policy.publishEnabled), 'GameArticle'));
   }
 
   function render({ req, res, next, locale, path, policy, title, description, image, type = 'website', robots = 'index,follow', jsonLd, preview, bootstrap = null, dynamic = false, translation = null, listReady = false }) {
@@ -418,7 +480,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       .lean();
     if (!post) return next();
     const policy = await getPolicy(locale);
-    const translation = await findTranslation('BlogPost', post._id, locale);
+    const [translation, relatedPosts] = await Promise.all([
+      findTranslation('BlogPost', post._id, locale),
+      loadRelatedBlogPosts(post, locale, policy),
+    ]);
     const effective = mergeTranslation(post, publicTranslation(translation, locale, policy.publishEnabled), 'BlogPost');
     const c = copy[locale];
     const path = `/blog/${post.slug}`;
@@ -427,7 +492,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       title: `${effective.title} — ${SITE_NAME}`, description: effective.summary || DEFAULT_DESCRIPTION,
       image: publicImageUrl(effective.coverImageUrl, siteOrigin), type: 'article',
       jsonLd: { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: effective.title, description: effective.summary || undefined, image: publicImageUrl(effective.coverImageUrl, siteOrigin), datePublished: post.publishedAt || post.createdAt, dateModified: post.updatedAt || post.publishedAt || post.createdAt, author: { '@type': 'Person', name: post.author?.name || 'BCSDLab.' } },
-      bootstrap: { route: '/blog/:slug', data: { post: toPublicBlogPost(effective) } },
+      bootstrap: { route: '/blog/:slug', data: { post: toPublicBlogPost(effective), relatedPosts: relatedPosts.map(toPublicBlogSummary) } },
       preview: {
         layout: 'article',
         title: effective.title,
@@ -443,6 +508,11 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
           backHref: localizedPath('/blog', locale),
           backLabel: c.blogTitle,
         },
+        sections: [{
+          heading: c.relatedArticlesTitle,
+          kind: 'article',
+          items: relatedPosts.map((relatedPost) => blogPreviewItem(relatedPost, siteOrigin, c, locale)),
+        }],
         footerVariant: 'full',
       },
     });
@@ -510,9 +580,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       .lean();
     if (!article) return next();
     const policy = await getPolicy(locale);
-    const [gameTranslation, translation] = await Promise.all([
+    const [gameTranslation, translation, relatedArticles] = await Promise.all([
       findTranslation('Game', game._id, locale),
       findTranslation('GameArticle', article._id, locale),
+      loadRelatedGameArticles(game._id, article, locale, policy),
     ]);
     const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
     const effectiveArticle = mergeTranslation(article, publicTranslation(translation, locale, policy.publishEnabled), 'GameArticle');
@@ -526,7 +597,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       jsonLd: game.visibility === 'public'
         ? { '@context': 'https://schema.org', '@type': 'Article', headline: effectiveArticle.title, description: effectiveArticle.summary || undefined, datePublished: article.publishedAt || article.createdAt, dateModified: article.updatedAt || article.publishedAt || article.createdAt, author: { '@type': 'Person', name: article.author?.name || 'BCSDLab.' }, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } }
         : undefined,
-      bootstrap: { route: '/play/:gameSlug/articles/:articleSlug', data: { article: toPublicGameArticle(effectiveArticle), game: toPublicGame(effectiveGame) } },
+      bootstrap: { route: '/play/:gameSlug/articles/:articleSlug', data: { article: toPublicGameArticle(effectiveArticle), game: toPublicGame(effectiveGame), relatedArticles: relatedArticles.map(toPublicGameArticleSummary) } },
       preview: {
         layout: 'article',
         title: effectiveArticle.title,
@@ -543,6 +614,11 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
           backHref: localizedPath(`/play/${game.slug}`, locale),
           backLabel: c.preview?.backToGame,
         },
+        sections: [{
+          heading: c.relatedArticlesTitle,
+          kind: 'article',
+          items: relatedArticles.map((relatedArticle) => blogPreviewItem(relatedArticle, siteOrigin, c, locale, `/play/${game.slug}/articles/${relatedArticle.slug}`)),
+        }],
         footerVariant: 'full',
       },
     });
@@ -559,16 +635,17 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     if (!build) return next();
     const articles = await gameArticleModel.find({ gameId: game._id, published: true }).sort({ publishedAt: -1, createdAt: -1 }).populate('author', 'name').select('-content').limit(3).lean();
     const policy = await getPolicy(locale);
-    const [gameTranslation, articleRows] = await Promise.all([
+    const [gameTranslation, articleRows, relatedGames] = await Promise.all([
       findTranslation('Game', game._id, locale),
       loadTranslations('GameArticle', articles.map((article) => article._id), locale, translationModel || emptyTranslationModel),
+      loadRelatedArcadeGames(game._id, locale, policy),
     ]);
     const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
     const effectiveArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), locale, policy.publishEnabled), 'GameArticle'));
     const c = copy[locale];
     const path = req.params.buildId ? `/play/${game.slug}/${req.params.buildId}` : `/play/${game.slug}`;
     const review = getGameReviewSeoData(game.reviewInfo, locale);
-    const playData = { game: toPublicPlayGame(effectiveGame), build: toPublicBuild(build), articles: effectiveArticles.map(toPublicGameArticleSummary) };
+    const playData = { game: toPublicPlayGame(effectiveGame), build: toPublicBuild(build), articles: effectiveArticles.map(toPublicGameArticleSummary), relatedGames: relatedGames.map(toPublicArcadeGame) };
     return render({
       req, res, next, locale, policy, path, dynamic: true, translation: gameTranslation,
       title: `${effectiveGame.name} — ${SITE_NAME}`, description: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
@@ -595,6 +672,11 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
           placeholder: c.preview?.playerPlaceholder,
         },
         review: { ...review, heading: c.preview?.gameRating },
+        related: {
+          heading: c.preview?.continuePlaying,
+          kind: 'game',
+          items: relatedGames.map((relatedGame) => gamePreviewItem(relatedGame, siteOrigin, c, locale)),
+        },
         sections: [{
           eyebrow: c.preview?.devlogEyebrow,
           heading: c.gameArticlesTitle,

@@ -1,0 +1,140 @@
+.route-error-page {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  overflow: hidden;
+  padding: 96px 24px 48px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(0, 112, 243, 0.08), transparent 34%),
+    var(--color-canvas);
+}
+
+.route-error-page::before {
+  position: absolute;
+  width: min(72vw, 720px);
+  aspect-ratio: 1;
+  border: 1px solid var(--color-hairline);
+  border-radius: 50%;
+  content: '';
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.route-error-brand {
+  position: absolute;
+  top: 24px;
+  left: 32px;
+}
+
+.route-error-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  padding: 48px;
+  text-align: center;
+  background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-5);
+  backdrop-filter: blur(14px);
+}
+
+.route-error-mark {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 24px;
+  place-items: center;
+  color: var(--color-ink);
+  background: var(--color-canvas-soft-2);
+  border: 1px solid var(--color-hairline);
+  border-radius: 50%;
+}
+
+.route-error-mark svg {
+  width: 28px;
+  height: 28px;
+  fill: currentcolor;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-width: 1.8;
+}
+
+.route-error-eyebrow {
+  margin-bottom: 12px;
+  color: var(--color-link);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.route-error-card h1 {
+  font-size: clamp(28px, 5vw, 38px);
+  line-height: 1.18;
+}
+
+.route-error-description {
+  max-width: 360px;
+  margin: 16px auto 0;
+  color: var(--color-body);
+  line-height: 1.7;
+}
+
+.route-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 32px;
+}
+
+.route-error-actions .btn {
+  gap: 8px;
+}
+
+.route-loading-page {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  justify-items: center;
+  gap: 28px;
+  background: var(--color-canvas);
+}
+
+.route-loading-indicator {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-hairline);
+  border-top-color: var(--color-ink);
+  border-radius: 50%;
+  animation: route-loading-spin 700ms linear infinite;
+}
+
+@keyframes route-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 560px) {
+  .route-error-brand {
+    top: 20px;
+    left: 20px;
+  }
+
+  .route-error-card {
+    padding: 36px 22px;
+  }
+
+  .route-error-actions {
+    flex-direction: column;
+  }
+
+  .route-error-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-loading-indicator {
+    animation: none;
+  }
+}
