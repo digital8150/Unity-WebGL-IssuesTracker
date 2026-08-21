@@ -214,3 +214,12 @@ git diff --check
 
 - Pushed the frontend Vitest harness and play-token hook work on `test/web-vitest-coverage`; PR #43 opened against `main`.
 - Verification: server 204/204, web 111/111, web production build, and `git diff --check` passed.
+
+## 2026-08-21 — CI fix: pin test deps to the Node 20 baseline
+
+- PR #43's web job failed with `webidl.util.markAsUncloneable is not a function` and ran **zero** tests. Not a test failure: `jsdom@30`, its `undici@8`, and `@testing-library/jest-dom@7` all declare Node >=22, while both CI jobs run Node 20. `npm ci` does not enforce `engines`, so install succeeded and the runner crashed at import.
+- Missed locally because this machine runs Node 24, where the suite passes.
+- Pinned `jsdom@^26.1.0` (engines >=18) and `@testing-library/jest-dom@6.9.1` — exact, no caret, because 6.10.0 raises the floor to Node 22. Whole lockfile now satisfies Node 20.
+- Declared `engines.node: ">=20"` in `web/package.json` so the floor is visible at install time.
+- Node 20 reached end of life in April 2026. Raising the project baseline to 22 (both CI jobs, the Oracle deploy host, and the CLAUDE.md/AGENTS.md guidance) would let these dependencies move forward again — open decision, not taken here.
+- Verification: clean `npm ci`, `npm test` (111/111), and `npm run build` passed locally on Node 24; Node 20 compatibility verified by semver-checking every `engines.node` range in the lockfile.
