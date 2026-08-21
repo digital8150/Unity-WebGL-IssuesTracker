@@ -209,3 +209,8 @@ git diff --check
 - Locale parity is currently clean — no missing, type-mismatched, or empty keys in either direction; 48 leaves are identical across locales (brand names, icons, punctuation), logged informationally rather than gated.
 - Open: `web/src/components/canvasui/*.tsx` (8 files, ~6.5k lines) still gets no type checking — no `tsconfig.json` and no `typescript` dependency, so esbuild strips types unchecked. Adding `tsc --noEmit` is a separate, cheap follow-up.
 - Verification: `cd web && npm test` (111/111) and `npm run build` passed.
+
+## 2026-08-21 ??Frontend test coverage PR
+
+- Pushed the frontend Vitest harness and play-token hook work on `test/web-vitest-coverage`; PR #43 opened against `main`.
+- Verification: server 204/204, web 111/111, web production build, and `git diff --check` passed.
