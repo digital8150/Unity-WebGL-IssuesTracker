@@ -82,13 +82,30 @@ Remote Load Path:  대시보드에서 복사한 URL
 
 ### 번들 파일명에 해시 붙이기
 
-원격 그룹의 고급 설정에서 **Bundle Naming Mode**를 **Append Hash to Filename**으로 설정하는 것을 권장합니다.
+`Bundle Naming Mode`는 Profiles 화면이 아니라 **각 Addressables 그룹의 Inspector**에서 설정합니다. 다음 순서로 이동하세요.
+
+1. Unity 메뉴에서 **Window > Asset Management > Addressables > Groups**를 엽니다.
+2. Groups 창 왼쪽에서 설정할 **원격 그룹의 이름(그룹 행)**을 클릭합니다. 그룹 안에 들어 있는 프리팹이나 에셋을 클릭하면 아래 설정이 보이지 않습니다.
+3. Inspector에서 **Content Packing & Loading** 영역을 찾습니다.
+4. 영역 아래쪽의 **Advanced Options**를 펼칩니다.
+5. **Bundle Naming Mode**를 **Append Hash to Filename**으로 선택합니다.
+
+Addressables 2.6.0 기준으로 선택지는 다음과 같습니다.
+
+| 옵션 | 생성되는 이름 | 이 플랫폼에서의 권장 여부 |
+| --- | --- | --- |
+| `Filename` | 원래 번들 이름을 그대로 사용 | 비권장. 콘텐츠가 바뀌어도 URL이 같을 수 있습니다. |
+| `Append Hash to Filename` | 원래 이름 뒤에 콘텐츠 해시를 추가 | **권장.** 사람이 구분하기 쉽고 콘텐츠 변경 시 URL도 바뀝니다. |
+| `Use Hash of AssetBundle` | 파일명 전체를 번들 콘텐츠 해시로 대체 | 사용 가능. 짧은 파일명이 필요할 때 적합합니다. |
+| `Use Hash of Filename` | 파일명 전체를 원래 파일명의 해시로 대체 | 비권장. 콘텐츠 해시를 파일명에 넣는 설정이 아닙니다. |
 
 해시가 붙은 번들은 내용이 바뀌면 파일명도 바뀌기 때문에 브라우저가 1년 동안 안전하게 캐시할 수 있습니다. 해시가 없는 번들도 동작하지만, 매번 서버에 변경 여부를 확인해야 하므로 로딩 성능이 떨어집니다. 대시보드는 해시가 없는 번들을 업로드하면 경고를 표시합니다.
 
+`Use Hash of AssetBundle`도 콘텐츠 해시 기반이므로 캐시 관점에서는 안전합니다. 예를 들어 파일명이 `e0e97c5c84a0e39f1a57933aa1efb7c9.bundle`처럼 해시만으로 만들어집니다. 이 가이드에서는 파일의 용도를 식별하기 쉬운 `Append Hash to Filename`을 기본값으로 안내합니다.
+
 > **스크린샷 삽입 위치 4 — 원격 그룹 설정**
 >
-> 원격 그룹의 Build/Load Path와 `Bundle Naming Mode: Append Hash to Filename` 설정을 강조해 캡처하세요.
+> Addressables Groups 창에서 원격 **그룹 이름**이 선택된 모습과 Inspector의 **Content Packing & Loading > Advanced Options > Bundle Naming Mode: Append Hash to Filename**이 한 화면에 보이도록 캡처하세요. 그룹 내부 에셋이 아니라 그룹 행을 클릭해야 한다는 점이 드러나도록 표시하고, 가능하면 `Bundle Naming Mode` 드롭다운을 펼쳐 네 가지 선택지가 보이게 촬영하세요.
 
 ## 4. 원격 콘텐츠 빌드하기
 
