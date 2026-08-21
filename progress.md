@@ -151,3 +151,10 @@ git diff --check
 - Expanded the Addressables CORS suite to run with the real middleware order and cover API CORS isolation plus HEAD/OPTIONS from allowed external and localhost origins.
 - Added `docs/addressables-dashboard-guide.ko.md`, a blog-ready dashboard-user guide for channel selection, Unity profile setup, ZIP layout, merge updates, external origins, browser verification, and rollback, with eight screenshot placeholders.
 - Verification: `cd server && npm.cmd test` (200/200), `cd web && npm.cmd run build`, server syntax checks, and `git diff --check` passed.
+
+## 2026-08-21 — Private-game direct-access hotfix
+
+- Created `hotfix/private-game-public-play` from fetched/synced `main` at `1f6c42e`.
+- Corrected visibility semantics: `private` hides a game only from Arcade listings; anonymous direct play/report and published game-article URLs remain accessible.
+- Private direct pages stay `noindex` and omit structured data/alternates; dashboard copy now states that direct play/report links remain public.
+- Added anonymous play/report and private SSR route coverage. Verification: `cd server && npm.cmd test` (202/202), `cd web && npm.cmd run build`, server syntax checks, and `git diff --check` passed.

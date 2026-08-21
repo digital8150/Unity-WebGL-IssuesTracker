@@ -106,7 +106,7 @@ const build = {
   secret: 'build-secret',
 };
 
-function fakeModels() {
+function fakeModels(gameRow = game) {
   return {
     BlogPost: {
       find: () => query([post]),
@@ -121,18 +121,18 @@ function fakeModels() {
       findOne: () => query(build),
     },
     Game: {
-      find: () => query([game]),
-      findOne: () => query(game),
+      find: () => query([gameRow]),
+      findOne: () => query(gameRow),
     },
   };
 }
 
-async function getAppResponse(urlPath) {
+async function getAppResponse(urlPath, models = fakeModels()) {
   const app = express();
   app.use(seoRouter({
     distRoot: path.join(repoRoot, 'web'),
     siteOrigin: 'https://example.test',
-    models: fakeModels(),
+    models,
   }));
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -245,6 +245,31 @@ test('play no-JS preview uses the long description body while metadata stays sho
   const preview = parseVisiblePreview(html);
   assert.match(preview, /Long game details/);
   assert.match(html, /<meta\s+name="description"[^>]+content="A public game"/);
+});
+
+test('unlisted game direct URLs stay public while search indexing stays disabled', async () => {
+  const unlistedGame = {
+    ...game,
+    name: 'Unlisted game',
+    slug: 'unlisted-game',
+    visibility: 'private',
+  };
+  const routes = [
+    { url: '/play/unlisted-game', route: '/play/:gameSlug' },
+    { url: '/play/unlisted-game/build-id', route: '/play/:gameSlug/:buildId' },
+    { url: '/play/unlisted-game/articles', route: '/play/:gameSlug/articles' },
+    { url: '/play/unlisted-game/articles/public-article', route: '/play/:gameSlug/articles/:articleSlug' },
+  ];
+
+  for (const testCase of routes) {
+    const response = await getAppResponse(testCase.url, fakeModels(unlistedGame));
+    assert.equal(response.status, 200, `${testCase.url} must be directly accessible`);
+    const html = await response.text();
+    const payload = parseBootstrap(html);
+    assert.equal(payload?.route, testCase.route);
+    assert.equal(payload?.data?.game?.visibility, 'private');
+    assert.match(html, /<meta\s+name="robots"[^>]+content="noindex,follow"/);
+  }
 });
 
 test('home no-JS preview exposes game, article, nav, and footer links', async () => {

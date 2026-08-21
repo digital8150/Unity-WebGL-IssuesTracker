@@ -91,15 +91,16 @@ export default function BlogPostPage() {
     : game?.thumbnailUrl
       ? assetUrl(game.thumbnailUrl)
       : undefined;
+  const isUnlistedGameArticle = isGameArticle && game?.visibility !== 'public';
   useDocumentMeta(post ? {
     title: `${post.title} — ${game?.name ? `${game.name} · ` : ''}${SITE}`,
     description: post.summary || undefined,
     image: articleImage,
       url: metaCanonicalUrl,
-      robots: lang === 'en' && (!translation || translation.noindex) ? 'noindex,follow' : 'index,follow',
-      alternates: alternateLinks,
+      robots: isUnlistedGameArticle || (lang === 'en' && (!translation || translation.noindex)) ? 'noindex,follow' : 'index,follow',
+      alternates: isUnlistedGameArticle ? null : alternateLinks,
     type: 'article',
-    jsonLd: {
+    jsonLd: isUnlistedGameArticle ? undefined : {
       '@context': 'https://schema.org',
       '@type': isGameArticle ? 'Article' : 'BlogPosting',
       headline: post.title,

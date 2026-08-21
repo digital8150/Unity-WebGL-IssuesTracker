@@ -83,11 +83,13 @@ async function uniqueSlug(gameId, requestedSlug, title, excludeId = null) {
 }
 
 // ── Public game article routes ──────────────────────────────────────────────
+// Game.visibility controls Arcade discovery only; published content remains
+// available to anyone who has a direct URL.
 
 router.get('/play/:gameSlug/articles', async (req, res, next) => {
   try {
     const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug description visibility');
-    if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
+    if (!game) return res.status(404).json({ error: 'Game not found' });
 
     const articles = await GameArticle.find({ gameId: game._id, published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
@@ -107,7 +109,7 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
     const listTranslation = req.query.locale === 'en' && publishedArticleRows.length
       ? { origin: publishedArticleRows.some((row) => row.origin === 'machine') ? 'machine' : 'human', translatedAt: null, noindex: false }
       : null;
-    res.json({ game: { id: game._id, name: game.name, slug: game.slug, description: mergeTranslation(game.toObject(), publicGameRow, 'Game').description }, articles: publicArticles, translation: listTranslation, gameTranslation: publicTranslationMeta(gameRow, req.query.locale, publishEnabled), translations: Object.fromEntries(serializedArticles.map((article) => [String(article._id), publicTranslationMeta(articleRows.get(String(article._id)), req.query.locale, publishEnabled)])) });
+    res.json({ game: { id: game._id, name: game.name, slug: game.slug, description: mergeTranslation(game.toObject(), publicGameRow, 'Game').description, visibility: game.visibility || 'private' }, articles: publicArticles, translation: listTranslation, gameTranslation: publicTranslationMeta(gameRow, req.query.locale, publishEnabled), translations: Object.fromEntries(serializedArticles.map((article) => [String(article._id), publicTranslationMeta(articleRows.get(String(article._id)), req.query.locale, publishEnabled)])) });
   } catch (err) {
     next(err);
   }
@@ -116,7 +118,7 @@ router.get('/play/:gameSlug/articles', async (req, res, next) => {
 router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
   try {
     const game = await Game.findOne({ slug: req.params.gameSlug }).select('_id name slug description visibility');
-    if (!game || game.visibility !== 'public') return res.status(404).json({ error: 'Game not found' });
+    if (!game) return res.status(404).json({ error: 'Game not found' });
 
     const article = await GameArticle.findOne({
       gameId: game._id,
@@ -134,7 +136,7 @@ router.get('/play/:gameSlug/articles/:articleSlug', async (req, res, next) => {
     const articleTranslation = articleRow.get(String(serializedArticle._id));
     const translatedGame = mergeTranslation(game.toObject(), publicTranslation(gameTranslation, req.query.locale, publishEnabled), 'Game');
     const translatedArticle = mergeTranslation(serializedArticle, publicTranslation(articleTranslation, req.query.locale, publishEnabled), 'GameArticle');
-    res.json({ article: translatedArticle, game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description }, translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled) });
+    res.json({ article: translatedArticle, game: { id: game._id, name: game.name, slug: game.slug, description: translatedGame.description, visibility: game.visibility || 'private' }, translation: publicTranslationMeta(articleTranslation, req.query.locale, publishEnabled) });
   } catch (err) {
     next(err);
   }
