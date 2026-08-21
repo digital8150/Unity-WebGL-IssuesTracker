@@ -178,6 +178,8 @@ git diff --check
 - Replaced the Addressables concurrent-upload test's timer/large-ZIP race with a deterministic post-lock barrier so the new CI gate does not fail based on runner scheduling.
 - Switched the CORS HEAD assertion from pooled `fetch` to a one-shot native HTTP request, eliminating intermittent `ECONNRESET` failures under the complete parallel test run.
 - Verification: full server suite passed 203/203 in five consecutive runs after stabilization; affected Addressables files also passed 10 consecutive isolated runs.
+- Replaced the quoted test glob (treated as a literal path by Node 20 on Linux) with an OS-independent runner that recursively selects only `*.test.js`, excluding helpers and seed scripts.
+- Forced Pacific quota time parsing to the `h23` hour cycle so Node 20 emits midnight as `00:00`, not the locale-dependent `24:00` that shifted the DST reset calculation back one day.
 
 ## 2026-08-21 — Route loading and error fallback
 
