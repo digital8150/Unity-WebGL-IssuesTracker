@@ -164,3 +164,23 @@ git diff --check
 - Documented the exact Unity 6/Addressables 2.6.0 path for `Bundle Naming Mode`: select the group row, then open `Content Packing & Loading > Advanced Options` in the Inspector.
 - Explained all four naming modes, recommended `Append Hash to Filename`, and clarified that `Use Hash of AssetBundle` is also content-hash safe.
 - Updated the screenshot placeholder to show the required group selection and expanded dropdown.
+
+## 2026-08-21 — SEO discovery links and scoped related articles
+
+- Confirmed public in-app navigation stays on React Router CSR; SEO HTML/bootstrap is generated only for document requests, with the existing Unity teardown fallback as the intentional exception.
+- Added up to three public related-game links to play-page SEO previews/bootstrap, matching the CSR “Continue playing” rail.
+- Added “Keep reading” cards to article views and no-JS SEO previews; site blog posts relate only to site blog posts, and game articles only to the same game.
+- Verification: SEO route/injection tests (31/31), `cd web && npm.cmd run build`, server syntax checks, and `git diff --check` passed. Full server run had two unrelated Addressables flakes; both files passed in isolation (27/27).
+
+## 2026-08-21 — Server tests enforced in pull-request CI
+
+- Updated `CI Build Check` so the server job runs `npm test` after `npm ci`; PR previews now wait for both the web build and the complete Node test suite.
+- Replaced the Addressables concurrent-upload test's timer/large-ZIP race with a deterministic post-lock barrier so the new CI gate does not fail based on runner scheduling.
+- Switched the CORS HEAD assertion from pooled `fetch` to a one-shot native HTTP request, eliminating intermittent `ECONNRESET` failures under the complete parallel test run.
+- Verification: full server suite passed 203/203 in five consecutive runs after stabilization; affected Addressables files also passed 10 consecutive isolated runs.
+
+## 2026-08-21 — Route loading and error fallback
+
+- Added a branded root route error page for failed lazy chunks and other route errors, with Korean/English copy, hard-refresh recovery, and a home escape path.
+- Added an initial route hydration/loading fallback, removing React Router's missing `HydrateFallback` warning while lazy page modules load.
+- Verification: `cd web && npm.cmd run build` and `git diff --check` passed.
