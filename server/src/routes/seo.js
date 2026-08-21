@@ -448,9 +448,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     });
   }
 
+  // Game.visibility is an Arcade-listing flag, not an access-control boundary.
   async function renderGameArticles(req, res, next, locale) {
     const game = await gameModel.findOne({ slug: req.params.gameSlug }).select('_id name slug description thumbnailUrl visibility').lean();
-    if (!game || game.visibility !== 'public') return next();
+    if (!game) return next();
     const articles = await gameArticleModel.find({ gameId: game._id, published: true }).sort({ publishedAt: -1, createdAt: -1 }).populate('author', 'name').select('-content').lean();
     const policy = await getPolicy(locale);
     const gameTranslation = await findTranslation('Game', game._id, locale);
@@ -472,7 +473,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       req, res, next, locale, policy, path, dynamic: true, translation: listTranslation, listReady,
       title: `${effectiveGame.name} · ${c.gameArticlesTitle} — ${SITE_NAME}`, description: effectiveGame.description || c.gameArticlesDescription,
       image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
-      jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: `${effectiveGame.name} · ${c.gameArticlesTitle}`, description: effectiveGame.description || c.gameArticlesDescription, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
+      robots: game.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+      jsonLd: game.visibility === 'public'
+        ? { '@context': 'https://schema.org', '@type': 'CollectionPage', name: `${effectiveGame.name} · ${c.gameArticlesTitle}`, description: effectiveGame.description || c.gameArticlesDescription, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } }
+        : undefined,
       bootstrap: { route: '/play/:gameSlug/articles', data: { game: toPublicGame(effectiveGame), articles: effectiveArticles.map(toPublicGameArticleSummary) } },
       preview: {
         layout: 'game-articles',
@@ -499,7 +503,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
 
   async function renderGameArticle(req, res, next, locale) {
     const game = await gameModel.findOne({ slug: req.params.gameSlug }).select('_id name slug description thumbnailUrl visibility').lean();
-    if (!game || game.visibility !== 'public') return next();
+    if (!game) return next();
     const article = await gameArticleModel.findOne({ gameId: game._id, slug: req.params.articleSlug, published: true })
       .populate('author', 'name')
       .populate('comments.authorId', 'name')
@@ -518,7 +522,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       req, res, next, locale, policy, path, dynamic: true, translation,
       title: `${effectiveArticle.title} · ${effectiveGame.name} — ${SITE_NAME}`, description: effectiveArticle.summary || effectiveGame.description || c.gameArticlesDescription,
       image: publicImageUrl(effectiveArticle.coverImageUrl || effectiveGame.thumbnailUrl, siteOrigin), type: 'article',
-      jsonLd: { '@context': 'https://schema.org', '@type': 'Article', headline: effectiveArticle.title, description: effectiveArticle.summary || undefined, datePublished: article.publishedAt || article.createdAt, dateModified: article.updatedAt || article.publishedAt || article.createdAt, author: { '@type': 'Person', name: article.author?.name || 'BCSDLab.' }, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } },
+      robots: game.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+      jsonLd: game.visibility === 'public'
+        ? { '@context': 'https://schema.org', '@type': 'Article', headline: effectiveArticle.title, description: effectiveArticle.summary || undefined, datePublished: article.publishedAt || article.createdAt, dateModified: article.updatedAt || article.publishedAt || article.createdAt, author: { '@type': 'Person', name: article.author?.name || 'BCSDLab.' }, isPartOf: { '@type': 'VideoGame', name: effectiveGame.name } }
+        : undefined,
       bootstrap: { route: '/play/:gameSlug/articles/:articleSlug', data: { article: toPublicGameArticle(effectiveArticle), game: toPublicGame(effectiveGame) } },
       preview: {
         layout: 'article',
@@ -546,7 +553,7 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
       .populate('ownerId', 'name')
       .select('_id name slug description longDescription thumbnailUrl visibility ownerId reviewInfo serverBackend')
       .lean();
-    if (!game || game.visibility !== 'public') return next();
+    if (!game) return next();
     const buildQuery = req.params.buildId ? { _id: req.params.buildId, gameId: game._id } : { gameId: game._id, isActive: true };
     const build = await buildModel.findOne(buildQuery).lean();
     if (!build) return next();
@@ -565,7 +572,10 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     return render({
       req, res, next, locale, policy, path, dynamic: true, translation: gameTranslation,
       title: `${effectiveGame.name} — ${SITE_NAME}`, description: effectiveGame.description || c.gamePlayDescription(effectiveGame.name), image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin),
-      jsonLd: { '@context': 'https://schema.org', '@type': 'VideoGame', name: effectiveGame.name, description: effectiveGame.description || undefined, image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin), gamePlatform: 'Web browser', applicationCategory: 'Game', author: effectiveGame.developerName ? { '@type': 'Person', name: effectiveGame.developerName } : undefined, version: build.version || undefined, contentRating: review.ratingLabel || undefined, keywords: review.descriptorLabels.length ? review.descriptorLabels.join(', ') : undefined, additionalProperty: review.additionalProperty.length ? review.additionalProperty : undefined },
+      robots: game.visibility === 'public' ? 'index,follow' : 'noindex,follow',
+      jsonLd: game.visibility === 'public'
+        ? { '@context': 'https://schema.org', '@type': 'VideoGame', name: effectiveGame.name, description: effectiveGame.description || undefined, image: publicImageUrl(effectiveGame.thumbnailUrl, siteOrigin), gamePlatform: 'Web browser', applicationCategory: 'Game', author: effectiveGame.developerName ? { '@type': 'Person', name: effectiveGame.developerName } : undefined, version: build.version || undefined, contentRating: review.ratingLabel || undefined, keywords: review.descriptorLabels.length ? review.descriptorLabels.join(', ') : undefined, additionalProperty: review.additionalProperty.length ? review.additionalProperty : undefined }
+        : undefined,
       bootstrap: { route: req.params.buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug', data: playData },
       preview: {
         layout: 'play',

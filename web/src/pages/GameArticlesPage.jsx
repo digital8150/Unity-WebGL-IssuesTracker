@@ -37,7 +37,8 @@ export default function GameArticlesPage() {
     { hreflang: 'en', href: `${window.location.origin}${withLocale(sourcePath, 'en')}` },
     { hreflang: 'x-default', href: `${window.location.origin}${withLocale(sourcePath, 'ko')}` },
   ] : null;
-  const articleListJsonLd = game ? {
+  const isListedGame = game?.visibility === 'public';
+  const articleListJsonLd = game && isListedGame ? {
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: `${game.name} — ${t.gameArticles.publicTitle}`,
@@ -67,10 +68,10 @@ export default function GameArticlesPage() {
     image: game?.thumbnailUrl ? assetUrl(game.thumbnailUrl) : undefined,
     url: metaCanonicalUrl,
     type: 'website',
-    robots: lang === 'en' && (!translation || translation.noindex)
+    robots: !isListedGame || (lang === 'en' && (!translation || translation.noindex))
       ? 'noindex,follow'
       : (game && !notFound && articles.length > 0 ? 'index,follow' : 'noindex,follow'),
-    alternates: alternateLinks,
+    alternates: isListedGame ? alternateLinks : null,
     jsonLd: articleListJsonLd,
   });
 
