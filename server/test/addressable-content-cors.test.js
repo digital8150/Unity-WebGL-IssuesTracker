@@ -29,6 +29,17 @@ async function close(server) {
   await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
 
+async function headRequest(url, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = http.request(url, { method: 'HEAD', headers, agent: false }, (response) => {
+      response.resume();
+      response.once('end', () => resolve(response));
+    });
+    request.once('error', reject);
+    request.end();
+  });
+}
+
 let allowedOrigins = [];
 
 const originalFindById = Game.findById;
@@ -106,13 +117,12 @@ test('a stored default port matches the canonical Origin header and gets ACAO + 
 
 test('HEAD reaches the content-specific CORS policy even with platform CORS mounted first', async () => {
   allowedOrigins = ['http://localhost:5173'];
-  const response = await fetch(`${baseUrl(server)}/content/${GAME_ID}/live/catalog.json`, {
-    method: 'HEAD',
-    headers: { Origin: 'http://localhost:5173' },
-  });
-  assert.equal(response.status, 200);
-  assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5173');
-  assert.equal(await response.text(), '');
+  const response = await headRequest(
+    `${baseUrl(server)}/content/${GAME_ID}/live/catalog.json`,
+    { Origin: 'http://localhost:5173' },
+  );
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:5173');
 });
 
 test('an OPTIONS preflight from an allowed origin gets 204 with methods/headers/max-age', async () => {

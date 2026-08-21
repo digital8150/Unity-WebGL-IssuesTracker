@@ -383,20 +383,42 @@ test('a concurrent upload to the same channel returns 409 for the loser', async 
   const channel = 'race-channel';
   seedContentDoc(channel);
 
-  // A large multi-entry archive keeps the extraction loop busy long enough
-  // (many individual fs.mkdir/writeFile/stat awaits) for a second, trivial
-  // upload aimed at the same channel to observe the lock as already held.
-  const manyEntries = Array.from({ length: 1500 }, (_, index) => [`file-${index}.bin`, 'x']);
-  const slowZip = makeZip(manyEntries);
-  const fastZip = makeZip([['fast.txt', 'fast']]);
+  // Pause the first request only after the route has acquired its channel
+  // lock. A timer plus a large archive is scheduler-dependent and made this
+  // test intermittently let both requests finish before they overlapped.
+  const originalFindOne = AddressableContent.findOne;
+  let signalFirstEntered;
+  let releaseFirst;
+  let shouldPause = true;
+  let firstPromise;
+  const firstEntered = new Promise((resolve) => { signalFirstEntered = resolve; });
+  const firstMayContinue = new Promise((resolve) => { releaseFirst = resolve; });
 
-  const slowPromise = uploadContent(contentServer, OWNER_ID, slowZip, { channel });
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  const fastPromise = uploadContent(contentServer, OWNER_ID, fastZip, { channel });
+  AddressableContent.findOne = async (filter) => {
+    const result = await originalFindOne(filter);
+    if (shouldPause && filter.channel === channel) {
+      shouldPause = false;
+      signalFirstEntered();
+      await firstMayContinue;
+    }
+    return result;
+  };
 
-  const [slowResponse, fastResponse] = await Promise.all([slowPromise, fastPromise]);
-  const statuses = [slowResponse.status, fastResponse.status].sort();
-  assert.deepEqual(statuses, [200, 409]);
+  try {
+    firstPromise = uploadContent(contentServer, OWNER_ID, makeZip([['first.txt', 'first']]), { channel });
+    await firstEntered;
+
+    const secondResponse = await uploadContent(contentServer, OWNER_ID, makeZip([['second.txt', 'second']]), { channel });
+    assert.equal(secondResponse.status, 409);
+
+    releaseFirst();
+    const firstResponse = await firstPromise;
+    assert.equal(firstResponse.status, 200);
+  } finally {
+    releaseFirst();
+    await firstPromise?.catch(() => undefined);
+    AddressableContent.findOne = originalFindOne;
+  }
 });
 
 // ── Game deletion removes its Addressables content directory ──────────────
