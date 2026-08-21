@@ -29,7 +29,7 @@ async function close(server) {
   await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
 }
 
-async function headRequest(url, headers = {}) {
+async function headRequestOnce(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const request = http.request(url, { method: 'HEAD', headers, agent: false }, (response) => {
       response.resume();
@@ -38,6 +38,21 @@ async function headRequest(url, headers = {}) {
     request.once('error', reject);
     request.end();
   });
+}
+
+async function headRequest(url, headers = {}) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await headRequestOnce(url, headers);
+    } catch (error) {
+      // Windows and heavily parallel CI runners can reset a just-closed
+      // one-shot HEAD socket even though Express completed the response. Retry
+      // only that transport failure; policy/status assertions still run once
+      // a response is received.
+      if (error?.code !== 'ECONNRESET' || attempt === 3) throw error;
+    }
+  }
+  throw new Error('HEAD request did not complete');
 }
 
 let allowedOrigins = [];
@@ -55,6 +70,7 @@ const app = express();
 // OPTIONS before `contentCors` can apply the per-game origin policy.
 app.use(createPlatformCors({ origin: PLATFORM_CORS_ORIGIN }));
 app.options('/content/:gameId/:channel/*', contentCors);
+app.head('/content/:gameId/:channel/*', contentCors, (_req, res) => res.status(200).end());
 app.get('/content/:gameId/:channel/*', contentCors, (_req, res) => res.status(200).json({ ok: true }));
 app.get('/api/cors-probe', (_req, res) => res.status(200).json({ ok: true }));
 
