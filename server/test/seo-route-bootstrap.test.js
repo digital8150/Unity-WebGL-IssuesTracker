@@ -393,6 +393,8 @@ test('public previews use page-specific layout structures', async () => {
   assert.match(article, /seo-preview-longform/);
   assert.match(article, /seo-preview-article-cover/);
   assert.match(article, /seo-preview-markdown/);
+  assert.match(article, /seo-preview-article-related/);
+  assert.ok(article.indexOf('</article>') < article.indexOf('Related public post'));
 
   const playHtml = await (await getAppResponse('/play/public-game')).text();
   const play = parseVisiblePreview(playHtml);

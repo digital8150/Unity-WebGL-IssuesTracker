@@ -226,24 +226,6 @@ export default function BlogPostPage() {
               path={isGameArticle ? `/play/${gameSlug}/articles/${contentSlug}` : `/blog/${contentSlug}`}
             />
 
-            {relatedPosts.length > 0 && (
-              <section className="bpost-related" aria-labelledby="bpost-related-title">
-                <header className="bpost-related-header">
-                  <h2 id="bpost-related-title">{t.blog.keepReading}</h2>
-                </header>
-                <ArticleCardGrid
-                  posts={relatedPosts}
-                  lang={lang}
-                  labels={t.blog}
-                  linkForPost={(relatedPost) => isGameArticle
-                    ? `/play/${gameSlug}/articles/${relatedPost.slug}`
-                    : `/blog/${relatedPost.slug}`}
-                  className="bpost-related-grid"
-                  titleLevel={3}
-                />
-              </section>
-            )}
-
             {/* ── Comments ── */}
             <section className="bpost-comments">
               <h2 className="bpost-comments-title">
@@ -278,6 +260,24 @@ export default function BlogPostPage() {
 
               <CommentForm onSubmit={handleAddComment} />
             </section>
+
+            {relatedPosts.length > 0 && (
+              <section className="bpost-related" aria-labelledby="bpost-related-title">
+                <header className="bpost-related-header">
+                  <h2 id="bpost-related-title">{t.blog.keepReading}</h2>
+                </header>
+                <ArticleCardGrid
+                  posts={relatedPosts}
+                  lang={lang}
+                  labels={t.blog}
+                  linkForPost={(relatedPost) => isGameArticle
+                    ? `/play/${gameSlug}/articles/${relatedPost.slug}`
+                    : `/blog/${relatedPost.slug}`}
+                  className="bpost-related-grid"
+                  titleLevel={3}
+                />
+              </section>
+            )}
           </article>
         )}
       </main>

@@ -192,3 +192,9 @@ git diff --check
 - Limited play-page SEO related games to one active-build aggregation returning at most three other public games, removing the prior per-game build lookups on that route.
 - Disabled the route loading animation under reduced-motion preferences and normalized SVG `currentcolor` keywords.
 - Verification: `cd server && npm.cmd test` (204/204), focused SEO/translation tests (32/32), `cd web && npm.cmd run build`, server syntax check, and `git diff --check` passed.
+
+## 2026-08-21 ??Blog related articles at page bottom
+
+- Moved the `Keep reading`/`더 읽어보기` cards below comments on client-rendered blog and game-article pages.
+- Moved SEO article related sections outside the longform article to the final content block and added matching spacing/border styling.
+- Added SSR preview order coverage; verification: server tests (204/204), `cd web && npm.cmd run build`, and `git diff --check` passed.
