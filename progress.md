@@ -144,3 +144,10 @@ git diff --check
 - Replaced the unhandled `unload()` call on React unmount with the react-unity-webgl 9.x immediate detach/unload path, guarded by the live Unity instance and awaited before SPA navigation.
 - Track Unity-created Web Audio contexts so fatal or partial initialization failures suspend/close audio immediately; failed, timed-out, or never-instantiated runtimes use a document navigation when leaving as the final cleanup boundary.
 - Added an inline stopped-runtime/reload state and localized session-closing state. Verification: Unity lifecycle helper checks, `cd web && npm run build`, `cd server && npm test` (198/198), native-dialog source audit, and `git diff --check` passed. Browser automation was unavailable; PR-preview retest remains required after deployment.
+
+## 2026-08-21 — Addressables OPTIONS/CORS fix and developer guide
+
+- Fixed production preflights being consumed by the platform-wide `cors` middleware before per-game `contentCors`; global CORS now skips `/content/**` while remaining unchanged for APIs/dashboard traffic.
+- Expanded the Addressables CORS suite to run with the real middleware order and cover API CORS isolation plus HEAD/OPTIONS from allowed external and localhost origins.
+- Added `docs/addressables-dashboard-guide.ko.md`, a blog-ready dashboard-user guide for channel selection, Unity profile setup, ZIP layout, merge updates, external origins, browser verification, and rollback, with eight screenshot placeholders.
+- Verification: `cd server && npm.cmd test` (200/200), `cd web && npm.cmd run build`, server syntax checks, and `git diff --check` passed.

@@ -2,7 +2,6 @@ import 'dotenv/config';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import express from 'express';
-import cors from 'cors';
 import mongoose from 'mongoose';
 import issuesRouter from './routes/issues.js';
 import authRouter from './routes/auth.js';
@@ -19,6 +18,7 @@ import { startTranslationWorker } from './services/translation/worker.js';
 import Translation from './models/Translation.js';
 import SiteSettings from './models/SiteSettings.js';
 import { publicErrorBody } from './services/errorResponse.js';
+import { createPlatformCors } from './middleware/platformCors.js';
 
 const {
   PORT = 4000,
@@ -43,7 +43,11 @@ await fs.mkdir(BLOG_IMAGE_ROOT, { recursive: true });
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(cors({ origin: CORS_ORIGIN }));
+// `/content/**` owns a per-game CORS policy in `contentCors`. The platform-wide
+// middleware must skip it because the `cors` package terminates OPTIONS by
+// default, which would prevent allowed external player origins from reaching
+// the content-specific preflight handler.
+app.use(createPlatformCors({ origin: CORS_ORIGIN }));
 app.use(express.json({
   limit: '2mb',
   verify: (req, _res, buf) => { req.rawBody = buf; },

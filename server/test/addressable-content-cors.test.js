@@ -4,6 +4,7 @@ import http from 'node:http';
 import express from 'express';
 
 import Game from '../src/models/Game.js';
+import { createPlatformCors } from '../src/middleware/platformCors.js';
 import { contentCors, invalidateAllowedOriginsCache } from '../src/routes/gameContent.js';
 
 // Covers the per-game CORS gate that lets an externally-hosted WebGL player
@@ -12,6 +13,7 @@ import { contentCors, invalidateAllowedOriginsCache } from '../src/routes/gameCo
 
 const GAME_ID = '64b7f1c2d4e5f6a7b8c9d0e2';
 const SITE_ORIGIN = (process.env.SITE_ORIGIN || 'https://arcade.codingbot.kr').replace(/\/$/, '');
+const PLATFORM_CORS_ORIGIN = 'http://localhost:5173';
 
 function baseUrl(server) {
   return `http://127.0.0.1:${server.address().port}`;
@@ -37,8 +39,13 @@ Game.findById = (id) => ({
 });
 
 const app = express();
+// Match index.js: the platform-wide middleware is mounted before the content
+// routes. It must explicitly pass `/content/**` through or it will terminate
+// OPTIONS before `contentCors` can apply the per-game origin policy.
+app.use(createPlatformCors({ origin: PLATFORM_CORS_ORIGIN }));
 app.options('/content/:gameId/:channel/*', contentCors);
 app.get('/content/:gameId/:channel/*', contentCors, (_req, res) => res.status(200).json({ ok: true }));
+app.get('/api/cors-probe', (_req, res) => res.status(200).json({ ok: true }));
 
 let server;
 
@@ -57,6 +64,14 @@ test('a same-origin request (no Origin header) is never CORS-gated', async () =>
   const response = await fetch(`${baseUrl(server)}/content/${GAME_ID}/live/catalog.json`);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('access-control-allow-origin'), null);
+});
+
+test('the platform-wide CORS policy still applies outside Addressables content routes', async () => {
+  const response = await fetch(`${baseUrl(server)}/api/cors-probe`, {
+    headers: { Origin: PLATFORM_CORS_ORIGIN },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('access-control-allow-origin'), PLATFORM_CORS_ORIGIN);
 });
 
 test('the platform\'s own SITE_ORIGIN is always allowed, without needing an allowlist entry', async () => {
@@ -87,6 +102,17 @@ test('a stored default port matches the canonical Origin header and gets ACAO + 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('access-control-allow-origin'), 'https://MyDev.GitHub.io');
   assert.equal(response.headers.get('access-control-expose-headers'), 'Content-Length, Content-Range, ETag, Accept-Ranges');
+});
+
+test('HEAD reaches the content-specific CORS policy even with platform CORS mounted first', async () => {
+  allowedOrigins = ['http://localhost:5173'];
+  const response = await fetch(`${baseUrl(server)}/content/${GAME_ID}/live/catalog.json`, {
+    method: 'HEAD',
+    headers: { Origin: 'http://localhost:5173' },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+  assert.equal(await response.text(), '');
 });
 
 test('an OPTIONS preflight from an allowed origin gets 204 with methods/headers/max-age', async () => {
