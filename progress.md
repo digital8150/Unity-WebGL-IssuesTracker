@@ -198,3 +198,14 @@ git diff --check
 - Moved the `Keep reading`/`더 읽어보기` cards below comments on client-rendered blog and game-article pages.
 - Moved SEO article related sections outside the longform article to the final content block and added matching spacing/border styling.
 - Added SSR preview order coverage; verification: server tests (204/204), `cd web && npm.cmd run build`, and `git diff --check` passed.
+
+## 2026-08-21 — Frontend test harness (Vitest)
+
+- The web workspace had zero tests against ~23k lines while CI ran only `vite build`; added Vitest + jsdom + Testing Library and wired `npm test` into the web CI job.
+- Extracted the SDK v2 play-token effect out of `PlayPage.jsx` into `web/src/hooks/useArcadePlayToken.js` (verbatim, same dependency array) so the credential lifecycle is testable without mounting the page.
+- Exported the `translations` map from `web/src/i18n.jsx` so ko/en key parity can be asserted.
+- 111 tests across 5 files: `localePath` (24), `api.js` request/upload plumbing (31), `browserMetadata` probe + context-leak guard (19), i18n parity (7), `useArcadePlayToken` (30).
+- Verified by mutation, not just green: 6 seeded defects in the token hook and 2 in `localePath`/`api.js` were all detected. The cleanup identity guard initially survived, so an overlapping-instance test was added to cover it.
+- Locale parity is currently clean — no missing, type-mismatched, or empty keys in either direction; 48 leaves are identical across locales (brand names, icons, punctuation), logged informationally rather than gated.
+- Open: `web/src/components/canvasui/*.tsx` (8 files, ~6.5k lines) still gets no type checking — no `tsconfig.json` and no `typescript` dependency, so esbuild strips types unchecked. Adding `tsc --noEmit` is a separate, cheap follow-up.
+- Verification: `cd web && npm test` (111/111) and `npm run build` passed.

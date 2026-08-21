@@ -25,6 +25,9 @@ jobs:
       - name: 🏗️ Web 빌드 (Vite)
         run: npm run build
 
+      - name: 🧪 Web 테스트 (Vitest)
+        run: npm test
+
   build-check-server:
     runs-on: ubuntu-latest
     defaults:
