@@ -470,7 +470,7 @@ function renderPreviewPlay(preview, itemLimit, locale) {
   const sections = renderPreviewSections(preview.sections, itemLimit, locale);
   const body = renderPreviewMarkdown(preview.content ?? preview.body);
   const reviewMarkup = renderPreviewReview(preview.review);
-  const relatedMarkup = preview.related ? `<section class="seo-preview-info-card"><p class="seo-preview-eyebrow">${escapeHtml(preview.related.heading || '')}</p>${renderPreviewItems(preview.related.items, itemLimit, { kind: 'article', locale })}</section>` : '';
+  const relatedMarkup = preview.related ? `<section class="seo-preview-info-card"><p class="seo-preview-eyebrow">${escapeHtml(preview.related.heading || '')}</p>${renderPreviewItems(preview.related.items, itemLimit, { kind: preview.related.kind || 'article', locale })}</section>` : '';
   const railMarkup = `${renderPreviewGameInfo(player)}${reviewMarkup}${relatedMarkup}`;
   const contentMeta = [player.developer, player.version].map((value) => markdownToPlainText(value)).filter(Boolean);
   const descriptionHeading = player.descriptionLabel || 'DESCRIPTION';

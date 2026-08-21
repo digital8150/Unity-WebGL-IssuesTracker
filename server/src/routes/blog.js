@@ -12,6 +12,7 @@ import SiteSettings from '../models/SiteSettings.js';
 import { loadTranslations, mergeTranslation, publicTranslation, publicTranslationMeta, translationPublishEnabled } from '../services/localeContent.js';
 import { enqueue } from '../services/translation/queue.js';
 import { isAdminUser, sameId, serializeComment } from '../services/comments.js';
+import { toPublicBlogSummary } from '../services/publicData.js';
 
 const router = express.Router();
 const BLOG_IMAGE_ROOT = path.resolve('storage', 'blog-images');
@@ -104,9 +105,21 @@ router.get('/:slug', async (req, res, next) => {
       .lean();
     if (!post) return res.status(404).json({ error: 'Post not found' });
     const serializedPost = serializeBlogPost(post);
+    const relatedCandidates = await BlogPost.find({ published: true, _id: { $ne: post._id } })
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .limit(3)
+      .populate('author', 'name')
+      .select('-content')
+      .lean();
+    const relatedPosts = relatedCandidates.map(serializeBlogPost);
     const publishEnabled = await translationPublishEnabled(req.query.locale, SiteSettings);
-    const row = (await loadTranslations('BlogPost', [serializedPost._id], req.query.locale, Translation)).get(String(serializedPost._id));
-    res.json({ post: mergeTranslation(serializedPost, publicTranslation(row, req.query.locale, publishEnabled), 'BlogPost'), translation: publicTranslationMeta(row, req.query.locale, publishEnabled) });
+    const rows = await loadTranslations('BlogPost', [serializedPost._id, ...relatedPosts.map((relatedPost) => relatedPost._id)], req.query.locale, Translation);
+    const row = rows.get(String(serializedPost._id));
+    res.json({
+      post: mergeTranslation(serializedPost, publicTranslation(row, req.query.locale, publishEnabled), 'BlogPost'),
+      relatedPosts: relatedPosts.map((relatedPost) => toPublicBlogSummary(mergeTranslation(relatedPost, publicTranslation(rows.get(String(relatedPost._id)), req.query.locale, publishEnabled), 'BlogPost'))),
+      translation: publicTranslationMeta(row, req.query.locale, publishEnabled),
+    });
   } catch (err) {
     next(err);
   }

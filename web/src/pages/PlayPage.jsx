@@ -69,16 +69,19 @@ export default function PlayPage() {
   const bootstrap = readSsrData(buildId ? '/play/:gameSlug/:buildId' : '/play/:gameSlug');
   const initialBuildInfo = toBuildInfo(bootstrap);
   const initialArticles = Array.isArray(bootstrap?.articles) ? bootstrap.articles : [];
+  const initialRelatedGames = Array.isArray(bootstrap?.relatedGames) ? bootstrap.relatedGames : [];
   const hasBootstrap = Boolean(initialBuildInfo);
+  const hasRelatedGamesBootstrap = Array.isArray(bootstrap?.relatedGames);
   const [buildInfo, setBuildInfo] = useState(initialBuildInfo);
   const [translation, setTranslation] = useState(bootstrap?.translation ?? null);
   const [loadError, setLoadError] = useState('');
   const [articles, setArticles] = useState(initialArticles);
   const [articlesLoading, setArticlesLoading] = useState(!hasBootstrap);
-  const [relatedGames, setRelatedGames] = useState([]);
+  const [relatedGames, setRelatedGames] = useState(initialRelatedGames);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const bootstrapBuildPendingRef = useRef(hasBootstrap);
   const bootstrapArticlesPendingRef = useRef(hasBootstrap);
+  const bootstrapRelatedGamesPendingRef = useRef(hasRelatedGamesBootstrap);
 
   const sendMessageFn = useRef(null);
   const gameWrapRef = useRef(null);
@@ -212,6 +215,11 @@ export default function PlayPage() {
   }, [gameSlug, buildInfo, lang]);
 
   useEffect(() => {
+    if (bootstrapRelatedGamesPendingRef.current) {
+      bootstrapRelatedGamesPendingRef.current = false;
+      return undefined;
+    }
+
     if (!gameSlug) {
       setRelatedGames([]);
       return undefined;

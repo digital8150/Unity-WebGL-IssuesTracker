@@ -47,6 +47,14 @@ const post = {
   isOwner: true,
 };
 
+const relatedPost = {
+  ...post,
+  _id: 'related-post-id',
+  title: 'Related public post',
+  slug: 'related-public-post',
+  comments: [],
+};
+
 const article = {
   _id: 'article-id',
   gameId: 'game-id',
@@ -64,6 +72,13 @@ const article = {
   comments: [],
   email: 'owner@example.com',
   role: 'admin',
+};
+
+const relatedArticle = {
+  ...article,
+  _id: 'related-article-id',
+  title: 'Related public article',
+  slug: 'related-public-article',
 };
 
 const game = {
@@ -90,6 +105,13 @@ const game = {
   },
 };
 
+const relatedGame = {
+  ...game,
+  _id: 'related-game-id',
+  name: 'Related public game',
+  slug: 'related-public-game',
+};
+
 const build = {
   _id: 'build-id',
   version: '1.0.0',
@@ -109,19 +131,19 @@ const build = {
 function fakeModels(gameRow = game) {
   return {
     BlogPost: {
-      find: () => query([post]),
-      countDocuments: async () => 1,
+      find: () => query([post, relatedPost]),
+      countDocuments: async () => 2,
       findOne: () => query(post),
     },
     GameArticle: {
-      find: () => query([article]),
+      find: () => query([article, relatedArticle]),
       findOne: () => query(article),
     },
     Build: {
       findOne: () => query(build),
     },
     Game: {
-      find: () => query([gameRow]),
+      find: () => query([gameRow, ...(gameRow.visibility === 'public' ? [relatedGame] : [])]),
       findOne: () => query(gameRow),
     },
   };
@@ -175,11 +197,11 @@ const cases = [
   { url: '/arcade', route: '/arcade', keys: ['games'] },
   { url: '/blog', route: '/blog', keys: ['page', 'pages', 'posts', 'total'] },
   { url: '/blog?page=2', route: '/blog', keys: ['page', 'pages', 'posts', 'total'] },
-  { url: '/blog/public-post', route: '/blog/:slug', keys: ['post'] },
-  { url: '/play/public-game', route: '/play/:gameSlug', keys: ['articles', 'build', 'game'] },
-  { url: '/play/public-game/build-id', route: '/play/:gameSlug/:buildId', keys: ['articles', 'build', 'game'] },
+  { url: '/blog/public-post', route: '/blog/:slug', keys: ['post', 'relatedPosts'] },
+  { url: '/play/public-game', route: '/play/:gameSlug', keys: ['articles', 'build', 'game', 'relatedGames'] },
+  { url: '/play/public-game/build-id', route: '/play/:gameSlug/:buildId', keys: ['articles', 'build', 'game', 'relatedGames'] },
   { url: '/play/public-game/articles', route: '/play/:gameSlug/articles', keys: ['articles', 'game'] },
-  { url: '/play/public-game/articles/public-article', route: '/play/:gameSlug/articles/:articleSlug', keys: ['article', 'game'] },
+  { url: '/play/public-game/articles/public-article', route: '/play/:gameSlug/articles/:articleSlug', keys: ['article', 'game', 'relatedArticles'] },
 ];
 
 for (const testCase of cases) {
@@ -305,6 +327,17 @@ test('play preview links recent articles and the game article index', async () =
 
   assert.match(preview, /href="\/play\/public-game\/articles\/public-article"/);
   assert.match(preview, /href="\/play\/public-game\/articles"/);
+  assert.match(preview, /href="\/play\/related-public-game"/);
+});
+
+test('article previews link only to related content from the same scope', async () => {
+  const blogPreview = parseVisiblePreview(await (await getAppResponse('/blog/public-post')).text());
+  const gameArticlePreview = parseVisiblePreview(await (await getAppResponse('/play/public-game/articles/public-article')).text());
+
+  assert.match(blogPreview, /href="\/blog\/related-public-post"/);
+  assert.doesNotMatch(blogPreview, /href="\/play\/public-game\/articles\/related-public-article"/);
+  assert.match(gameArticlePreview, /href="\/play\/public-game\/articles\/related-public-article"/);
+  assert.doesNotMatch(gameArticlePreview, /href="\/blog\/related-public-post"/);
 });
 
 test('public previews use page-specific layout structures', async () => {

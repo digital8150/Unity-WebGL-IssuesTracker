@@ -2,6 +2,7 @@ const ko = {
   homeGamesTitle: '\uac8c\uc784 \ud2b8\ub799\uc5d0\uc11c \ub9cc\ub4e0 \uac8c\uc784',
   homeRecentArticlesTitle: '\ucd5c\uadfc \uc544\ud2f0\ud074',
   gameArticlesAll: '\uac8c\uc784 \uc544\ud2f0\ud074 \ubaa8\ub450 \ubcf4\uae30',
+  relatedArticlesTitle: '\ub354 \uc77d\uc5b4\ubcf4\uae30',
   preview: {
     featuredEyebrow: 'FEATURED',
     updatedEyebrow: 'UPDATED',
@@ -15,6 +16,7 @@ const ko = {
     blogEyebrow: 'BLOG',
     gameArticlesEyebrow: 'GAME ARTICLES',
     devlogEyebrow: 'DEVLOG & PATCH NOTES',
+    continuePlaying: '\uc774\uc5b4\uc11c \ud50c\ub808\uc774',
     searchLabel: '\uac80\uc0c9',
     searchPlaceholder: '\uae00\uc744 \uac80\uc0c9\ud574 \ubcf4\uc138\uc694',
     tagsLabel: '\ud0dc\uadf8',
@@ -66,6 +68,7 @@ const en = {
   homeGamesTitle: 'Games from the Game Track',
   homeRecentArticlesTitle: 'Recent articles',
   gameArticlesAll: 'Browse all game articles',
+  relatedArticlesTitle: 'Keep reading',
   preview: {
     featuredEyebrow: 'FEATURED',
     updatedEyebrow: 'UPDATED',
@@ -79,6 +82,7 @@ const en = {
     blogEyebrow: 'BLOG',
     gameArticlesEyebrow: 'GAME ARTICLES',
     devlogEyebrow: 'DEVLOG & PATCH NOTES',
+    continuePlaying: 'Continue playing',
     searchLabel: 'Search',
     searchPlaceholder: 'Search articles',
     tagsLabel: 'Tags',
