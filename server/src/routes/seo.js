@@ -172,6 +172,44 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     return { games: visibleGames, translation: arcadeTranslation };
   }
 
+  async function loadRelatedArcadeGames(gameId, locale, policy) {
+    const games = await gameModel.aggregate([
+      { $match: { _id: { $ne: gameId }, visibility: 'public' } },
+      { $sort: { updatedAt: -1 } },
+      {
+        $lookup: {
+          from: buildModel.collection?.name || 'builds',
+          let: { gameId: '$_id' },
+          pipeline: [
+            { $match: { $expr: { $and: [{ $eq: ['$gameId', '$$gameId'] }, { $eq: ['$isActive', true] }] } } },
+            { $project: { _id: 0, version: 1 } },
+            { $limit: 1 },
+          ],
+          as: 'activeBuilds',
+        },
+      },
+      { $match: { 'activeBuilds.0': { $exists: true } } },
+      { $limit: 3 },
+      {
+        $project: {
+          name: 1,
+          slug: 1,
+          description: 1,
+          thumbnailUrl: 1,
+          ownerId: 1,
+          updatedAt: 1,
+          latestBuildVersion: { $arrayElemAt: ['$activeBuilds.version', 0] },
+        },
+      },
+    ]);
+    const populatedGames = await gameModel.populate(games, { path: 'ownerId', select: 'name' });
+    const gameTranslations = await loadTranslations('Game', populatedGames.map((candidate) => candidate._id), locale, translationModel || emptyTranslationModel);
+    return populatedGames.map((candidate) => {
+      const translatedGame = mergeTranslation(candidate, publicTranslation(gameTranslations.get(String(candidate._id)), locale, policy.publishEnabled), 'Game');
+      return { ...translatedGame, developerName: candidate.ownerId?.name ?? null };
+    });
+  }
+
   async function loadRecentBlogPosts(locale, policy) {
     const posts = await blogPostModel.find({ published: true })
       .sort({ publishedAt: -1, createdAt: -1 })
@@ -597,14 +635,13 @@ export function seoRouter({ distRoot, siteOrigin, models = {}, translationPolicy
     if (!build) return next();
     const articles = await gameArticleModel.find({ gameId: game._id, published: true }).sort({ publishedAt: -1, createdAt: -1 }).populate('author', 'name').select('-content').limit(3).lean();
     const policy = await getPolicy(locale);
-    const [gameTranslation, articleRows, { games: arcadeGames }] = await Promise.all([
+    const [gameTranslation, articleRows, relatedGames] = await Promise.all([
       findTranslation('Game', game._id, locale),
       loadTranslations('GameArticle', articles.map((article) => article._id), locale, translationModel || emptyTranslationModel),
-      loadPublicArcadeGames(locale, policy),
+      loadRelatedArcadeGames(game._id, locale, policy),
     ]);
     const effectiveGame = mergeTranslation(game, publicTranslation(gameTranslation, locale, policy.publishEnabled), 'Game');
     const effectiveArticles = articles.map((article) => mergeTranslation(article, publicTranslation(articleRows.get(String(article._id)), locale, policy.publishEnabled), 'GameArticle'));
-    const relatedGames = arcadeGames.filter((candidate) => candidate.slug !== game.slug).slice(0, 3);
     const c = copy[locale];
     const path = req.params.buildId ? `/play/${game.slug}/${req.params.buildId}` : `/play/${game.slug}`;
     const review = getGameReviewSeoData(game.reviewInfo, locale);

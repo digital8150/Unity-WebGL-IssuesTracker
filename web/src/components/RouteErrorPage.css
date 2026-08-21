@@ -55,8 +55,8 @@
 .route-error-mark svg {
   width: 28px;
   height: 28px;
-  fill: currentColor;
-  stroke: currentColor;
+  fill: currentcolor;
+  stroke: currentcolor;
   stroke-linecap: round;
   stroke-width: 1.8;
 }
@@ -135,6 +135,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .route-loading-indicator {
-    animation-duration: 1.4s;
+    animation: none;
   }
 }

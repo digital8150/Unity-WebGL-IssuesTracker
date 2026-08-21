@@ -186,3 +186,9 @@ git diff --check
 - Added a branded root route error page for failed lazy chunks and other route errors, with Korean/English copy, hard-refresh recovery, and a home escape path.
 - Added an initial route hydration/loading fallback, removing React Router's missing `HydrateFallback` warning while lazy page modules load.
 - Verification: `cd web && npm.cmd run build` and `git diff --check` passed.
+
+## 2026-08-21 — Review follow-up: bounded related games and reduced motion
+
+- Limited play-page SEO related games to one active-build aggregation returning at most three other public games, removing the prior per-game build lookups on that route.
+- Disabled the route loading animation under reduced-motion preferences and normalized SVG `currentcolor` keywords.
+- Verification: `cd server && npm.cmd test` (204/204), focused SEO/translation tests (32/32), `cd web && npm.cmd run build`, server syntax check, and `git diff --check` passed.

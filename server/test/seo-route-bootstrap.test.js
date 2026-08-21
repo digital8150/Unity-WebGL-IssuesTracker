@@ -140,11 +140,14 @@ function fakeModels(gameRow = game) {
       findOne: () => query(article),
     },
     Build: {
+      collection: { name: 'builds' },
       findOne: () => query(build),
     },
     Game: {
+      aggregate: async () => [{ ...relatedGame, latestBuildVersion: build.version }],
       find: () => query([gameRow, ...(gameRow.visibility === 'public' ? [relatedGame] : [])]),
       findOne: () => query(gameRow),
+      populate: async (rows) => rows,
     },
   };
 }
@@ -328,6 +331,27 @@ test('play preview links recent articles and the game article index', async () =
   assert.match(preview, /href="\/play\/public-game\/articles\/public-article"/);
   assert.match(preview, /href="\/play\/public-game\/articles"/);
   assert.match(preview, /href="\/play\/related-public-game"/);
+});
+
+test('play related games use one bounded active-build aggregation', async () => {
+  const models = fakeModels();
+  let aggregatePipeline;
+  let buildLookupCount = 0;
+  models.Game.aggregate = async (pipeline) => {
+    aggregatePipeline = pipeline;
+    return [{ ...relatedGame, latestBuildVersion: build.version }];
+  };
+  models.Build.findOne = () => {
+    buildLookupCount += 1;
+    return query(build);
+  };
+
+  const response = await getAppResponse('/play/public-game', models);
+  assert.equal(response.status, 200);
+  assert.equal(buildLookupCount, 1, 'only the requested game build should use findOne');
+  assert.deepEqual(aggregatePipeline[0], { $match: { _id: { $ne: game._id }, visibility: 'public' } });
+  assert.ok(aggregatePipeline.some((stage) => stage.$lookup?.pipeline?.some((lookupStage) => lookupStage.$match?.$expr)));
+  assert.deepEqual(aggregatePipeline.find((stage) => stage.$limit), { $limit: 3 });
 });
 
 test('article previews link only to related content from the same scope', async () => {
