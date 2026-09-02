@@ -223,3 +223,6 @@ git diff --check
 - Declared `engines.node: ">=20"` in `web/package.json` so the floor is visible at install time.
 - Node 20 reached end of life in April 2026. Raising the project baseline to 22 (both CI jobs, the Oracle deploy host, and the CLAUDE.md/AGENTS.md guidance) would let these dependencies move forward again — open decision, not taken here.
 - Verification: clean `npm ci`, `npm test` (111/111), and `npm run build` passed locally on Node 24; Node 20 compatibility verified by semver-checking every `engines.node` range in the lockfile.
+## 2026-09-02 — Google Tag Manager
+
+- Added the `GTM-PDM2XFJ6` bootstrap script to the web document head and its noscript iframe immediately after the body opening tag.
