@@ -28,6 +28,7 @@ import { enqueue } from '../services/translation/queue.js';
 import { toPublicSdkV2 } from '../services/publicData.js';
 import {
   acquireAssetReplaceLock,
+  createZipFromDirectory,
   extractAndSwapArchive,
   extractArchive,
   moveFile,
@@ -202,6 +203,17 @@ async function calculateBuildStorageBytes(buildDir, files, { sweepArtifacts = tr
     }
   }
   return total;
+}
+
+export function buildDownloadFilename(game, build) {
+  const gamePart = (game?.slug || game?.name || 'game')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'game';
+  const versionPart = build?.version
+    ? `-${String(build.version).replace(/[^a-zA-Z0-9._-]/g, '_')}`
+    : '';
+  return `${gamePart}${versionPart}-${build?._id || 'build'}.zip`;
 }
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -744,6 +756,38 @@ router.delete(
       await fs.rm(dir, { recursive: true, force: true });
       await build.deleteOne();
       res.json({ ok: true });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+router.get(
+  ['/:gameId/builds/:buildId/download', '/:gameId/builds/:buildId/export'],
+  requireAuth,
+  requireApproved,
+  async (req, res, next) => {
+    try {
+      const game = await Game.findById(req.params.gameId);
+      if (!game || !isAuthorized(game, req.user.sub)) {
+        return res.status(404).json({ error: 'Game not found' });
+      }
+
+      const build = await Build.findOne({ _id: req.params.buildId, gameId: game._id });
+      if (!build) return res.status(404).json({ error: 'Build not found' });
+
+      const dir = path.join(STORAGE_ROOT, String(build._id));
+      await sweepStreamingAssetsSwapArtifacts(dir);
+      const zipBuffer = await createZipFromDirectory(dir);
+      if (!zipBuffer) {
+        return res.status(404).json({ error: 'Build files not found' });
+      }
+
+      const filename = buildDownloadFilename(game, build);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', zipBuffer.length);
+      res.send(zipBuffer);
     } catch (err) {
       next(err);
     }

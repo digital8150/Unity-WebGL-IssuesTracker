@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { withLocale, postIssue, uploadBuild } from './api.js';
+import { withLocale, postIssue, uploadBuild, downloadBuild } from './api.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -366,5 +366,73 @@ describe('uploadMultipart (via uploadBuild)', () => {
 
     // The promise was already rejected, so a resolve handler must never fire.
     expect(thenSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ── Part 4: downloadBuild ───────────────────────────────────────────────
+
+describe('downloadBuild', () => {
+  it('sends Authorization: Bearer <token> when token is stored', async () => {
+    localStorage.setItem('token', 'my-token');
+    const fakeBlob = new Blob(['zipdata'], { type: 'application/zip' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-disposition': 'attachment; filename="game-v1.zip"' }),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await downloadBuild('g1', 'b1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('/api/games/g1/builds/b1/download');
+    expect(init.headers['Authorization']).toBe('Bearer my-token');
+    expect(result.filename).toBe('game-v1.zip');
+    expect(result.blob).toBe(fakeBlob);
+  });
+
+  it('omits Authorization header when no token is stored', async () => {
+    const fakeBlob = new Blob(['zipdata'], { type: 'application/zip' });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({}),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await downloadBuild('g1', 'b2');
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers).not.toHaveProperty('Authorization');
+    expect(result.filename).toBe('build-b2.zip');
+  });
+
+  it('decodes UTF-8 filename in Content-Disposition', async () => {
+    const fakeBlob = new Blob(['zipdata']);
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-disposition': "attachment; filename*=UTF-8''my%20game%20build.zip" }),
+      blob: () => Promise.resolve(fakeBlob),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await downloadBuild('g1', 'b3');
+    expect(result.filename).toBe('my game build.zip');
+  });
+
+  it('rejects with apiError when download response is non-ok', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: () => Promise.resolve({ error: 'Build not found' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(downloadBuild('g1', 'bad-id')).rejects.toMatchObject({
+      message: 'Build not found',
+      status: 404,
+    });
   });
 });

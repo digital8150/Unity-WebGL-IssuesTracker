@@ -3,7 +3,7 @@ import { useParams, useLocation, useBlocker } from 'react-router-dom';
 import { useI18n } from '../i18n.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useGrowl } from '../context/GrowlContext.jsx';
-import { getGame, uploadBuild, replaceStreamingAssets, activateBuild, deleteBuild, deleteGame, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
+import { getGame, uploadBuild, replaceStreamingAssets, activateBuild, deleteBuild, downloadBuild, deleteGame, getGameReports, updateGame, updateIssue, deleteIssue, inviteCollaborator, removeCollaborator, uploadThumbnail, deleteThumbnail } from '../api.js';
 import ServerIntegrationTab from './ServerIntegrationTab.jsx';
 import GameContentTab from './GameContentTab.jsx';
 import AdminBlogPage from './AdminBlogPage.jsx';
@@ -1345,6 +1345,7 @@ export default function GameDetailPage() {
   const [expandedStreamingBuildId, setExpandedStreamingBuildId] = useState(null);
 
   const [deletingBuildId, setDeletingBuildId] = useState(null);
+  const [downloadingBuildId, setDownloadingBuildId] = useState(null);
   const [deletingGame, setDeletingGame] = useState(false);
   const [deleteGameError, setDeleteGameError] = useState('');
 
@@ -1514,6 +1515,26 @@ export default function GameDetailPage() {
   function handleCancelStreamingUpload() {
     streamingUploadControllerRef.current?.abort();
     streamingUploadControllerRef.current = null;
+  }
+
+  async function handleDownloadBuild(buildId) {
+    if (downloadingBuildId) return;
+    setDownloadingBuildId(buildId);
+    try {
+      const { blob, filename } = await downloadBuild(gameId, buildId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      notify(err.message || td.downloadBuildFailure, { type: 'error', title: t.dialog.errorTitle });
+    } finally {
+      setDownloadingBuildId(null);
+    }
   }
 
   async function handleActivate(buildId) {
@@ -1873,6 +1894,14 @@ export default function GameDetailPage() {
                         )}
                       </div>
                       <div className="gd-build-actions">
+                        <button
+                          type="button"
+                          className="btn btn-ghost gd-download-btn"
+                          onClick={() => handleDownloadBuild(b._id)}
+                          disabled={downloadingBuildId === b._id}
+                        >
+                          {downloadingBuildId === b._id ? td.downloadingBuild : td.downloadBuild}
+                        </button>
                         {!b.isActive && (
                           <button className="btn btn-ghost gd-activate-btn" onClick={() => handleActivate(b._id)}>
                             {td.setActive}

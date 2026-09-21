@@ -223,6 +223,23 @@ git diff --check
 - Declared `engines.node: ">=20"` in `web/package.json` so the floor is visible at install time.
 - Node 20 reached end of life in April 2026. Raising the project baseline to 22 (both CI jobs, the Oracle deploy host, and the CLAUDE.md/AGENTS.md guidance) would let these dependencies move forward again — open decision, not taken here.
 - Verification: clean `npm ci`, `npm test` (111/111), and `npm run build` passed locally on Node 24; Node 20 compatibility verified by semver-checking every `engines.node` range in the lockfile.
+## 2026-08-25 — production collaborator update
+
+- Added and post-write verified one approved collaborator on the requested production game using an atomic, duplicate-safe MongoDB update.
 ## 2026-09-02 — Google Tag Manager
 
 - Added the `GTM-PDM2XFJ6` bootstrap script to the web document head and its noscript iframe immediately after the body opening tag.
+
+## 2026-09-03 — production game rating metadata
+
+- Added and post-write verified the requested rating metadata for production game `cyberpunk-punk` using an atomic, current-state-guarded update limited to `Game.reviewInfo`.
+- Verified the result through both the production database and the public play API; no restart or deployment was performed.
+
+## 2026-09-21 — build zip export and download
+
+- Added server-side build archive export (`createZipFromDirectory` in `assetArchive.js` and `GET /api/games/:gameId/builds/:buildId/download` with `/export` alias).
+- Automatically sweeps swap artifacts, preserves posix relative directory structure, excludes hidden files/swap directories, and sets content disposition with descriptive sanitized filenames (`<game-slug>-<version>-<buildId>.zip`).
+- Added client-side `downloadBuild` in `web/src/api.js`, localized download buttons and status in `GameDetailPage` builds list (`ko`/`en`), and styled `.gd-download-btn`.
+- Added server test coverage in `server/test/build-download.test.js` (auth, approval, permission checks, filename generation, and archive content validation) and web test coverage in `web/src/api.test.js`.
+- Fixed local Vitest jsdom `localStorage` stubbing for Node 22+ environments while maintaining Node 20 baseline compatibility.
+- Verification: `server` tests passed (207/207), `web` tests passed (115/115), `web` build passed, and `git diff --check` passed.
