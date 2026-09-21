@@ -249,6 +249,30 @@ export async function deleteBuild(gameId, buildId) {
   return request(`/api/games/${gameId}/builds/${buildId}`, { method: 'DELETE' });
 }
 
+export async function downloadBuild(gameId, buildId, { signal } = {}) {
+  const token = localStorage.getItem('token');
+  const headers = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/games/${gameId}/builds/${buildId}/download`, {
+    headers,
+    signal,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw apiError(body, res.status, `Download failed: ${res.status}`);
+  }
+  const disposition = res.headers.get('content-disposition');
+  let filename = `build-${buildId}.zip`;
+  if (disposition) {
+    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+    if (match && match[1]) {
+      filename = decodeURIComponent(match[1]);
+    }
+  }
+  const blob = await res.blob();
+  return { blob, filename };
+}
+
 // ── Addressables content ──────────────────────────────────────────────────────
 
 export async function getGameContent(gameId) {

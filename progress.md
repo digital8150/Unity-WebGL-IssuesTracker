@@ -234,3 +234,12 @@ git diff --check
 
 - Added and post-write verified the requested rating metadata for production game `cyberpunk-punk` using an atomic, current-state-guarded update limited to `Game.reviewInfo`.
 - Verified the result through both the production database and the public play API; no restart or deployment was performed.
+
+## 2026-09-21 — build zip export and download
+
+- Added server-side build archive export (`createZipFromDirectory` in `assetArchive.js` and `GET /api/games/:gameId/builds/:buildId/download` with `/export` alias).
+- Automatically sweeps swap artifacts, preserves posix relative directory structure, excludes hidden files/swap directories, and sets content disposition with descriptive sanitized filenames (`<game-slug>-<version>-<buildId>.zip`).
+- Added client-side `downloadBuild` in `web/src/api.js`, localized download buttons and status in `GameDetailPage` builds list (`ko`/`en`), and styled `.gd-download-btn`.
+- Added server test coverage in `server/test/build-download.test.js` (auth, approval, permission checks, filename generation, and archive content validation) and web test coverage in `web/src/api.test.js`.
+- Fixed local Vitest jsdom `localStorage` stubbing for Node 22+ environments while maintaining Node 20 baseline compatibility.
+- Verification: `server` tests passed (207/207), `web` tests passed (115/115), `web` build passed, and `git diff --check` passed.

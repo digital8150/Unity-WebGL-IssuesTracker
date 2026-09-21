@@ -345,11 +345,17 @@
   overflow-wrap: anywhere;
 }
 
-.gd-activate-btn {
+.gd-activate-btn,
+.gd-download-btn {
   font-size: 12px;
   height: 32px;
   padding: 0 12px;
   border-radius: var(--radius-sm);
+}
+
+.gd-download-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .gd-delete-btn {

@@ -312,4 +312,40 @@ export async function calculateDirectoryStats(rootDir) {
   return { fileCount: files.length, storageBytes, unhashedBundleCount };
 }
 
+export async function createZipFromDirectory(rootDir, { filterHidden = true } = {}) {
+  const zip = new AdmZip();
+  const files = [];
+
+  async function visit(currentDir, relativeDir = '') {
+    let entries;
+    try {
+      entries = await fs.readdir(currentDir, { withFileTypes: true });
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    entries.sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      if (filterHidden && entry.name.startsWith('.')) continue;
+      const relative = relativeDir ? path.posix.join(relativeDir, entry.name) : entry.name;
+      const filePath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await visit(filePath, relative);
+      } else if (entry.isFile()) {
+        files.push({ filePath, relative });
+      }
+    }
+  }
+
+  await visit(rootDir);
+  if (!files.length) return null;
+
+  for (const file of files) {
+    const content = await fs.readFile(file.filePath);
+    zip.addFile(file.relative, content);
+  }
+
+  return zip.toBufferPromise();
+}
+
 export { isHashedBundle };
